@@ -147,6 +147,15 @@ class GhlClient {
     });
   }
 
+  // Associations are what preserve EspoCRM's relational integrity. They are a
+  // separate call from record creation by necessity: both endpoints must
+  // already exist and carry GHL ids.
+  createRelation({ firstRecordId, secondRecordId, associationId }) {
+    return this.request('POST', '/associations/relations', {
+      body: { locationId: this.cfg.locationId, firstRecordId, secondRecordId, associationId },
+    });
+  }
+
   createRecord(schemaKey, record) {
     return this.request('POST', `/objects/${encodeURIComponent(schemaKey)}/records`, {
       body: { locationId: this.cfg.locationId, ...record },

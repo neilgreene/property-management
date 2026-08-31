@@ -57,7 +57,8 @@ sql/07_ghl_tests.sql         seven-check GHL bridge walkthrough
 web/server.js                demo web tier
 web/public/index.html        demo UI
 worker/src/                  GoHighLevel integration worker
-worker/test/                 31 tests (unit + end-to-end against the database)
+worker/src/migrate/          EspoCRM -> GHL load passes
+worker/test/                 48 tests (unit + end-to-end against the database)
 docs/GHL-Interface-Specification.pdf   the GHL API contract, 17pp
 ```
 
@@ -253,9 +254,68 @@ sees has to go through the web tier's own role, because the worker cannot
 `SET ROLE` into a persona. That separation is the point, so the test respects it
 rather than granting itself a shortcut.
 
+## The EspoCRM migration
+
+GHL has no transactional import, so ordering is the whole game. An association
+can only be created once both endpoints exist and carry GHL ids, and those ids
+only exist after the pass that created them. Hence:
+
+| Pass | Does | Reads |
+|---|---|---|
+| 1 | custom object schemas | — |
+| 2 | association types | — |
+| 3 | people to contacts | source |
+| 4 | properties to object records | source |
+| 5 | links to relations | `ghl.id_map` from 3 and 4 |
+| 6 | deals to opportunities | source |
+| 7 | reconcile counts and spot checks | both |
+
+`ghl.id_map` is written *as the load runs*, not at the end. That is what makes
+pass 5 possible and what makes a crash survivable.
+
+**Every pass is restartable.** Passes 3, 4 and 6 stage work in `ghl.outbox` and
+let the drainer do the talking, so a crash mid-pass loses nothing: re-running
+re-enqueues, the idempotency key collapses the repeat, and the drainer's
+`id_map` check stops an ambiguous create from twinning a record. There is a test
+for each of those three.
+
+**Unresolved links are reported, never dropped.** A link whose endpoints have no
+GHL id is the failure mode that matters, because a missing relation is invisible
+in the destination and looks like clean data.
+
+The field-level mapping is deliberately not written. It needs the live EspoCRM
+schema — entity names, custom field keys, and which of the 30+ SDI metrics are
+genuine inputs rather than derived. `worker/src/migrate/source.js` defines the
+adapter contract and ships a JSON implementation, so rehearsing the load against
+a snapshot is one module away from the real thing. Rehearse against a snapshot
+rather than a live read: a snapshot is repeatable.
+
+## The outbox drain
+
+`worker/src/outbox.js`. GHL accepts no `Idempotency-Key` header, so after a
+timeout "did my write land?" is genuinely ambiguous. Three things together make
+retry safe:
+
+1. Prefer upsert endpoints (`/contacts/upsert`, `/opportunities/upsert`).
+   Replaying one is inert by construction.
+2. For endpoints with no upsert (`/objects/{key}/records`), consult
+   `ghl.id_map` **before** creating. If the local id already has a GHL id, the
+   previous attempt did land, so adopt it rather than create a twin.
+3. Claim rows `FOR UPDATE SKIP LOCKED` so two drainers cannot race a row.
+
+A 403 fails immediately rather than retrying — a missing scope will never
+succeed and retrying only burns rate budget. Retries back off to a one-hour cap
+and then abandon, so nothing loops forever.
+
 ## What this does not cover yet
 
 Deal pipeline and stage history, document storage and the signed-PDF artifact,
 messaging and the unified-inbox thread model, audit trail on band-2 and band-3
 reads, and the co-investment matching engine. The visibility model is the
 foundation those sit on, which is why it went first.
+
+One open item carries risk rather than just absence: **the webhook signature
+algorithm is unverified**. GHL publishes the key but not the algorithm. PKCS#1
+v1.5 with SHA-256 is what the code does and is the conventional pairing for the
+key format, but a single captured live delivery would settle it, and until then
+the receiver should not be trusted in production.
