@@ -416,7 +416,75 @@ A(para("Coordinates degrade rather than disappear. An ungated viewer gets a dete
 
 # ------------------------------------------------------------------ 2
 A(para("2.  How To Run It", H1))
-A(para("2.1  Docker — nothing installed but Docker", H2))
+A(para("2.1  Requirements", H2))
+A(para("Two ways to run this, with different prerequisites. The Docker route needs one thing "
+       "installed; the local route needs three, but gives faster iteration.", BODY))
+
+A(para("Route A — Docker (recommended for a first run)", H2))
+A(table([
+    hdr(["Requirement", "Version", "Notes"]),
+    ["Docker Engine", "20.10 or later", "Any host: Linux, macOS, Windows with WSL2, or a Proxmox VM"],
+    ["Docker Compose", "v2 (the " + mono("docker compose") + " subcommand)", "Not the older standalone " + mono("docker-compose") + " binary; this file uses v2 syntax including profiles"],
+    ["Disk", "about 1.5 GB", "Chiefly the two base images"],
+    ["Memory", "1 GB free", "PostgreSQL and two small Node processes"],
+    ["Network at build time", "outbound HTTPS", "Pulls images from Docker Hub and " + mono("pg") + " from the npm registry. Nothing else is fetched."],
+], [1.35*inch, 1.45*inch, 3.1*inch]))
+A(Spacer(1, 6))
+
+A(para("What is inside the Compose file", H2))
+A(table([
+    hdr(["Service", "Image", "Resolves to", "Purpose", "Port"]),
+    ["db", mono("postgres:16"), "PostgreSQL 16.x — tested on 16.13", "Database; loads every " + mono("sql/") + " file on first start", "5432"],
+    ["web", mono("node:22-alpine"), "Node 22.x — tested on 22.22.2", "The demo interface", "3000"],
+    ["worker", mono("node:22-alpine"), "Node 22.x — tested on 22.22.2", "GoHighLevel integration. Behind the " + mono("worker") + " profile; not started by default", "3001"],
+], [0.62*inch, 1.12*inch, 1.3*inch, 2.11*inch, 0.45*inch]))
+A(Spacer(1, 5))
+A(para("Both tags float within their major version, so a pull next month may bring a newer "
+       "patch release. That is the right default for development — it picks up security "
+       "fixes — but for production pin them to a digest so a rebuild produces the same image "
+       "that was tested. The versions above are what this system has actually been verified "
+       "against.", NOTE))
+A(Spacer(1, 4))
+A(para("Only one runtime dependency is installed at all: " + mono("pg") + " (resolves to "
+       "8.23.x under the declared " + mono("^8.13.1") + "). There is no web framework, no ORM, "
+       "no build step and no bundler. That is deliberate — it keeps the dependency audit "
+       "trivial and removes a class of supply-chain exposure — and it is worth preserving.", GOOD))
+
+A(para("Route B — local install", H2))
+A(table([
+    hdr(["Requirement", "Version", "Why that floor"]),
+    ["PostgreSQL", "16 or later", mono("security_invoker") + " views need 15+; developed and tested on 16. Below 15 a view over an RLS table silently runs as its owner and bypasses the caller's policies, which would defeat the entire model."],
+    ["Node.js", "18 or later", "Uses the built-in test runner and global " + mono("fetch") + ", both stable from 18. Tested on 22."],
+    ["npm", "9 or later", "Ships with Node 18+"],
+    [mono("psql") + " and " + mono("createdb"), "matching the server", mono("run.sh") + " calls them as your own user, which is the default for Postgres.app and Homebrew"],
+], [1.35*inch, 1.15*inch, 3.4*inch]))
+A(Spacer(1, 6))
+
+A(para("Optional — only for rebuilding this document", H2))
+A(table([
+    hdr(["Requirement", "Version", "Used by"]),
+    ["Python", "3.9 or later — tested on 3.11", "Both PDF generators"],
+    [mono("reportlab"), "4.x or later — tested on 5.0.1", mono("pip install reportlab")],
+    [mono("pypdfium2"), "any", "Optional. Only to render pages for visual checking"],
+], [1.35*inch, 2.15*inch, 2.4*inch]))
+A(Spacer(1, 5))
+A(para("Nothing in the running system needs Python. It is only used to regenerate the two "
+       "PDFs in " + mono("docs/") + ".", BODY))
+
+A(para("Network access", H2))
+A(table([
+    hdr(["When", "Needs", "For"]),
+    ["Build", "Outbound HTTPS to Docker Hub and " + mono("registry.npmjs.org"), "Images and the one npm package"],
+    ["Runtime, core system", "None", "The database, demo and tests are entirely self-contained and run air-gapped"],
+    ["Runtime, worker", "Outbound HTTPS to " + mono("services.leadconnectorhq.com"), "The GoHighLevel API"],
+    ["Runtime, webhooks", "Inbound HTTPS on a public address", "Only for receiving GoHighLevel deliveries. Everything else works without it."],
+], [1.5*inch, 2.2*inch, 2.2*inch]))
+A(Spacer(1, 5))
+A(para("The distinction in that last table matters for choosing where to run. The whole "
+       "system minus webhook receipt works with no inbound access at all, which is why a "
+       "Proxmox VM with no port forwarding is a perfectly good staging environment.", GOOD))
+
+A(para("2.2  Docker — nothing installed but Docker", H2))
 A(Preformatted("git clone https://github.com/neilgreene/property-management\n"
                "cd property-management\n"
                "docker compose up", CODE))
@@ -425,13 +493,13 @@ A(para("Builds the database from " + mono("sql/") + ", seeds it, and serves the 
        " (database " + mono("sdi") + ", user " + mono("postgres") + ", password " +
        mono("postgres") + "). " + mono("docker compose down -v") + " discards the database.", BODY))
 
-A(para("2.2  Local PostgreSQL 16+ and Node 18+", H2))
+A(para("2.3  Local PostgreSQL 16+ and Node 18+", H2))
 A(Preformatted("./run.sh", CODE))
 A(para("Loads all eleven schema files, runs all four SQL walkthroughs, runs the 63 worker "
        "tests, then starts the demo. It assumes " + mono("psql") + " and " + mono("createdb") +
        " work as your own user, which is the default for Postgres.app and Homebrew.", BODY))
 
-A(para("2.3  Individual pieces", H2))
+A(para("2.4  Individual pieces", H2))
 A(table([
     hdr(["Command", "What it does"]),
     [mono("psql -d sdi -f sql/05_tests.sql"), "Security walkthrough: 11 checks, 5 of them attacks"],
@@ -441,7 +509,7 @@ A(table([
     [mono("cd worker &amp;&amp; npm test"), "63 unit and end-to-end tests"],
 ], [2.6*inch, 3.3*inch]))
 
-A(para("2.4  The integration worker", H2))
+A(para("2.5  The integration worker", H2))
 A(para("Deliberately not started by a bare " + mono("docker compose up") + ", because it needs "
        "real GoHighLevel credentials and there is no point running it without them.", BODY))
 A(Preformatted("GHL_TOKEN=... GHL_LOCATION_ID=... docker compose --profile worker up", CODE))

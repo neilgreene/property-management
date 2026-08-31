@@ -4,6 +4,56 @@ A working model of the three-band visibility problem: one property row, three
 audiences, and a `$750` gate that has to hold even when the caller writes their
 own SQL. Built on PostgreSQL 16, verified end to end.
 
+## Requirements
+
+**Route A — Docker.** One thing installed.
+
+| Requirement | Version | Notes |
+|---|---|---|
+| Docker Engine | 20.10+ | Linux, macOS, Windows/WSL2, or a VM |
+| Docker Compose | v2 (`docker compose`) | Not the standalone `docker-compose` binary — this file uses v2 profiles |
+| Disk | ~1.5 GB | Chiefly the two base images |
+| Memory | 1 GB free | Postgres plus two small Node processes |
+
+What the Compose file actually runs:
+
+| Service | Image | Resolves to | Port |
+|---|---|---|---|
+| `db` | `postgres:16` | PostgreSQL 16.x — tested on **16.13** | 5432 |
+| `web` | `node:22-alpine` | Node 22.x — tested on **22.22.2** | 3000 |
+| `worker` | `node:22-alpine` | Node 22.x — tested on **22.22.2** | 3001 |
+
+Both tags float within their major version, so a pull next month may bring a
+newer patch. That is the right default here — it picks up security fixes — but
+pin to a digest for production so a rebuild produces the image that was tested.
+
+**Route B — local install.**
+
+| Requirement | Version | Why that floor |
+|---|---|---|
+| PostgreSQL | 16+ | `security_invoker` views need 15+. Below 15, a view over an RLS table silently runs as its *owner* and bypasses the caller's policies — which defeats the entire model |
+| Node.js | 18+ | Built-in test runner and global `fetch`. Tested on 22 |
+| npm | 9+ | Ships with Node 18+ |
+
+**Optional, only to rebuild the PDFs in `docs/`:** Python 3.9+ (tested 3.11) and
+`reportlab` 4+ (tested 5.0.1). Nothing in the running system needs Python.
+
+**One runtime dependency**: `pg` (8.23.x under the declared `^8.13.1`). No web
+framework, no ORM, no build step, no bundler. Worth preserving — it keeps the
+dependency audit trivial.
+
+### Network
+
+| When | Needs |
+|---|---|
+| Build | Outbound HTTPS to Docker Hub and `registry.npmjs.org` |
+| Runtime, core | **None.** Database, demo and tests run air-gapped |
+| Runtime, worker | Outbound HTTPS to `services.leadconnectorhq.com` |
+| Runtime, webhooks | Inbound HTTPS on a public address — *only* for receiving GHL deliveries |
+
+Everything except webhook receipt works with no inbound access at all, which is
+why a VM with no port forwarding is a perfectly good staging environment.
+
 ## Run it
 
 ### Docker — nothing installed but Docker
