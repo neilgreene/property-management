@@ -39,6 +39,9 @@ const PERSONAS = {
   dan:    { label: 'Dan Beitor',     role: 'sdi_admin',
             actor: '66666666-6666-6666-6666-666666666666',
             note: 'Internal staff' },
+  jessica:{ label: 'Jessica Pool',   role: 'sdi_admin',
+            actor: '77777777-7777-7777-7777-777777777777',
+            note: 'Internal staff — admin' },
 };
 
 // This string is a constant. It is the argument the demo is making:
