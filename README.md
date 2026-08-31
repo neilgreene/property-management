@@ -55,6 +55,8 @@ sql/05_tests.sql             eleven-check security walkthrough
 sql/06_ghl_integration.sql   GoHighLevel bridge (ghl schema)
 sql/07_ghl_tests.sql         seven-check GHL bridge walkthrough
 sql/08_review_queue.sql      inbound CRM edits awaiting a human
+sql/09_review_actions.sql    deciding them: admin-only, allowlisted
+sql/10_review_tests.sql      seven-check review action walkthrough
 web/server.js                demo web tier
 web/public/index.html        demo UI
 worker/src/                  GoHighLevel integration worker
@@ -297,6 +299,28 @@ source.
 
 The nightly external status check (Zillow/MLS) lands in the same queue for the
 same reason: a scraped "Pending" is evidence, not fact.
+
+### Accepting a CRM edit applies an allowlist, never the payload
+
+`api.review_decide()` is how a human answers a queued item, and two things
+constrain it.
+
+Only an admin decides. That decision is what lets a CRM edit reach the
+authoritative row, so it is exactly as privileged as editing `core.property`
+directly. It is checked against `sec.actor()`, not against a caller-supplied id.
+
+Accepting writes only the columns in `ghl.reviewable_field` — currently
+`status`, `list_price`, `gross_rent_annual`, `opex_annual`, `hoa_annual`. The
+CRM payload is external input; letting it name its own target columns would mean
+a status change was a route to rewriting `street_address` or `acquisition_cost`,
+which is band 2 and band 3 data. Test 4 in `sql/10_review_tests.sql` sends
+exactly that payload — a legitimate status change with an address and a cost
+basis smuggled alongside — and asserts that only the allowlisted two move.
+
+Note the non-admin cases pass a literal item id rather than a subquery. Reading
+`ghl.review_queue` in a subquery fails on the schema grant *before* reaching
+`review_decide`, so the test would have gone green while proving nothing about
+the function's own check.
 
 `ux_review_open_object` allows one *open* item per object, so a property edited
 five times in the CRM is one decision for a human rather than five — but any

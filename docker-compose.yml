@@ -12,6 +12,7 @@ services:
       - ./sql/04_seed.sql:/docker-entrypoint-initdb.d/04.sql:ro
       - ./sql/06_ghl_integration.sql:/docker-entrypoint-initdb.d/06.sql:ro
       - ./sql/08_review_queue.sql:/docker-entrypoint-initdb.d/08.sql:ro
+      - ./sql/09_review_actions.sql:/docker-entrypoint-initdb.d/09.sql:ro
     healthcheck:
       test: ["CMD-SHELL","pg_isready -U postgres -d sdi"]
       interval: 3s
