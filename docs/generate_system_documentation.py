@@ -11,8 +11,9 @@ from reportlab.lib.enums import TA_CENTER
 from reportlab.lib.pagesizes import LETTER
 from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
 from reportlab.lib.units import inch
-from reportlab.platypus import (BaseDocTemplate, Frame, PageBreak, PageTemplate,
+from reportlab.platypus import (BaseDocTemplate, Flowable, Frame, PageBreak, PageTemplate,
                                 Paragraph, Preformatted, Spacer, Table, TableStyle)
+from reportlab.platypus.tableofcontents import TableOfContents
 
 OUT = "docs/System-Documentation.pdf"
 
@@ -37,7 +38,84 @@ NOTE  = S("note", parent=BODY, leftIndent=9, textColor=WARN, fontName="Helvetica
 GOOD  = S("good", fontName="Helvetica", fontSize=9, leading=12.8, textColor=INK, backColor=OKBG,
           borderPadding=7, borderColor=OK, borderWidth=0.7, spaceAfter=9, spaceBefore=3)
 CT    = S("ct", fontName="Helvetica-Bold", fontSize=25, leading=30, textColor=INK, alignment=TA_CENTER, spaceAfter=10)
+BLANK = S("blank", fontName="Helvetica", fontSize=8.5, leading=12, textColor=MUTED, alignment=TA_CENTER)
+TOC1  = S("toc1", fontName="Helvetica-Bold", fontSize=9.5, leading=14, textColor=INK,
+          spaceBefore=5, leftIndent=0, firstLineIndent=0)
+TOC2  = S("toc2", fontName="Helvetica", fontSize=8.5, leading=12, textColor=MUTED,
+          leftIndent=18, firstLineIndent=0)
 CS    = S("cs", fontName="Helvetica", fontSize=12.5, leading=17, textColor=MUTED, alignment=TA_CENTER, spaceAfter=5)
+
+class CoverMark(Flowable):
+    """A drawn cover illustration, not a stock photograph.
+
+    Building silhouettes whose heights double as a bar chart, with a return
+    curve rising across them: the two things this system actually joins, a
+    portfolio of individual properties and the analysis applied to it. Drawn
+    in the document's own palette so the cover belongs to the document, and
+    original so there is no licence attached to it.
+    """
+    def __init__(self, width, height):
+        Flowable.__init__(self)
+        self.width, self.height = width, height
+
+    def draw(self):
+        c = self.canv
+        w, h = self.width, self.height
+        base = h * 0.14                      # ground line
+        # Heights are the series; the curve below tracks the same numbers.
+        series = [0.34, 0.46, 0.40, 0.58, 0.52, 0.72, 0.66, 0.86]
+        n = len(series)
+        gap = w * 0.018
+        bw = (w - gap * (n - 1)) / n
+
+        c.saveState()
+
+        # ground
+        c.setStrokeColor(RULE); c.setLineWidth(0.8)
+        c.line(0, base, w, base)
+
+        pts = []
+        for i, v in enumerate(series):
+            x = i * (bw + gap)
+            bh = (h - base) * v
+            top = base + bh
+            # Alternate fill so the row reads as distinct holdings rather
+            # than one mass.
+            c.setFillColor(colors.HexColor("#E8EDF3") if i % 2 else colors.HexColor("#DDE4EC"))
+            c.setStrokeColor(colors.HexColor("#C6CFDA")); c.setLineWidth(0.6)
+            c.rect(x, base, bw, bh, stroke=1, fill=1)
+
+            # windows: a light grid, denser on the taller holdings
+            c.setFillColor(colors.white)
+            rows = max(2, int(bh / (h * 0.085)))
+            cols = 3
+            mw, mh = bw * 0.16, h * 0.028
+            padx = (bw - cols * mw) / (cols + 1)
+            pady = (bh - rows * mh) / (rows + 1)
+            if pady > 0:
+                for r in range(rows):
+                    for cc in range(cols):
+                        c.rect(x + padx * (cc + 1) + mw * cc,
+                               base + pady * (r + 1) + mh * r,
+                               mw, mh, stroke=0, fill=1)
+            pts.append((x + bw / 2.0, top))
+
+        # the return curve over the same series
+        c.setStrokeColor(ACCENT); c.setLineWidth(1.5)
+        path = c.beginPath()
+        path.moveTo(pts[0][0], pts[0][1] + h * 0.07)
+        for px, py in pts[1:]:
+            path.lineTo(px, py + h * 0.07)
+        c.drawPath(path, stroke=1, fill=0)
+
+        for px, py in pts:
+            c.setFillColor(colors.white)
+            c.circle(px, py + h * 0.07, 2.6, stroke=0, fill=1)
+            c.setStrokeColor(ACCENT); c.setLineWidth(1.2)
+            c.circle(px, py + h * 0.07, 2.6, stroke=1, fill=0)
+
+        c.restoreState()
+
 
 def para(t, s=BODY): return Paragraph(t, s)
 def mono(t): return f"<font face='Courier'>{t}</font>"
@@ -59,11 +137,14 @@ def table(rows, widths, header=True, zebra=True):
     t.setStyle(TableStyle(cmds)); return t
 
 def decorate(canvas, doc):
+    # Pages 1 and 2 are the cover and the intentional blank. Running heads and
+    # folios start on the contents page, which is the first page a reader
+    # navigates by.
     canvas.saveState(); w, h = LETTER
-    if doc.page > 1:
+    if doc.page > 2:
         canvas.setFont("Helvetica", 7.5); canvas.setFillColor(MUTED)
-        canvas.drawString(0.9*inch, h-0.62*inch, "System Documentation")
-        canvas.drawRightString(w-0.9*inch, h-0.62*inch, "SDI Investment Property Marketplace")
+        canvas.drawString(0.9*inch, h-0.62*inch, "SDI Investment Property Marketplace")
+        canvas.drawRightString(w-0.9*inch, h-0.62*inch, "System Documentation")
         canvas.setStrokeColor(RULE); canvas.setLineWidth(0.5)
         canvas.line(0.9*inch, h-0.72*inch, w-0.9*inch, h-0.72*inch)
         canvas.line(0.9*inch, 0.72*inch, w-0.9*inch, 0.72*inch)
@@ -73,9 +154,30 @@ def decorate(canvas, doc):
         canvas.drawRightString(w-0.9*inch, 0.55*inch, "Internal engineering document")
     canvas.restoreState()
 
-doc = BaseDocTemplate(OUT, pagesize=LETTER, leftMargin=0.9*inch, rightMargin=0.9*inch,
+class Doc(BaseDocTemplate):
+    """Reports its own headings to the TOC as they are laid out.
+
+    Page numbers therefore come from where a heading actually landed, not
+    from a hand-maintained list -- which is the only way a contents page
+    survives the document being edited.
+    """
+    def afterFlowable(self, flowable):
+        if not isinstance(flowable, Paragraph):
+            return
+        name = flowable.style.name
+        text = flowable.getPlainText()
+        if text.strip() == "Contents":
+            return                      # the contents page does not list itself
+        if name == "h1":
+            self.notify("TOCEntry", (0, text, self.page))
+        elif name == "h2":
+            self.notify("TOCEntry", (1, text, self.page))
+
+
+doc = Doc(OUT, pagesize=LETTER, leftMargin=0.9*inch, rightMargin=0.9*inch,
                       topMargin=0.92*inch, bottomMargin=0.92*inch,
-                      title="System Documentation", author="SDI Investment Property Marketplace",
+                      title="SDI Investment Property Marketplace — System Documentation",
+                      author="SDI Investment Property Marketplace",
                       subject="What has been built: architecture, API, users and how to run it")
 doc.addPageTemplates([PageTemplate(id="m", onPage=decorate,
     frames=[Frame(doc.leftMargin, doc.bottomMargin, doc.width, doc.height, id="f")])])
@@ -83,9 +185,12 @@ doc.addPageTemplates([PageTemplate(id="m", onPage=decorate,
 E=[]; A=E.append
 
 # ------------------------------------------------------------------ cover
-A(Spacer(1, 1.35*inch))
-A(para("System Documentation", CT))
-A(para("SDI Investment Property Marketplace", CS))
+A(Spacer(1, 0.95*inch))
+A(CoverMark(5.9*inch, 1.85*inch))
+A(Spacer(1, 0.42*inch))
+A(para("SDI Investment Property Marketplace", CT))
+A(Spacer(1, 0.04*inch))
+A(para("System Documentation", CS))
 A(para("What has been built, how to run it, and who can see what", CS))
 A(Spacer(1, 0.28*inch))
 A(table([
@@ -103,13 +208,27 @@ A(para("Every fact in this document was extracted from the repository and from a
        "<font face='Courier'>python3 docs/generate_system_documentation.py</font>.", CAP))
 A(PageBreak())
 
+# ------------------------------------------------------------- page 2, blank
+A(Spacer(1, 4.4*inch))
+A(para("This page intentionally left blank.", BLANK))
+A(PageBreak())
+
+# ---------------------------------------------------------- page 3, contents
+A(para("Contents", H1))
+A(Spacer(1, 6))
+toc = TableOfContents()
+toc.levelStyles = [TOC1, TOC2]
+toc.dotsMinLevel = 0
+A(toc)
+A(PageBreak())
+
 # ------------------------------------------------------------------ 1
 A(para("1.  What This Is", H1))
 A(para("A working system for a private investment property marketplace: vetted properties "
        "listed with financial analysis, browsable without revealing addresses, with the full "
        "detail unlocked only after an investor signs and pays the platform fee agreement. "
        "Agents see only their own assignments. Staff see everything.", BODY))
-A(para("The problem it solves first", H2))
+A(para("1.1  The problem it solves first", H2))
 A(para("The commercial model depends on one thing holding: an unpaid visitor must not be able "
        "to obtain a property's street address. Everything else is ordinary software; that is "
        "not. So the visibility rules are enforced <b>inside the database</b>, by row-level "
@@ -119,7 +238,7 @@ A(para("This matters because it changes what an attacker has to defeat. If the r
        "connection gets the address. Here, the address is withheld by the database itself: a "
        "caller who writes their own SQL, bypasses the application entirely, and connects "
        "directly still cannot read it.", GOOD))
-A(para("Three visibility bands", H2))
+A(para("1.2  Three visibility bands", H2))
 A(table([
     hdr(["Band", "Contains", "Released to", "Enforced by"]),
     ["1 — Public", "City, price, cap rate, NOI, beds, baths, year built", "Anyone, including anonymous visitors", "RLS policy per role"],
@@ -240,7 +359,7 @@ A(Preformatted(
   "\n"
   "  GoHighLevel ──webhook──▶ worker/src/index.js ──▶  ghl.*   (separate schema,\n"
   "              ◀──REST────  sdi_integration                   no access to core)", CODE))
-A(para("Four schemas, and the separation is load-bearing", H2))
+A(para("4.1  Four schemas, and the separation is load-bearing", H2))
 A(table([
     hdr(["Schema", "Holds", "Who has USAGE"]),
     [mono("core"), "Base tables. Properties, people, deals, assignments",
@@ -256,7 +375,7 @@ A(para("Brand is a lens, not a property attribute. Both brands read the same "
        "and price per brand. Adding the second brand is rows in one table, not a schema "
        "refactor.", BODY))
 
-A(para("4.1  Tables", H2))
+A(para("4.2  Tables", H2))
 A(table([
     hdr(["Schema", "Tables"]),
     [mono("core"), mono("brand") + ", " + mono("person") + ", " + mono("property") + ", " +
@@ -413,5 +532,8 @@ A(para("There is no INSTALL file; section 2 of this document and the README's op
        "scripts rather than written by hand, so they can be regenerated as the system changes "
        "and cannot quietly drift out of date.", CAP))
 
-doc.build(E)
+# multiBuild, not build: the first pass discovers where each heading lands,
+# the second lays out the contents page with those numbers. A single pass
+# would print a contents page with every entry on page 0.
+doc.multiBuild(E)
 print("wrote", OUT)
