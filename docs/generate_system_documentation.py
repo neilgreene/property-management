@@ -705,25 +705,81 @@ A(para("Events that genuinely originate in GoHighLevel — a signed document, a 
        "source. Accepting a queued edit writes only an allowlist of band 1 columns, so a status "
        "change can never become a route to rewriting an address or a cost basis.", BODY))
 
-A(para("6.4  One item is unverified", H2))
-A(para("GoHighLevel publishes the webhook public key but does not document the signature "
-       "algorithm. The code uses PKCS#1 v1.5 with SHA-256, the conventional pairing for that key "
-       "format. <b>One captured live delivery would settle it</b>, and until then the receiver "
-       "should not be trusted in production. " + mono("worker/tools/capture-webhook.js") +
-       " exists to capture one: run it somewhere GoHighLevel can reach, send a test contact "
-       "through, and it writes the raw bytes and headers untouched.", NOTE))
+A(para("6.4  Nothing here has ever spoken to GoHighLevel", H2))
+A(para("This is the most important caveat in the document, and it is easy to miss behind a "
+       "passing test count. The integration is written and tested, but <b>no line of it has "
+       "made a request to GoHighLevel</b>. Every test supplies a double: an injected "
+       "<font face='Courier'>fetch</font>, a locally generated RSA keypair, a fake client "
+       "object. Zero of the 63 tests reach the network.", NOTE))
+A(para("What that does and does not buy", H2))
+A(table([
+    hdr(["Verified", "Not verified"]),
+    ["The logic: retry and backoff, deduplication, the two-condition fee gate, outbox "
+     "resumability, migration ordering, allowlist enforcement, every privilege boundary.",
+     "Every assumption about how the real API actually behaves: response shapes, field names "
+     "in practice, error bodies, and the webhook signature algorithm."],
+    ["That the code does the right thing when GoHighLevel responds in the shape the code "
+     "expects.",
+     "That GoHighLevel responds in that shape."],
+], [2.95*inch, 2.95*inch]))
+A(Spacer(1, 6))
+A(para("The assumption register", H2))
+A(para("Rather than leave that as an unbounded worry, here is the finite list. Each row is a "
+       "specific assumption the code makes, where it lives, and what happens if it is wrong. "
+       "Checking these against one real account is a morning's work and closes the whole "
+       "category.", BODY))
+A(table([
+    hdr(["#", "Assumption", "Where", "If wrong"]),
+    ["1", "Signatures are PKCS#1 v1.5 over SHA-256, over the raw body",
+     mono("signature.js"), "Every delivery is rejected as forged. Loud, not silent."],
+    ["2", "Transaction list returns rows under " + mono("data") + " or " + mono("transactions"),
+     mono("sync/transactions.js"), "Sync silently reads zero rows and reports success. Quiet, and the worst of these."],
+    ["3", "Document list returns rows under " + mono("documents") + " with a " + mono("total"),
+     mono("sync/documents.js"), "The fee gate never opens for anyone. Loud once someone pays."],
+    ["4", "A document's payer is " + mono("recipients[0].contactId"),
+     mono("sync/documents.js"), "The document cannot be matched to a person; the gate stays shut."],
+    ["5", "Contact upsert returns " + mono("contact.id") + " or " + mono("id"),
+     mono("outbox.js"), "The id map is not written, so the association pass cannot resolve."],
+    ["6", "Record create returns " + mono("record.id") + " or " + mono("id"),
+     mono("outbox.js"), "Same, for properties."],
+    ["7", "Relation create takes " + mono("firstRecordId") + "/" + mono("secondRecordId") + "/" + mono("associationId"),
+     mono("ghlClient.js"), "Relations fail with a 422; the migration reports it rather than losing it."],
+    ["8", "Webhook payloads carry " + mono("type") + ", " + mono("webhookId") + " and " + mono("timestamp"),
+     mono("webhookReceiver.js"), "Events are recorded as " + mono("unknown") + " or rejected outright."],
+    ["9", "A 429 carries " + mono("Retry-After"),
+     mono("ghlClient.js"), "Backoff falls back to exponential. Harmless."],
+], [0.25*inch, 2.25*inch, 1.25*inch, 2.15*inch]))
+A(Spacer(1, 5))
+A(para("Assumption 2 is the one to check first. Most of these fail loudly — a rejected "
+       "delivery, a 422, an empty gate somebody complains about. That one fails <i>quietly</i>: "
+       "the sync reports success, the cursor advances, and the ledger simply never fills. A "
+       "single real response settles it.", NOTE))
+A(Spacer(1, 4))
+A(para("The code is written defensively against exactly this — the fallbacks above are why "
+       "each row lists two candidate shapes rather than one — which lowers the odds but does "
+       "not remove them. Guessing carefully is still guessing.", BODY))
+A(para("How to close it", H2))
+A(para("Two artifacts, neither of which needs any code to be written: <b>one captured webhook "
+       "delivery</b> (raw body plus its " + mono("x-wh-signature") + " header, which "
+       + mono("worker/tools/capture-webhook.js") + " writes for you) and <b>one saved response "
+       "from each of " + mono("GET /payments/transactions") + " and " + mono("GET /proposals/document") +
+       "</b>. That is phase P0 in section 9, budgeted at one week, and it is first in the "
+       "schedule for this reason.", GOOD))
 
 # ------------------------------------------------------------------ 7
 A(para("7.  What Is Tested", H1))
 A(para("Not a coverage percentage. These are the specific claims that are checked, and the "
        "attacks that are run against them.", BODY))
+A(para("Read this alongside 6.4. The database suites exercise a real PostgreSQL and prove "
+       "what they claim. The worker suite proves its logic against test doubles, and proves "
+       "nothing about GoHighLevel's actual behaviour.", NOTE))
 A(table([
     hdr(["Suite", "Checks", "Notable"]),
     [mono("sql/05_tests.sql"), "11", "Five attacks: direct base-table read, another investor's saved list, saving an invisible property, a VOLATILE predicate side-channel, and the standing invariants"],
     [mono("sql/07_ghl_tests.sql"), "7", "A signed-but-unpaid document must not open the gate; replay must not move a signature timestamp"],
     [mono("sql/10_review_tests.sql"), "7", "A payload smuggling an address and a cost basis alongside a legitimate status change; only the allowlist is applied"],
     [mono("sql/14_pipeline_tests.sql"), "9", "One agent cannot read another's deal by naming its id; one investor cannot read another's stage history"],
-    [mono("worker/ (npm test)"), "63", "Signature forgery, replay, oversized bodies, rate-limit handling, ambiguous-create duplication, migration resumability"],
+    [mono("worker/ (npm test)"), "63", "Signature forgery, replay, oversized bodies, rate-limit handling, ambiguous-create duplication, migration resumability. All against doubles — no real GoHighLevel call, see 6.4"],
 ], [1.5*inch, 0.55*inch, 3.85*inch]))
 A(Spacer(1, 5))
 A(para(mono("api.security_invariants()") + " must always return zero rows. It catches the four "

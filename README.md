@@ -546,8 +546,23 @@ messaging and the unified-inbox thread model, audit trail on band-2 and band-3
 reads, and the co-investment matching engine. The visibility model is the
 foundation those sit on, which is why it went first.
 
-One open item carries risk rather than just absence: **the webhook signature
-algorithm is unverified**. GHL publishes the key but not the algorithm. PKCS#1
-v1.5 with SHA-256 is what the code does and is the conventional pairing for the
-key format, but a single captured live delivery would settle it, and until then
-the receiver should not be trusted in production.
+### Nothing here has ever spoken to GoHighLevel
+
+The most important caveat, and the easiest to miss behind a passing test count.
+The integration is written and tested, but **no line of it has made a request to
+GoHighLevel**. Every test supplies a double — an injected `fetch`, a locally
+generated RSA keypair, a fake client. Zero of the 63 tests reach the network.
+
+What that buys is the logic: retry, deduplication, the two-condition fee gate,
+outbox resumability, migration ordering, every privilege boundary. What it does
+not buy is any assumption about how the real API behaves — response shapes,
+field names, error bodies, or the signature algorithm.
+
+Section 6.4 of `docs/System-Documentation.pdf` carries the full assumption
+register: nine specific guesses, where each lives, and what breaks if it is
+wrong. Most fail loudly. **Assumption 2 fails quietly** — if the transaction list
+does not return rows under `data` or `transactions`, the sync reports success,
+the cursor advances, and the ledger never fills.
+
+Closing it needs no code: one captured webhook delivery, and one saved response
+from each of `GET /payments/transactions` and `GET /proposals/document`.
