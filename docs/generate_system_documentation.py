@@ -127,31 +127,39 @@ class CoverMark(Flowable):
 # --- Gantt flowable -----------------------------------------------------
 # Form: horizontal bars over time is the right encoding for a schedule --
 # each row is one phase, length is duration, position is when. Colour
-# carries the track (identity, so categorical), never the rank. Palette is
-# the validated four-slot categorical order; the contrast warning on two of
-# those slots is discharged by the direct labels on every row.
+# carries the TRACK (identity, so categorical), never the rank or the
+# criticality: a filter that changed the phase list must not repaint the
+# survivors. Critical path is therefore encoded as a second channel -- a
+# dark outline -- not as a fifth colour.
 TRACKS = [
     ("Foundation",  colors.HexColor("#2a78d6")),
     ("Migration",   colors.HexColor("#eb6834")),
     ("Product",     colors.HexColor("#1baf7a")),
     ("Operations",  colors.HexColor("#eda100")),
 ]
-TRACK_IX = {name: i for i, (name, _) in enumerate(TRACKS)}
 
-# (phase label, track, start week, duration weeks)
+# id, label, track, start week, weeks, predecessors, on critical path
 PLAN = [
-    ("P0  Signature check + first deploy", "Foundation",  0, 1),
-    ("P1  Authentication and sessions",    "Foundation",  1, 3),
-    ("P2  EspoCRM mapping + rehearsal",    "Migration",   1, 4),
-    ("P3  Audit trail on gated reads",     "Foundation",  4, 2),
-    ("P4  Public marketplace UI",          "Product",     4, 4),
-    ("P5  Investor portal + fee flow",     "Product",     8, 3),
-    ("P6  Document storage",               "Product",    10, 2),
-    ("P7  Agent portal",                   "Product",    11, 2),
-    ("P8  Messaging / unified inbox",      "Product",    13, 3),
-    ("P9  External status feed",           "Operations", 15, 2),
-    ("P10 Co-investment matching",         "Product",    16, 3),
-    ("P11 Hardening and cutover",          "Operations", 18, 2),
+    ("P0",  "Signature check + first deploy", "Foundation",  0,  1, [],           False),
+    ("P1",  "Authentication and sessions",    "Foundation",  1,  3, ["P0"],       True),
+    ("P2",  "EspoCRM mapping + rehearsal",    "Migration",   1,  4, [],           False),
+    ("P3",  "Audit trail on gated reads",     "Foundation",  4,  2, ["P1"],       False),
+    ("P4",  "Public marketplace UI",          "Product",     4,  4, ["P1","P2"],  True),
+    ("P5",  "Investor portal + fee flow",     "Product",     8,  3, ["P4"],       True),
+    ("P6",  "Document storage",               "Product",    10,  2, ["P5"],       False),
+    ("P7",  "Agent portal",                   "Product",    11,  2, ["P1"],       False),
+    ("P8",  "Messaging / unified inbox",      "Product",    13,  3, ["P7"],       False),
+    ("P9",  "External status feed",           "Operations", 15,  2, [],           False),
+    ("P10", "Co-investment matching",         "Product",    16,  3, ["P5"],       False),
+    ("P11", "Hardening and cutover",          "Operations", 18,  2, ["P5"],       True),
+]
+
+# week, label -- the dates a non-developer actually asks about
+MILESTONES = [
+    (1,  "public endpoint live"),
+    (4,  "login works"),
+    (11, "first paid unlock"),
+    (20, "cutover"),
 ]
 TOTAL_WEEKS = 20
 
@@ -164,61 +172,110 @@ class Gantt(Flowable):
     def draw(self):
         c = self.canv
         w, h = self.width, self.height
-        label_w = 2.0 * inch
-        legend_h = 34          # clearance for the legend AND the week axis below it
-        axis_h = 14
+        label_w = 1.95 * inch
+        legend_h, axis_h, ms_h = 32, 12, 26
         plot_x = label_w
-        plot_w = w - label_w - 4
+        plot_w = w - label_w - 26           # room for the duration labels
         rows = len(PLAN)
-        plot_h = h - legend_h - axis_h
+        plot_h = h - legend_h - axis_h - ms_h
         row_h = plot_h / rows
-        bar_h = min(row_h - 4.0, 11.0)
+        bar_h = min(row_h - 4.0, 10.5)
         wk = plot_w / TOTAL_WEEKS
+        top = axis_h + ms_h + plot_h
 
+        geom = {}
         c.saveState()
 
-        # Recessive week gridlines, every 2 weeks so the field stays quiet.
+        # Recessive gridlines every two weeks.
         c.setStrokeColor(colors.HexColor("#E7EAEF")); c.setLineWidth(0.5)
         for k in range(0, TOTAL_WEEKS + 1, 2):
             x = plot_x + k * wk
-            c.line(x, axis_h, x, axis_h + plot_h)
+            c.line(x, axis_h + ms_h, x, top)
 
-        # Axis
         c.setStrokeColor(RULE); c.setLineWidth(0.7)
-        c.line(plot_x, axis_h + plot_h, plot_x + plot_w, axis_h + plot_h)
+        c.line(plot_x, top, plot_x + plot_w, top)
         c.setFont("Helvetica", 6.4); c.setFillColor(MUTED)
         for k in range(0, TOTAL_WEEKS + 1, 2):
-            c.drawCentredString(plot_x + k * wk, axis_h + plot_h + 4, f"w{k}")
+            c.drawCentredString(plot_x + k * wk, top + 4, f"w{k}")
 
-        # Bars, top row first
-        for i, (label, track, start, dur) in enumerate(PLAN):
-            y = axis_h + plot_h - (i + 1) * row_h + (row_h - bar_h) / 2.0
+        palette = dict(TRACKS)
+        for i, (pid, label, track, start, dur, deps, crit) in enumerate(PLAN):
+            y = top - (i + 1) * row_h + (row_h - bar_h) / 2.0
             x = plot_x + start * wk
             bw = dur * wk - 2.0            # 2pt surface gap between adjacent bars
+            geom[pid] = (x, x + bw, y + bar_h / 2.0, y, bar_h)
 
-            c.setFont("Helvetica", 6.9); c.setFillColor(INK)
-            c.drawString(0, y + bar_h / 2.0 - 2.4, label)
+            c.setFont("Helvetica-Bold" if crit else "Helvetica", 6.8)
+            c.setFillColor(INK if crit else colors.HexColor("#3d4650"))
+            c.drawString(0, y + bar_h / 2.0 - 2.4, f"{pid}  {label}")
 
-            c.setFillColor(dict(TRACKS)[track])
+            c.setFillColor(palette[track])
             c.roundRect(x, y, bw, bar_h, 2.0, stroke=0, fill=1)
+            if crit:
+                # Second channel, not a fifth hue: criticality is a property of
+                # the phase, and colour is already spoken for by the track.
+                c.setStrokeColor(INK); c.setLineWidth(1.1)
+                c.roundRect(x, y, bw, bar_h, 2.0, stroke=1, fill=0)
 
-            # Direct label on every bar: the palette's two low-contrast slots
-            # are only legal with visible labels, and a duration is what a
-            # reader wants anyway.
+            # Direct label on every bar. Two palette slots sit below 3:1 on this
+            # surface, which is legal only with visible labels -- and a duration
+            # is what a reader wants next to a bar anyway.
             c.setFont("Helvetica", 6.2); c.setFillColor(MUTED)
-            c.drawString(x + bw + 3, y + bar_h / 2.0 - 2.2,
-                         f"{dur}w" if dur > 1 else "1w")
+            c.drawString(x + bw + 3, y + bar_h / 2.0 - 2.2, f"{dur}w")
 
-        # Legend: four tracks, always present for >= 2 series
-        c.setFont("Helvetica", 6.9)
-        lx = plot_x
-        ly = h - 8
+        # Dependency arrows, drawn last so they sit over the gridlines.
+        c.setStrokeColor(colors.HexColor("#9AA4B0")); c.setLineWidth(0.6)
+        c.setFillColor(colors.HexColor("#9AA4B0"))
+        for pid, label, track, start, dur, deps, crit in PLAN:
+            if pid not in geom:
+                continue
+            x0, _, ymid, ybot, bh = geom[pid]
+            for dep in deps:
+                if dep not in geom:
+                    continue
+                dx0, dx1, dymid, dybot, dbh = geom[dep]
+                # Leave from the bottom edge rather than mid-height: the
+                # duration label sits immediately right of the bar, and an
+                # arrow at mid-height runs straight through it.
+                path = c.beginPath()
+                path.moveTo(dx1 - 4, dybot)
+                midx = min(dx1 - 4, x0 - 4)
+                path.lineTo(midx, dybot - 2)
+                path.lineTo(midx, ymid)
+                path.lineTo(x0 - 3, ymid)
+                c.drawPath(path, stroke=1, fill=0)
+                c.circle(x0 - 2, ymid, 1.3, stroke=0, fill=1)
+
+        # Milestones on their own band, so they never collide with a bar.
+        c.setStrokeColor(colors.HexColor("#C6CFDA")); c.setLineWidth(0.5)
+        c.line(plot_x, axis_h + ms_h - 2, plot_x + plot_w, axis_h + ms_h - 2)
+        for mi, (wk_no, text) in enumerate(MILESTONES):
+            mx = plot_x + wk_no * wk
+            my = axis_h + ms_h - 2
+            c.setFillColor(ACCENT)
+            c.saveState(); c.translate(mx, my); c.rotate(45)
+            c.rect(-2.6, -2.6, 5.2, 5.2, stroke=0, fill=1)
+            c.restoreState()
+            c.setFont("Helvetica", 5.9); c.setFillColor(MUTED)
+            # Two rows, alternating: w1 and w4 are close enough that a single
+            # row of labels overlaps.
+            c.drawCentredString(mx, my - (9 if mi % 2 == 0 else 17), text)
+
+        # Legend: four tracks always present, plus the outline channel.
+        c.setFont("Helvetica", 6.8)
+        lx, ly = plot_x, h - 8
         for name, col in TRACKS:
-            c.setFillColor(col)
-            c.roundRect(lx, ly - 4.5, 9, 6, 1.5, stroke=0, fill=1)
-            c.setFillColor(MUTED)
-            c.drawString(lx + 13, ly - 4, name)
-            lx += 13 + c.stringWidth(name, "Helvetica", 6.9) + 16
+            c.setFillColor(col); c.roundRect(lx, ly - 4.5, 9, 6, 1.5, stroke=0, fill=1)
+            c.setFillColor(MUTED); c.drawString(lx + 12, ly - 4, name)
+            lx += 12 + c.stringWidth(name, "Helvetica", 6.8) + 14
+        c.setFillColor(colors.white); c.setStrokeColor(INK); c.setLineWidth(1.1)
+        c.roundRect(lx, ly - 4.5, 9, 6, 1.5, stroke=1, fill=1)
+        c.setFillColor(MUTED); c.drawString(lx + 12, ly - 4, "critical path")
+        lx += 12 + c.stringWidth("critical path", "Helvetica", 6.8) + 14
+        c.setFillColor(ACCENT)
+        c.saveState(); c.translate(lx + 4, ly - 1.5); c.rotate(45)
+        c.rect(-2.4, -2.4, 4.8, 4.8, stroke=0, fill=1); c.restoreState()
+        c.setFillColor(MUTED); c.drawString(lx + 12, ly - 4, "milestone")
 
         c.restoreState()
 
@@ -632,54 +689,58 @@ A(para("Section 8 lists what is missing. This section says what each item needs,
        "tested. Durations are working weeks for one experienced developer and are "
        "estimates, not commitments.", BODY))
 
-A(para("9.1  What each item needs", H2))
+A(para("9.1  What each item needs, and how long", H2))
+A(para("Ordered as recommended in 9.2. Estimates are working weeks for one experienced "
+       "developer who already knows this codebase, and cover build plus the tests in 9.4. "
+       "They exclude design iteration, review latency, and waiting on a third party — the "
+       "three things that actually move dates.", BODY))
 A(table([
-    hdr(["Item", "What it is", "What it needs before it can be built"]),
-    ["Authentication and sessions",
-     "Real sign-in. A session resolves to a person id and a role, which the web tier then "
-     "assumes for the transaction.",
-     "Nothing external. The database contract already exists — the session replaces the "
-     "persona dropdown and no policy, view or grant changes."],
-    ["EspoCRM field mapping",
-     "Which EspoCRM field becomes which column, and which of the 30+ SDI metrics are genuine "
-     "inputs rather than derived.",
-     "Read access to the live EspoCRM instance, or a full export. The load ordering and "
-     "resumability are already built and tested."],
-    ["Audit trail on gated reads",
+    hdr(["#", "Item", "What it is", "Needs before starting", "Est."]),
+    ["P0", "Signature verification and first deployment",
+     "Confirm how GoHighLevel signs webhooks, and deploy the receiver that checks it.",
+     "A public HTTPS host and a GoHighLevel account. Nothing else in the system.", "1w"],
+    ["P1", "Authentication and sessions",
+     "Real sign-in. A session resolves to a person id and a role, which the web tier assumes "
+     "for the transaction.",
+     "A decision on identity provider: own accounts, or an external one. No database change.", "3w"],
+    ["P2", "EspoCRM field mapping and rehearsal",
+     "Which EspoCRM field becomes which column, and which of the 30+ SDI metrics are inputs "
+     "rather than derived.",
+     "Read access to live EspoCRM or a full export. Load ordering already built and tested.", "4w"],
+    ["P3", "Audit trail on gated reads",
      "A record of who saw which address, and when.",
-     "A decision on where it is enforced. PostgreSQL cannot trigger on SELECT, so band 2 has "
-     "to be released through an auditing accessor rather than read straight from the view."],
-    ["Public marketplace UI",
-     "The real browsing surface: search, filters, property cards, the masked map.",
-     "Authentication (P1), because the same pages serve gated and ungated viewers. Design "
-     "direction. Real listing content, so P2 in practice."],
-    ["Investor portal and fee flow",
+     "P1. A decision on where band 2 is released from — PostgreSQL cannot trigger on SELECT.", "2w"],
+    ["P4", "Public marketplace UI",
+     "The real browsing surface: search, filters, property cards, masked map.",
+     "P1 for the gated half, P2 for real content, and design direction.", "4w"],
+    ["P5", "Investor portal and fee flow",
      "Registration, the fee agreement, and the unlock.",
-     "P1 and P4. The GoHighLevel side is built: sending the document and reading its state "
-     "both work, and the two-condition gate is tested."],
-    ["Document storage",
-     "The signed PDF kept as an artifact rather than only as a status flag.",
-     "A storage decision — object store or filesystem — and a retention policy. The signed "
-     "document is a financial record."],
-    ["Agent portal",
+     "P4, and a payment provider connected in GoHighLevel. The CRM side is already built.", "3w"],
+    ["P6", "Document storage",
+     "The signed PDF kept as an artifact, not only as a status flag.",
+     "A storage and retention decision. The signed document is a financial record.", "2w"],
+    ["P7", "Agent portal",
      "An agent's own assignments and conversations, and nothing else.",
-     "P1. The per-agent isolation is already enforced and tested at the database level; this "
-     "is the interface over it."],
-    ["Messaging / unified inbox",
+     "P1. Per-agent isolation is already enforced and tested at the database level.", "2w"],
+    ["P8", "Messaging and unified inbox",
      "Email, SMS and WhatsApp threaded against a contact and a property.",
-     "A decision on whether GoHighLevel owns the conversation or only relays it. That "
-     "decision sets the whole data model, so make it before starting."],
-    ["External status feed",
+     "A decision on whether GoHighLevel owns the conversation or only relays it. That sets "
+     "the data model, so settle it first.", "3w"],
+    ["P9", "External status feed",
      "Nightly check that a listing has not gone pending or sold elsewhere.",
-     "A source. A licensed feed is strongly preferable to scraping a portal that forbids it "
-     "and actively blocks it. The review queue that receives the output is built."],
-    ["Co-investment matching",
+     "A source. A licensed feed is strongly preferable to scraping a portal that forbids it.", "2w"],
+    ["P10", "Co-investment matching",
      "Pairing two vetted investors on one property.",
-     "The matching rules, in writing. The COINVEST pipeline and its stages already exist."],
-    ["Deployment",
-     "Somewhere to run.",
-     "Section 9.5. P0 needs only a public webhook endpoint, which is small."],
-], [1.35*inch, 2.1*inch, 2.45*inch]))
+     "The matching rules, in writing. The COINVEST pipeline and stages already exist.", "3w"],
+    ["P11", "Hardening and cutover",
+     "Production configuration, backups, restore rehearsal, go-live.",
+     "Everything above that is in scope for launch.", "2w"],
+], [0.32*inch, 1.08*inch, 1.75*inch, 2.4*inch, 0.35*inch]))
+A(Spacer(1, 5))
+A(para("Total build effort is roughly <b>31 developer-weeks</b>. The calendar in 9.2 is "
+       "20 weeks because P2, P7 and P9 run alongside other work rather than after it. With "
+       "one developer and no parallelism the same scope is about 31 weeks; the difference is "
+       "entirely whether the EspoCRM and operations tracks can proceed independently.", GOOD))
 
 A(PageBreak())
 A(para("9.2  Recommended sequence", H2))
@@ -692,7 +753,7 @@ A(para("P0 is deliberately tiny and first. It deploys nothing but a webhook rece
        "no data. It settles the one unverified item in the system and proves the deployment "
        "path at the same time.", GOOD))
 A(Spacer(1, 6))
-A(Gantt(5.9*inch, 3.5*inch))
+A(Gantt(5.9*inch, 4.05*inch))
 A(para("Figure 1. Indicative schedule, one developer. P2 runs alongside P1 because the "
        "migration work needs EspoCRM access rather than the new authentication, so the two "
        "do not contend.", CAP))
@@ -770,7 +831,82 @@ A(para("Two habits worth keeping, both learned building what already exists. Wri
        "found so far only appeared when suites ran together.", GOOD))
 
 A(PageBreak())
-A(para("9.5  Deployment", H2))
+A(para("9.5  Validation methods to consider", H2))
+A(para("Section 9.4 says what to test. This says <i>how</i>, and which technique earns its "
+       "place where. Not all of these are worth adopting; they are listed with the judgement "
+       "attached rather than as a checklist to complete.", BODY))
+A(table([
+    hdr(["Method", "What it is good for here", "Worth it?"]),
+    ["Integration tests against a real PostgreSQL",
+     "Row-level security, policies and grants cannot be mocked — a mock will happily return "
+     "rows the real database would refuse. The existing suite already works this way.",
+     "Already in use. Keep it; never substitute mocks for the database."],
+    ["Adversarial tests",
+     "A test that tries the attack, not one that proves the feature. Every 'ATTACK' check in "
+     "the SQL walkthroughs is one, and several exist because the naive version passed while "
+     "proving nothing.",
+     "Essential. One per privilege boundary, minimum."],
+    ["Property-based testing",
+     "Generate random (viewer, property, entitlement) triples and assert the invariant: a "
+     "viewer without a settled agreement never receives a street address. This explores "
+     "combinations nobody thought to write down.",
+     "High value from P3 onward. The visibility model is an unusually good fit."],
+    ["Contract testing against the OpenAPI specs",
+     "Validate outbound request shapes against GoHighLevel's published specification, so a "
+     "field rename is caught at build time rather than as a 422 in production.",
+     "Worth it once P2 volume is real."],
+    ["Fault injection",
+     "Deliberately fail mid-operation: kill the worker between an API call and its database "
+     "write, redeliver a webhook, duplicate an outbox row. The resumability claims are only "
+     "true if they survive this.",
+     "Essential before P11. Cheap to run, and the failure it catches is data corruption."],
+    ["Load testing",
+     "The GoHighLevel burst limit is 100 requests per 10 seconds shared across all callers. "
+     "Confirm the cached read model absorbs concurrent browsing rather than passing it "
+     "through.",
+     "Before P4 goes public. Model realistic concurrency, not a synthetic peak."],
+    ["Penetration testing",
+     "An independent attempt to obtain a street address without paying. The commercial model "
+     "rests on that being impossible, which makes it the one thing worth an outside opinion.",
+     "Before go-live. Scope it explicitly at the gate."],
+    ["Migration reconciliation",
+     "Counts and spot checks between source and destination after every rehearsal, with "
+     "unresolved links reported rather than dropped.",
+     "Already built. Run it on every rehearsal, not just the final one."],
+    ["User acceptance testing",
+     "Walk the seeded personas through real tasks with real staff. Ruth and Marcus exist "
+     "precisely so the difference is demonstrable to a non-technical observer.",
+     "Per phase, from P4."],
+    ["Accessibility testing",
+     "The public marketplace is a consumer surface. Keyboard navigation, contrast and screen "
+     "reader behaviour on listing cards and filters.",
+     "During P4, not after. Retrofitting is far more expensive."],
+    ["Data quality checks",
+     "Standing assertions on the ledger: no negative amounts, no refund exceeding its charge, "
+     "no transaction pointing at a missing invoice. Some are already constraints.",
+     "Promote to constraints where possible — a constraint cannot be forgotten."],
+    ["Static analysis and dependency audit",
+     "Lint, type checking, and a scan of the dependency tree. This project has one runtime "
+     "dependency, which keeps this cheap.",
+     "In CI from now. The cost is near zero while the tree is small."],
+], [1.28*inch, 2.72*inch, 1.9*inch]))
+A(Spacer(1, 6))
+A(para("Three rules to attach to whichever of these you adopt", H2))
+for b in buls([
+    "<b>Run the whole suite, not the file you are working on.</b> Two of the bugs found while "
+    "building this only appeared when suites ran together — one because two test files shared "
+    "a database and raced.",
+    "<b>A test that cannot fail is not a test.</b> Two checks here originally passed for the "
+    "wrong reason: a permission error fired before the code under test was ever reached. Make "
+    "each new test fail once, deliberately, before trusting it.",
+    "<b>Wire " + mono("api.security_invariants()") + " into CI and a nightly job.</b> It is the "
+    "only check that catches a policy quietly dismantled by a later migration, and it costs "
+    "one query.",
+]): A(b)
+
+
+A(PageBreak())
+A(para("9.6  Deployment", H2))
 A(para("Both available options are suitable, for different jobs. The recommendation is to use "
        "both rather than choose.", BODY))
 A(table([
