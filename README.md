@@ -57,6 +57,10 @@ sql/07_ghl_tests.sql         seven-check GHL bridge walkthrough
 sql/08_review_queue.sql      inbound CRM edits awaiting a human
 sql/09_review_actions.sql    deciding them: admin-only, allowlisted
 sql/10_review_tests.sql      seven-check review action walkthrough
+sql/11_pipeline.sql          deals, stages, append-only stage history
+sql/12_pipeline_policies.sql who sees which deals
+sql/13_pipeline_seed.sql     demo pipelines and deals
+sql/14_pipeline_tests.sql    nine-check pipeline walkthrough
 web/server.js                demo web tier
 web/public/index.html        demo UI
 worker/src/                  GoHighLevel integration worker
@@ -163,6 +167,40 @@ hundred thousand rows, check the plan before assuming it still is.
 The demo maps personas to roles in `web/server.js` for convenience. In production
 that mapping comes out of the session after authentication — the database contract
 is identical either way. Passwords in `docker-compose.yml` are demo values.
+
+## Deals and stage history
+
+A deal is where a property and an investor meet, so it inherits the visibility
+problem rather than escaping it. `sec.can_see_deal()` reuses `sec.actor()`:
+investors see their own, agents see the ones they are the agent on, admins see
+all, and the public role is not granted the view at all — a deal is never
+public, at any stage.
+
+**History is a trigger, not a convention.** `core.deal_stage_history` is
+append-only and written by `core.log_stage_change()`. "When did this go under
+contract" is the question the business actually asks, and an application that
+forgets to log once makes the answer permanently wrong. `seconds_in_from` is
+computed on write for the same reason.
+
+Two triggers, not one: a `BEFORE INSERT` cannot write the history row because
+the deal does not exist yet and the foreign key fails. So `BEFORE` keeps
+`closed_at` consistent with `stage_code` — entering a terminal stage closes the
+deal, leaving one reopens it — and `AFTER` writes the log once the row is real.
+
+### Two findings worth keeping
+
+**`LEFT JOIN core.property`, not inner.** `core.property` has its own RLS, so an
+inner join silently *drops* a deal whose property the caller cannot see. An
+agent would lose a deal they are party to, with no error and no clue why. Being
+party to a deal makes the deal visible; the property columns then fill in only
+as far as the property's own policy allows — check 3 shows Tom seeing both his
+deals, one of them reading `(property not visible)`.
+
+**Names come from `sec.deal_party_name()`, not a join.** An agent legitimately
+needs the investor's name on their own deal, but `core.person` is RLS'd to self,
+so a plain join returns NULL — and loosening that policy would expose the whole
+directory. The function releases exactly one field, and only to someone who
+already shares a deal with that person.
 
 ## The GoHighLevel bridge
 

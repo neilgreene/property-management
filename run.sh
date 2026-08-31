@@ -5,7 +5,8 @@ DB=${DB:-sdi}
 createdb "$DB" 2>/dev/null || true
 for f in sql/01_schema.sql sql/02_policies.sql sql/03_views.sql \
          sql/04_seed.sql sql/06_ghl_integration.sql \
-         sql/08_review_queue.sql sql/09_review_actions.sql; do
+         sql/08_review_queue.sql sql/09_review_actions.sql \
+         sql/11_pipeline.sql sql/12_pipeline_policies.sql sql/13_pipeline_seed.sql; do
   echo "loading $f"; psql -d "$DB" -v ON_ERROR_STOP=1 -q -f "$f"
 done
 psql -d "$DB" -q -c "ALTER ROLE sdi_app WITH LOGIN PASSWORD 'demo_app_pw';" \
@@ -16,6 +17,8 @@ echo; echo "--- GHL bridge checks ---"
 psql -d "$DB" -f sql/07_ghl_tests.sql
 echo; echo "--- review action checks ---"
 psql -d "$DB" -f sql/10_review_tests.sql
+echo; echo "--- pipeline checks ---"
+psql -d "$DB" -f sql/14_pipeline_tests.sql
 # --- GHL integration worker -------------------------------------------
 # Test-only fixture role; see worker/test/bootstrap.sql for why it exists.
 psql -d "$DB" -q -f worker/test/bootstrap.sql
