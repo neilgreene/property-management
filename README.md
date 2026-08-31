@@ -59,13 +59,23 @@ why a VM with no port forwarding is a perfectly good staging environment.
 ### Docker — nothing installed but Docker
 
 ```bash
-docker compose up
+cp .env.example .env      # then set POSTGRES_PASSWORD
+docker compose up --build
 ```
 
-Builds the database from `sql/`, seeds it, and serves the demo on
-<http://localhost:3000>. Postgres is on `localhost:5432` (`sdi`/`postgres`).
-Stop with Ctrl-C; `docker compose down -v` also discards the database, which is
-what you want before re-running the schema from scratch.
+Serves the demo on <http://localhost:3000>. `docker compose down -v` discards
+the database, which is what you want before rebuilding the schema from scratch.
+
+Every service is **built**, not bind-mounted — the schema is baked into the
+database image. That is what makes it deployable through Portainer, where a
+relative bind mount on CE resolves to an empty directory and the database
+initialises with no schema at all, silently.
+
+PostgreSQL is deliberately **not published**. Nothing outside the stack needs
+it. To inspect it, uncomment the loopback binding in `docker-compose.yml`.
+
+**Deploying through Portainer, or anywhere that is not a laptop:** see
+[docs/DEPLOYMENT.md](docs/DEPLOYMENT.md).
 
 The integration worker is **not** started by that, because it needs real GHL
 credentials and there is no point running it without them:
@@ -167,6 +177,7 @@ worker/test/                 63 tests (unit + end-to-end against the database)
 docs/GHL-Interface-Specification.pdf   the GHL API contract, 17pp
 docs/System-Documentation.pdf          what was built + next steps, 27pp
 docs/schema-snapshot.json              the schema, read from a live database
+docs/DEPLOYMENT.md                     Portainer and Docker deployment runbook
 ```
 
 ## The model

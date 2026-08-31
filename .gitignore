@@ -4,5 +4,6 @@ __pycache__/
 .venv/
 node_modules/
 npm-debug.log*
-package-lock.json
+# package-lock.json IS committed on purpose: `npm ci` needs it, and a build
+# without it is not reproducible.
 captures/

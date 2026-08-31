@@ -1,65 +1,88 @@
+# SDI Investment Property Marketplace
+#
+# Every service is BUILT, not bind-mounted. That is what makes this deployable
+# through Portainer: a Git stack on Portainer CE cannot populate a relative
+# bind mount (relative-path volumes are a Business Edition feature), so a
+# ./sql mount resolves to an empty directory and PostgreSQL initialises with
+# no schema -- silently, because an empty init directory is legal.
+#
+# Local:     docker compose up --build
+# Worker:    COMPOSE_PROFILES=worker docker compose up --build
+# Portainer: see docs/DEPLOYMENT.md
+#
+# Requires Docker Compose v2. Swarm is a different path -- also in that file --
+# because `docker stack deploy` drops depends_on conditions and profiles.
+
 services:
   db:
-    image: postgres:16
+    build:
+      context: .
+      dockerfile: docker/db.Dockerfile
+      args:
+        # 0 in production: the application roles then carry no password of
+        # their own and take credentials from the deployment instead.
+        DEMO_LOGINS: ${DEMO_LOGINS:-1}
+    image: sdi-db:local
     environment:
-      POSTGRES_PASSWORD: postgres
-      POSTGRES_DB: sdi
-    ports: ["5432:5432"]
+      POSTGRES_DB: ${POSTGRES_DB:-sdi}
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in the stack environment}
+    # Deliberately NOT published. Nothing outside this stack needs the
+    # database, and publishing 5432 puts it on every interface of the host.
+    # To inspect it, uncomment and bind to loopback only:
+    #   ports: ["127.0.0.1:5432:5432"]
     volumes:
-      - ./sql/01_schema.sql:/docker-entrypoint-initdb.d/01.sql:ro
-      - ./sql/02_policies.sql:/docker-entrypoint-initdb.d/02.sql:ro
-      - ./sql/03_views.sql:/docker-entrypoint-initdb.d/03.sql:ro
-      - ./sql/04_seed.sql:/docker-entrypoint-initdb.d/04.sql:ro
-      - ./sql/06_ghl_integration.sql:/docker-entrypoint-initdb.d/06.sql:ro
-      - ./sql/08_review_queue.sql:/docker-entrypoint-initdb.d/08.sql:ro
-      - ./sql/09_review_actions.sql:/docker-entrypoint-initdb.d/09.sql:ro
-      - ./sql/11_pipeline.sql:/docker-entrypoint-initdb.d/11.sql:ro
-      - ./sql/12_pipeline_policies.sql:/docker-entrypoint-initdb.d/12.sql:ro
-      - ./sql/13_pipeline_seed.sql:/docker-entrypoint-initdb.d/13.sql:ro
-      # Demo logins, loaded last. See the header of that file.
-      - ./sql/99_local_logins.sql:/docker-entrypoint-initdb.d/99.sql:ro
+      - db-data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL","pg_isready -U postgres -d sdi"]
-      interval: 3s
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_DB:-sdi}"]
+      interval: 5s
+      timeout: 3s
       retries: 20
+      start_period: 20s
+    restart: unless-stopped
 
   web:
-    image: node:22-alpine
-    working_dir: /app
+    build:
+      context: ./web
+    image: sdi-web:local
     depends_on:
-      db: {condition: service_healthy}
+      db:
+        condition: service_healthy
     environment:
       PGHOST: db
-      PGDATABASE: sdi
+      PGDATABASE: ${POSTGRES_DB:-sdi}
       PGUSER: sdi_app
-      PGPASSWORD: demo_app_pw
-    ports: ["3000:3000"]
-    volumes: ["./web:/app"]
-    command: sh -c "npm install --silent && node server.js"
+      PGPASSWORD: ${SDI_APP_PASSWORD:-demo_app_pw}
+    ports:
+      - "${WEB_PORT:-3000}:3000"
+    restart: unless-stopped
 
-  # The GoHighLevel integration worker. Not started by a bare `docker compose
-  # up`, because it needs real GHL credentials and there is no point starting
-  # it without them:
-  #
-  #   GHL_TOKEN=... GHL_LOCATION_ID=... docker compose --profile worker up
-  #
-  # GHL_TOKEN is a Private Integration Token, scoped to a whole sub-account.
-  # It comes from the environment and is never written to this file.
+  # Not started by a bare `docker compose up`: it needs real GoHighLevel
+  # credentials and does nothing useful without them. Enable by setting
+  # COMPOSE_PROFILES=worker in the environment (Portainer: the stack's
+  # environment variables panel).
   worker:
-    image: node:22-alpine
     profiles: ["worker"]
-    working_dir: /app
+    build:
+      context: ./worker
+    image: sdi-worker:local
     depends_on:
-      db: {condition: service_healthy}
+      db:
+        condition: service_healthy
     environment:
       PGHOST: db
-      PGDATABASE: sdi
+      PGDATABASE: ${POSTGRES_DB:-sdi}
       PGUSER: sdi_integration
-      PGPASSWORD: demo_int_pw
+      PGPASSWORD: ${SDI_INTEGRATION_PASSWORD:-demo_int_pw}
+      PORT: "3001"
+      # From the environment, never from this file. A Private Integration
+      # Token is scoped to an entire GoHighLevel sub-account.
       GHL_TOKEN: ${GHL_TOKEN:-}
       GHL_LOCATION_ID: ${GHL_LOCATION_ID:-}
       GHL_WEBHOOK_PUBLIC_KEY: ${GHL_WEBHOOK_PUBLIC_KEY:-}
-      PORT: "3001"
-    ports: ["3001:3001"]
-    volumes: ["./worker:/app"]
-    command: sh -c "npm install --silent && node src/index.js"
+    ports:
+      - "${WORKER_PORT:-3001}:3001"
+    restart: unless-stopped
+
+volumes:
+  db-data:
