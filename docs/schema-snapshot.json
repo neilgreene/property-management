@@ -1,0 +1,1523 @@
+[
+  {
+    "schema": "core",
+    "name": "brand",
+    "comment": "",
+    "rls": true,
+    "columns": [
+      {
+        "name": "brand_code",
+        "type": "text",
+        "nullable": false,
+        "default": "",
+        "key": "PK",
+        "references": "",
+        "comment": ""
+      },
+      {
+        "name": "display_name",
+        "type": "text",
+        "nullable": false,
+        "default": "",
+        "key": "",
+        "references": "",
+        "comment": ""
+      },
+      {
+        "name": "service_tier",
+        "type": "text",
+        "nullable": false,
+        "default": "",
+        "key": "CK",
+        "references": "",
+        "comment": ""
+      },
+      {
+        "name": "platform_fee",
+        "type": "numeric(10,2)",
+        "nullable": false,
+        "default": "",
+        "key": "",
+        "references": "",
+        "comment": ""
+      }
+    ]
+  },
+  {
+    "schema": "core",
+    "name": "deal",
+    "comment": "",
+    "rls": true,
+    "columns": [
+      {
+        "name": "deal_id",
+        "type": "uuid",
+        "nullable": false,
+        "default": "gen_random_uuid()",
+        "key": "PK",
+        "references": "",
+        "comment": ""
+      },
+      {
+        "name": "external_ref",
+        "type": "text",
+        "nullable": true,
+        "default": "",
+        "key": "UQ",
+        "references": "",
+        "comment": ""
+      },
+      {
+        "name": "property_id",
+        "type": "uuid",
+        "nullable": false,
+        "default": "",
+        "key": "FK",
+        "references": "core.property",
+        "comment": ""
+      },
+      {
+        "name": "investor_id",
+        "type": "uuid",
+        "nullable": true,
+        "default": "",
+        "key": "FK",
+        "references": "core.person",
+        "comment": ""
+      },
+      {
+        "name": "agent_id",
+        "type": "uuid",
+        "nullable": true,
+        "default": "",
+        "key": "FK",
+        "references": "core.person",
+        "comment": ""
+      },
+      {
+        "name": "pipeline_code",
+        "type": "text",
+        "nullable": false,
+        "default": "",
+        "key": "FK",
+        "references": "core.pipeline_stage",
+        "comment": ""
+      },
+      {
+        "name": "stage_code",
+        "type": "text",
+        "nullable": false,
+        "default": "",
+        "key": "FK",
+        "references": "core.pipeline_stage",
+        "comment": ""
+      },
+      {
+        "name": "amount",
+        "type": "numeric(12,2)",
+        "nullable": true,
+        "default": "",
+        "key": "",
+        "references": "",
+        "comment": ""
+      },
+      {
+        "name": "opened_at",
+        "type": "timestamptz",
+        "nullable": false,
+        "default": "now()",
+        "key": "CK",
+        "references": "",
+        "comment": ""
+      },
+      {
+        "name": "closed_at",
+        "type": "timestamptz",
+        "nullable": true,
+        "default": "",
+        "key": "CK",
+        "references": "",
+        "comment": ""
+      },
+      {
+        "name": "lost_reason",
+        "type": "text",
+        "nullable": true,
+        "default": "",
+        "key": "",
+        "references": "",
+        "comment": ""
+      },
+      {
+        "name": "created_at",
+        "type": "timestamptz",
+        "nullable": false,
+        "default": "now()",
+        "key": "",
+        "references": "",
+        "comment": ""
+      },
+      {
+        "name": "updated_at",
+        "type": "timestamptz",
+        "nullable": false,
+        "default": "now()",
+        "key": "",
+        "references": "",
+        "comment": ""
+      }
+    ]
+  },
+  {
+    "schema": "core",
+    "name": "deal_stage_history",
+    "comment": "Append-only, written by trigger. The application cannot forget to log a transition, and cannot rewrite one after the fact.",
+    "rls": true,
+    "columns": [
+      {
+        "name": "id",
+        "type": "bigint",
+        "nullable": false,
+        "default": "nextval('core.deal_stage_history_id_seq'::regclass)",
+        "key": "PK",
+        "references": "",
+        "comment": ""
+      },
+      {
+        "name": "deal_id",
+        "type": "uuid",
+        "nullable": false,
+        "default": "",
+        "key": "FK",
+        "references": "core.deal",
+        "comment": ""
+      },
+      {
+        "name": "from_stage",
+        "type": "text",
+        "nullable": true,
+        "default": "",
+        "key": "",
+        "references": "",
+        "comment": ""
+      },
+      {
+        "name": "to_stage",
+        "type": "text",
+        "nullable": false,
+        "default": "",
+        "key": "",
+        "references": "",
+        "comment": ""
+      },
+      {
+        "name": "changed_at",
+        "type": "timestamptz",
+        "nullable": false,
+        "default": "now()",
+        "key": "",
+        "references": "",
+        "comment": ""
+      },
+      {
+        "name": "changed_by",
+        "type": "uuid",
+        "nullable": true,
+        "default": "",
+        "key": "",
+        "references": "",
+        "comment": ""
+      },
+      {
+        "name": "seconds_in_from",
+        "type": "bigint",
+        "nullable": true,
+        "default": "",
+        "key": "",
+        "references": "",
+        "comment": ""
+      }
+    ]
+  },
+  {
+    "schema": "core",
+    "name": "person",
+    "comment": "",
+    "rls": true,
+    "columns": [
+      {
+        "name": "person_id",
+        "type": "uuid",
+        "nullable": false,
+        "default": "gen_random_uuid()",
+        "key": "PK",
+        "references": "",
+        "comment": ""
+      },
+      {
+        "name": "role",
+        "type": "actor_role",
+        "nullable": false,
+        "default": "",
+        "key": "",
+        "references": "",
+        "comment": ""
+      },
+      {
+        "name": "full_name",
+        "type": "text",
+        "nullable": false,
+        "default": "",
+        "key": "",
+        "references": "",
+        "comment": ""
+      },
+      {
+        "name": "email",
+        "type": "text",
+        "nullable": false,
+        "default": "",
+        "key": "UQ",
+        "references": "",
+        "comment": ""
+      },
+      {
+        "name": "fee_agreement_signed_at",
+        "type": "timestamptz",
+        "nullable": true,
+        "default": "",
+        "key": "",
+        "references": "",
+        "comment": ""
+      },
+      {
+        "name": "home_brand",
+        "type": "text",
+        "nullable": true,
+        "default": "",
+        "key": "FK",
+        "references": "core.brand",
+        "comment": ""
+      },
+      {
+        "name": "active",
+        "type": "boolean",
+        "nullable": false,
+        "default": "true",
+        "key": "",
+        "references": "",
+        "comment": ""
+      }
+    ]
+  },
+  {
+    "schema": "core",
+    "name": "pipeline",
+    "comment": "",
+    "rls": true,
+    "columns": [
+      {
+        "name": "pipeline_code",
+        "type": "text",
+        "nullable": false,
+        "default": "",
+        "key": "PK",
+        "references": "",
+        "comment": ""
+      },
+      {
+        "name": "display_name",
+        "type": "text",
+        "nullable": false,
+        "default": "",
+        "key": "",
+        "references": "",
+        "comment": ""
+      },
+      {
+        "name": "brand_code",
+        "type": "text",
+        "nullable": true,
+        "default": "",
+        "key": "FK",
+        "references": "core.brand",
+        "comment": ""
+      },
+      {
+        "name": "active",
+        "type": "boolean",
+        "nullable": false,
+        "default": "true",
+        "key": "",
+        "references": "",
+        "comment": ""
+      }
+    ]
+  },
+  {
+    "schema": "core",
+    "name": "pipeline_stage",
+    "comment": "",
+    "rls": true,
+    "columns": [
+      {
+        "name": "pipeline_code",
+        "type": "text",
+        "nullable": false,
+        "default": "",
+        "key": "FK PK UQ",
+        "references": "core.pipeline",
+        "comment": ""
+      },
+      {
+        "name": "stage_code",
+        "type": "text",
+        "nullable": false,
+        "default": "",
+        "key": "PK",
+        "references": "",
+        "comment": ""
+      },
+      {
+        "name": "display_name",
+        "type": "text",
+        "nullable": false,
+        "default": "",
+        "key": "",
+        "references": "",
+        "comment": ""
+      },
+      {
+        "name": "position",
+        "type": "integer",
+        "nullable": false,
+        "default": "",
+        "key": "UQ",
+        "references": "",
+        "comment": ""
+      },
+      {
+        "name": "is_won",
+        "type": "boolean",
+        "nullable": false,
+        "default": "false",
+        "key": "CK",
+        "references": "",
+        "comment": ""
+      },
+      {
+        "name": "is_lost",
+        "type": "boolean",
+        "nullable": false,
+        "default": "false",
+        "key": "CK",
+        "references": "",
+        "comment": ""
+      }
+    ]
+  },
+  {
+    "schema": "core",
+    "name": "property",
+    "comment": "",
+    "rls": true,
+    "columns": [
+      {
+        "name": "property_id",
+        "type": "uuid",
+        "nullable": false,
+        "default": "gen_random_uuid()",
+        "key": "PK",
+        "references": "",
+        "comment": ""
+      },
+      {
+        "name": "listing_ref",
+        "type": "text",
+        "nullable": false,
+        "default": "",
+        "key": "UQ",
+        "references": "",
+        "comment": ""
+      },
+      {
+        "name": "status",
+        "type": "text",
+        "nullable": false,
+        "default": "",
+        "key": "CK",
+        "references": "",
+        "comment": ""
+      },
+      {
+        "name": "city",
+        "type": "text",
+        "nullable": false,
+        "default": "",
+        "key": "",
+        "references": "",
+        "comment": ""
+      },
+      {
+        "name": "state",
+        "type": "char(2)",
+        "nullable": false,
+        "default": "",
+        "key": "",
+        "references": "",
+        "comment": ""
+      },
+      {
+        "name": "zip",
+        "type": "text",
+        "nullable": false,
+        "default": "",
+        "key": "",
+        "references": "",
+        "comment": ""
+      },
+      {
+        "name": "property_type",
+        "type": "text",
+        "nullable": false,
+        "default": "",
+        "key": "",
+        "references": "",
+        "comment": ""
+      },
+      {
+        "name": "beds",
+        "type": "smallint",
+        "nullable": true,
+        "default": "",
+        "key": "",
+        "references": "",
+        "comment": ""
+      },
+      {
+        "name": "baths",
+        "type": "numeric(3,1)",
+        "nullable": true,
+        "default": "",
+        "key": "",
+        "references": "",
+        "comment": ""
+      },
+      {
+        "name": "sqft",
+        "type": "integer",
+        "nullable": true,
+        "default": "",
+        "key": "",
+        "references": "",
+        "comment": ""
+      },
+      {
+        "name": "year_built",
+        "type": "smallint",
+        "nullable": true,
+        "default": "",
+        "key": "",
+        "references": "",
+        "comment": ""
+      },
+      {
+        "name": "list_price",
+        "type": "numeric(12,2)",
+        "nullable": false,
+        "default": "",
+        "key": "",
+        "references": "",
+        "comment": ""
+      },
+      {
+        "name": "gross_rent_annual",
+        "type": "numeric(12,2)",
+        "nullable": false,
+        "default": "",
+        "key": "",
+        "references": "",
+        "comment": ""
+      },
+      {
+        "name": "opex_annual",
+        "type": "numeric(12,2)",
+        "nullable": false,
+        "default": "",
+        "key": "",
+        "references": "",
+        "comment": ""
+      },
+      {
+        "name": "hoa_annual",
+        "type": "numeric(12,2)",
+        "nullable": false,
+        "default": "0",
+        "key": "",
+        "references": "",
+        "comment": ""
+      },
+      {
+        "name": "noi_annual",
+        "type": "numeric(12,2)",
+        "nullable": true,
+        "default": "",
+        "key": "",
+        "references": "",
+        "comment": ""
+      },
+      {
+        "name": "cap_rate",
+        "type": "numeric(6,4)",
+        "nullable": true,
+        "default": "",
+        "key": "",
+        "references": "",
+        "comment": ""
+      },
+      {
+        "name": "street_address",
+        "type": "text",
+        "nullable": false,
+        "default": "",
+        "key": "",
+        "references": "",
+        "comment": ""
+      },
+      {
+        "name": "unit",
+        "type": "text",
+        "nullable": true,
+        "default": "",
+        "key": "",
+        "references": "",
+        "comment": ""
+      },
+      {
+        "name": "lat",
+        "type": "numeric(9,6)",
+        "nullable": false,
+        "default": "",
+        "key": "",
+        "references": "",
+        "comment": ""
+      },
+      {
+        "name": "lng",
+        "type": "numeric(9,6)",
+        "nullable": false,
+        "default": "",
+        "key": "",
+        "references": "",
+        "comment": ""
+      },
+      {
+        "name": "parcel_number",
+        "type": "text",
+        "nullable": true,
+        "default": "",
+        "key": "",
+        "references": "",
+        "comment": ""
+      },
+      {
+        "name": "seller_disclosure",
+        "type": "text",
+        "nullable": true,
+        "default": "",
+        "key": "",
+        "references": "",
+        "comment": ""
+      },
+      {
+        "name": "acquisition_cost",
+        "type": "numeric(12,2)",
+        "nullable": true,
+        "default": "",
+        "key": "",
+        "references": "",
+        "comment": ""
+      },
+      {
+        "name": "source_channel",
+        "type": "text",
+        "nullable": true,
+        "default": "",
+        "key": "",
+        "references": "",
+        "comment": ""
+      },
+      {
+        "name": "internal_notes",
+        "type": "text",
+        "nullable": true,
+        "default": "",
+        "key": "",
+        "references": "",
+        "comment": ""
+      },
+      {
+        "name": "created_at",
+        "type": "timestamptz",
+        "nullable": false,
+        "default": "now()",
+        "key": "",
+        "references": "",
+        "comment": ""
+      }
+    ]
+  },
+  {
+    "schema": "core",
+    "name": "property_assignment",
+    "comment": "",
+    "rls": true,
+    "columns": [
+      {
+        "name": "property_id",
+        "type": "uuid",
+        "nullable": false,
+        "default": "",
+        "key": "FK PK",
+        "references": "core.property",
+        "comment": ""
+      },
+      {
+        "name": "person_id",
+        "type": "uuid",
+        "nullable": false,
+        "default": "",
+        "key": "FK PK",
+        "references": "core.person",
+        "comment": ""
+      },
+      {
+        "name": "assign_role",
+        "type": "text",
+        "nullable": false,
+        "default": "",
+        "key": "CK PK",
+        "references": "",
+        "comment": ""
+      }
+    ]
+  },
+  {
+    "schema": "core",
+    "name": "property_brand",
+    "comment": "",
+    "rls": true,
+    "columns": [
+      {
+        "name": "property_id",
+        "type": "uuid",
+        "nullable": false,
+        "default": "",
+        "key": "FK PK",
+        "references": "core.property",
+        "comment": ""
+      },
+      {
+        "name": "brand_code",
+        "type": "text",
+        "nullable": false,
+        "default": "",
+        "key": "FK PK",
+        "references": "core.brand",
+        "comment": ""
+      },
+      {
+        "name": "published",
+        "type": "boolean",
+        "nullable": false,
+        "default": "false",
+        "key": "",
+        "references": "",
+        "comment": ""
+      },
+      {
+        "name": "brand_price",
+        "type": "numeric(12,2)",
+        "nullable": true,
+        "default": "",
+        "key": "",
+        "references": "",
+        "comment": ""
+      }
+    ]
+  },
+  {
+    "schema": "core",
+    "name": "saved_property",
+    "comment": "",
+    "rls": true,
+    "columns": [
+      {
+        "name": "person_id",
+        "type": "uuid",
+        "nullable": false,
+        "default": "",
+        "key": "FK PK",
+        "references": "core.person",
+        "comment": ""
+      },
+      {
+        "name": "property_id",
+        "type": "uuid",
+        "nullable": false,
+        "default": "",
+        "key": "FK PK",
+        "references": "core.property",
+        "comment": ""
+      },
+      {
+        "name": "saved_at",
+        "type": "timestamptz",
+        "nullable": false,
+        "default": "now()",
+        "key": "",
+        "references": "",
+        "comment": ""
+      }
+    ]
+  },
+  {
+    "schema": "ghl",
+    "name": "fee_agreement",
+    "comment": "",
+    "rls": false,
+    "columns": [
+      {
+        "name": "document_id",
+        "type": "text",
+        "nullable": false,
+        "default": "",
+        "key": "PK",
+        "references": "",
+        "comment": ""
+      },
+      {
+        "name": "location_id",
+        "type": "text",
+        "nullable": false,
+        "default": "",
+        "key": "",
+        "references": "",
+        "comment": ""
+      },
+      {
+        "name": "person_id",
+        "type": "uuid",
+        "nullable": true,
+        "default": "",
+        "key": "FK",
+        "references": "core.person",
+        "comment": ""
+      },
+      {
+        "name": "ghl_contact_id",
+        "type": "text",
+        "nullable": true,
+        "default": "",
+        "key": "",
+        "references": "",
+        "comment": ""
+      },
+      {
+        "name": "status",
+        "type": "text",
+        "nullable": false,
+        "default": "",
+        "key": "",
+        "references": "",
+        "comment": ""
+      },
+      {
+        "name": "payment_status",
+        "type": "text",
+        "nullable": false,
+        "default": "",
+        "key": "",
+        "references": "",
+        "comment": ""
+      },
+      {
+        "name": "grand_total",
+        "type": "numeric(12,2)",
+        "nullable": true,
+        "default": "",
+        "key": "",
+        "references": "",
+        "comment": ""
+      },
+      {
+        "name": "ghl_updated_at",
+        "type": "timestamptz",
+        "nullable": false,
+        "default": "",
+        "key": "",
+        "references": "",
+        "comment": ""
+      },
+      {
+        "name": "observed_at",
+        "type": "timestamptz",
+        "nullable": false,
+        "default": "now()",
+        "key": "",
+        "references": "",
+        "comment": ""
+      },
+      {
+        "name": "raw",
+        "type": "jsonb",
+        "nullable": false,
+        "default": "",
+        "key": "",
+        "references": "",
+        "comment": ""
+      }
+    ]
+  },
+  {
+    "schema": "ghl",
+    "name": "id_map",
+    "comment": "",
+    "rls": false,
+    "columns": [
+      {
+        "name": "entity_type",
+        "type": "text",
+        "nullable": false,
+        "default": "",
+        "key": "PK",
+        "references": "",
+        "comment": ""
+      },
+      {
+        "name": "local_id",
+        "type": "uuid",
+        "nullable": false,
+        "default": "",
+        "key": "PK",
+        "references": "",
+        "comment": ""
+      },
+      {
+        "name": "ghl_id",
+        "type": "text",
+        "nullable": false,
+        "default": "",
+        "key": "UQ",
+        "references": "",
+        "comment": ""
+      },
+      {
+        "name": "ghl_object",
+        "type": "object_kind",
+        "nullable": false,
+        "default": "",
+        "key": "",
+        "references": "",
+        "comment": ""
+      },
+      {
+        "name": "location_id",
+        "type": "text",
+        "nullable": false,
+        "default": "",
+        "key": "PK UQ",
+        "references": "",
+        "comment": ""
+      },
+      {
+        "name": "synced_at",
+        "type": "timestamptz",
+        "nullable": false,
+        "default": "now()",
+        "key": "",
+        "references": "",
+        "comment": ""
+      }
+    ]
+  },
+  {
+    "schema": "ghl",
+    "name": "outbox",
+    "comment": "",
+    "rls": false,
+    "columns": [
+      {
+        "name": "id",
+        "type": "bigint",
+        "nullable": false,
+        "default": "nextval('ghl.outbox_id_seq'::regclass)",
+        "key": "PK",
+        "references": "",
+        "comment": ""
+      },
+      {
+        "name": "idempotency_key",
+        "type": "text",
+        "nullable": false,
+        "default": "",
+        "key": "UQ",
+        "references": "",
+        "comment": "Deterministic per logical operation, so a retry after an ambiguous failure cannot create a duplicate record in GHL."
+      },
+      {
+        "name": "operation",
+        "type": "text",
+        "nullable": false,
+        "default": "",
+        "key": "",
+        "references": "",
+        "comment": ""
+      },
+      {
+        "name": "entity_type",
+        "type": "text",
+        "nullable": true,
+        "default": "",
+        "key": "",
+        "references": "",
+        "comment": ""
+      },
+      {
+        "name": "local_id",
+        "type": "uuid",
+        "nullable": true,
+        "default": "",
+        "key": "",
+        "references": "",
+        "comment": ""
+      },
+      {
+        "name": "payload",
+        "type": "jsonb",
+        "nullable": false,
+        "default": "",
+        "key": "",
+        "references": "",
+        "comment": ""
+      },
+      {
+        "name": "state",
+        "type": "outbox_state",
+        "nullable": false,
+        "default": "'pending'::ghl.outbox_state",
+        "key": "",
+        "references": "",
+        "comment": ""
+      },
+      {
+        "name": "attempts",
+        "type": "integer",
+        "nullable": false,
+        "default": "0",
+        "key": "",
+        "references": "",
+        "comment": ""
+      },
+      {
+        "name": "next_attempt_at",
+        "type": "timestamptz",
+        "nullable": false,
+        "default": "now()",
+        "key": "",
+        "references": "",
+        "comment": ""
+      },
+      {
+        "name": "last_error",
+        "type": "text",
+        "nullable": true,
+        "default": "",
+        "key": "",
+        "references": "",
+        "comment": ""
+      },
+      {
+        "name": "ghl_id",
+        "type": "text",
+        "nullable": true,
+        "default": "",
+        "key": "",
+        "references": "",
+        "comment": ""
+      },
+      {
+        "name": "created_at",
+        "type": "timestamptz",
+        "nullable": false,
+        "default": "now()",
+        "key": "",
+        "references": "",
+        "comment": ""
+      },
+      {
+        "name": "sent_at",
+        "type": "timestamptz",
+        "nullable": true,
+        "default": "",
+        "key": "",
+        "references": "",
+        "comment": ""
+      }
+    ]
+  },
+  {
+    "schema": "ghl",
+    "name": "review_queue",
+    "comment": "",
+    "rls": false,
+    "columns": [
+      {
+        "name": "id",
+        "type": "bigint",
+        "nullable": false,
+        "default": "nextval('ghl.review_queue_id_seq'::regclass)",
+        "key": "PK",
+        "references": "",
+        "comment": ""
+      },
+      {
+        "name": "source",
+        "type": "text",
+        "nullable": false,
+        "default": "",
+        "key": "",
+        "references": "",
+        "comment": ""
+      },
+      {
+        "name": "event_type",
+        "type": "text",
+        "nullable": false,
+        "default": "",
+        "key": "",
+        "references": "",
+        "comment": ""
+      },
+      {
+        "name": "ghl_object",
+        "type": "text",
+        "nullable": true,
+        "default": "",
+        "key": "",
+        "references": "",
+        "comment": ""
+      },
+      {
+        "name": "ghl_id",
+        "type": "text",
+        "nullable": true,
+        "default": "",
+        "key": "",
+        "references": "",
+        "comment": ""
+      },
+      {
+        "name": "local_id",
+        "type": "uuid",
+        "nullable": true,
+        "default": "",
+        "key": "",
+        "references": "",
+        "comment": ""
+      },
+      {
+        "name": "summary",
+        "type": "text",
+        "nullable": false,
+        "default": "",
+        "key": "",
+        "references": "",
+        "comment": ""
+      },
+      {
+        "name": "proposed",
+        "type": "jsonb",
+        "nullable": false,
+        "default": "",
+        "key": "",
+        "references": "",
+        "comment": ""
+      },
+      {
+        "name": "state",
+        "type": "review_state",
+        "nullable": false,
+        "default": "'open'::ghl.review_state",
+        "key": "",
+        "references": "",
+        "comment": ""
+      },
+      {
+        "name": "raised_at",
+        "type": "timestamptz",
+        "nullable": false,
+        "default": "now()",
+        "key": "",
+        "references": "",
+        "comment": ""
+      },
+      {
+        "name": "decided_at",
+        "type": "timestamptz",
+        "nullable": true,
+        "default": "",
+        "key": "",
+        "references": "",
+        "comment": ""
+      },
+      {
+        "name": "decided_by",
+        "type": "uuid",
+        "nullable": true,
+        "default": "",
+        "key": "",
+        "references": "",
+        "comment": ""
+      }
+    ]
+  },
+  {
+    "schema": "ghl",
+    "name": "reviewable_field",
+    "comment": "Allowlist. An accepted CRM edit can write these and nothing else. Deliberately excludes every band 2 and band 3 column: a status change must not be a route to rewriting an address or a cost basis.",
+    "rls": false,
+    "columns": [
+      {
+        "name": "column_name",
+        "type": "text",
+        "nullable": false,
+        "default": "",
+        "key": "PK",
+        "references": "",
+        "comment": ""
+      }
+    ]
+  },
+  {
+    "schema": "ghl",
+    "name": "sync_state",
+    "comment": "",
+    "rls": false,
+    "columns": [
+      {
+        "name": "resource",
+        "type": "text",
+        "nullable": false,
+        "default": "",
+        "key": "PK",
+        "references": "",
+        "comment": ""
+      },
+      {
+        "name": "location_id",
+        "type": "text",
+        "nullable": false,
+        "default": "",
+        "key": "",
+        "references": "",
+        "comment": ""
+      },
+      {
+        "name": "cursor_at",
+        "type": "timestamptz",
+        "nullable": true,
+        "default": "",
+        "key": "",
+        "references": "",
+        "comment": ""
+      },
+      {
+        "name": "last_run_at",
+        "type": "timestamptz",
+        "nullable": true,
+        "default": "",
+        "key": "",
+        "references": "",
+        "comment": ""
+      },
+      {
+        "name": "last_ok_at",
+        "type": "timestamptz",
+        "nullable": true,
+        "default": "",
+        "key": "",
+        "references": "",
+        "comment": ""
+      },
+      {
+        "name": "last_error",
+        "type": "text",
+        "nullable": true,
+        "default": "",
+        "key": "",
+        "references": "",
+        "comment": ""
+      },
+      {
+        "name": "records_seen",
+        "type": "bigint",
+        "nullable": false,
+        "default": "0",
+        "key": "",
+        "references": "",
+        "comment": ""
+      }
+    ]
+  },
+  {
+    "schema": "ghl",
+    "name": "transaction",
+    "comment": "",
+    "rls": false,
+    "columns": [
+      {
+        "name": "ghl_id",
+        "type": "text",
+        "nullable": false,
+        "default": "",
+        "key": "PK",
+        "references": "",
+        "comment": ""
+      },
+      {
+        "name": "location_id",
+        "type": "text",
+        "nullable": false,
+        "default": "",
+        "key": "",
+        "references": "",
+        "comment": ""
+      },
+      {
+        "name": "contact_id",
+        "type": "text",
+        "nullable": true,
+        "default": "",
+        "key": "",
+        "references": "",
+        "comment": ""
+      },
+      {
+        "name": "invoice_id",
+        "type": "text",
+        "nullable": true,
+        "default": "",
+        "key": "",
+        "references": "",
+        "comment": ""
+      },
+      {
+        "name": "subscription_id",
+        "type": "text",
+        "nullable": true,
+        "default": "",
+        "key": "",
+        "references": "",
+        "comment": ""
+      },
+      {
+        "name": "amount",
+        "type": "numeric(12,2)",
+        "nullable": false,
+        "default": "",
+        "key": "CK",
+        "references": "",
+        "comment": ""
+      },
+      {
+        "name": "currency",
+        "type": "char(3)",
+        "nullable": false,
+        "default": "",
+        "key": "",
+        "references": "",
+        "comment": ""
+      },
+      {
+        "name": "amount_refunded",
+        "type": "numeric(12,2)",
+        "nullable": false,
+        "default": "0",
+        "key": "CK",
+        "references": "",
+        "comment": ""
+      },
+      {
+        "name": "status",
+        "type": "text",
+        "nullable": false,
+        "default": "",
+        "key": "",
+        "references": "",
+        "comment": ""
+      },
+      {
+        "name": "live_mode",
+        "type": "boolean",
+        "nullable": false,
+        "default": "",
+        "key": "",
+        "references": "",
+        "comment": "Always filter on this. GHL test-mode traffic must never settle a real gate."
+      },
+      {
+        "name": "payment_provider",
+        "type": "text",
+        "nullable": true,
+        "default": "",
+        "key": "",
+        "references": "",
+        "comment": ""
+      },
+      {
+        "name": "entity_type",
+        "type": "text",
+        "nullable": true,
+        "default": "",
+        "key": "",
+        "references": "",
+        "comment": ""
+      },
+      {
+        "name": "entity_id",
+        "type": "text",
+        "nullable": true,
+        "default": "",
+        "key": "",
+        "references": "",
+        "comment": ""
+      },
+      {
+        "name": "ghl_created_at",
+        "type": "timestamptz",
+        "nullable": false,
+        "default": "",
+        "key": "",
+        "references": "",
+        "comment": ""
+      },
+      {
+        "name": "ghl_updated_at",
+        "type": "timestamptz",
+        "nullable": false,
+        "default": "",
+        "key": "",
+        "references": "",
+        "comment": ""
+      },
+      {
+        "name": "synced_at",
+        "type": "timestamptz",
+        "nullable": false,
+        "default": "now()",
+        "key": "",
+        "references": "",
+        "comment": ""
+      },
+      {
+        "name": "raw",
+        "type": "jsonb",
+        "nullable": false,
+        "default": "",
+        "key": "",
+        "references": "",
+        "comment": ""
+      }
+    ]
+  },
+  {
+    "schema": "ghl",
+    "name": "webhook_event",
+    "comment": "",
+    "rls": false,
+    "columns": [
+      {
+        "name": "webhook_id",
+        "type": "text",
+        "nullable": false,
+        "default": "",
+        "key": "PK",
+        "references": "",
+        "comment": ""
+      },
+      {
+        "name": "event_type",
+        "type": "text",
+        "nullable": false,
+        "default": "",
+        "key": "",
+        "references": "",
+        "comment": ""
+      },
+      {
+        "name": "occurred_at",
+        "type": "timestamptz",
+        "nullable": false,
+        "default": "",
+        "key": "",
+        "references": "",
+        "comment": ""
+      },
+      {
+        "name": "received_at",
+        "type": "timestamptz",
+        "nullable": false,
+        "default": "now()",
+        "key": "",
+        "references": "",
+        "comment": ""
+      },
+      {
+        "name": "processed_at",
+        "type": "timestamptz",
+        "nullable": true,
+        "default": "",
+        "key": "",
+        "references": "",
+        "comment": ""
+      },
+      {
+        "name": "attempts",
+        "type": "integer",
+        "nullable": false,
+        "default": "0",
+        "key": "",
+        "references": "",
+        "comment": ""
+      },
+      {
+        "name": "last_error",
+        "type": "text",
+        "nullable": true,
+        "default": "",
+        "key": "",
+        "references": "",
+        "comment": ""
+      },
+      {
+        "name": "signature_ok",
+        "type": "boolean",
+        "nullable": false,
+        "default": "",
+        "key": "",
+        "references": "",
+        "comment": ""
+      },
+      {
+        "name": "payload",
+        "type": "jsonb",
+        "nullable": false,
+        "default": "",
+        "key": "",
+        "references": "",
+        "comment": ""
+      }
+    ]
+  }
+]

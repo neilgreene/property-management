@@ -115,6 +115,8 @@ worker/src/migrate/          EspoCRM -> GHL load passes
 worker/src/index.js          the worker daemon: HTTP surface + loops
 worker/test/                 63 tests (unit + end-to-end against the database)
 docs/GHL-Interface-Specification.pdf   the GHL API contract, 17pp
+docs/System-Documentation.pdf          what was built, 19pp, incl. every table definition
+docs/schema-snapshot.json              the schema, read from a live database
 ```
 
 ## The model
@@ -465,6 +467,27 @@ retry safe:
 A 403 fails immediately rather than retrying — a missing scope will never
 succeed and retrying only burns rate budget. Retries back off to a one-hour cap
 and then abandon, so nothing loops forever.
+
+## Regenerating the documents
+
+Both PDFs in `docs/` are produced by committed generators rather than written by
+hand, so they can be rebuilt instead of drifting.
+
+`System-Documentation.pdf` carries an appendix defining every column of every
+table. That appendix is not transcribed — it is read from a live database, so it
+cannot describe a schema the system does not actually have. After a schema
+change:
+
+```bash
+./run.sh                                    # or docker compose up
+python3 docs/extract_schema.py              # -> docs/schema-snapshot.json
+python3 docs/generate_system_documentation.py
+```
+
+The generator reads the snapshot rather than the database, so the PDF rebuilds
+on a machine with no PostgreSQL running. Its contents page is built in two
+passes: the first records where each heading lands, the second lays out the page
+with those numbers.
 
 ## What this does not cover yet
 

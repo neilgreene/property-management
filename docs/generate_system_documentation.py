@@ -14,6 +14,8 @@ from reportlab.lib.units import inch
 from reportlab.platypus import (BaseDocTemplate, Flowable, Frame, PageBreak, PageTemplate,
                                 Paragraph, Preformatted, Spacer, Table, TableStyle)
 from reportlab.platypus.tableofcontents import TableOfContents
+import json
+import os
 
 OUT = "docs/System-Documentation.pdf"
 
@@ -38,10 +40,15 @@ NOTE  = S("note", parent=BODY, leftIndent=9, textColor=WARN, fontName="Helvetica
 GOOD  = S("good", fontName="Helvetica", fontSize=9, leading=12.8, textColor=INK, backColor=OKBG,
           borderPadding=7, borderColor=OK, borderWidth=0.7, spaceAfter=9, spaceBefore=3)
 CT    = S("ct", fontName="Helvetica-Bold", fontSize=25, leading=30, textColor=INK, alignment=TA_CENTER, spaceAfter=10)
+SCELL = S("scell", fontName="Helvetica", fontSize=7.4, leading=9.4, textColor=INK)
+SCELB = S("scelb", parent=None, fontName="Helvetica-Bold", fontSize=7.4, leading=9.4, textColor=INK)
+TNAME = S("tname", fontName="Courier-Bold", fontSize=10, leading=13, textColor=INK,
+          spaceBefore=13, spaceAfter=2)
+TDESC = S("tdesc", fontName="Helvetica-Oblique", fontSize=8, leading=11, textColor=MUTED, spaceAfter=4)
 BLANK = S("blank", fontName="Helvetica", fontSize=8.5, leading=12, textColor=MUTED, alignment=TA_CENTER)
-TOC1  = S("toc1", fontName="Helvetica-Bold", fontSize=9.5, leading=14, textColor=INK,
-          spaceBefore=5, leftIndent=0, firstLineIndent=0)
-TOC2  = S("toc2", fontName="Helvetica", fontSize=8.5, leading=12, textColor=MUTED,
+TOC1  = S("toc1", fontName="Helvetica-Bold", fontSize=9, leading=12.5, textColor=INK,
+          spaceBefore=3.5, leftIndent=0, firstLineIndent=0)
+TOC2  = S("toc2", fontName="Helvetica", fontSize=8.2, leading=10.8, textColor=MUTED,
           leftIndent=18, firstLineIndent=0)
 CS    = S("cs", fontName="Helvetica", fontSize=12.5, leading=17, textColor=MUTED, alignment=TA_CENTER, spaceAfter=5)
 
@@ -215,7 +222,7 @@ A(PageBreak())
 
 # ---------------------------------------------------------- page 3, contents
 A(para("Contents", H1))
-A(Spacer(1, 6))
+A(Spacer(1, 3))
 toc = TableOfContents()
 toc.levelStyles = [TOC1, TOC2]
 toc.dotsMinLevel = 0
@@ -387,7 +394,13 @@ A(table([
      mono("review_queue") + ", " + mono("reviewable_field")],
 ], [0.8*inch, 5.1*inch]))
 A(Spacer(1, 4))
-A(para("All ten " + mono("core") + " tables have row-level security enabled and forced.", BODY))
+A(para("All ten " + mono("core") + " tables have row-level security enabled and forced; none of "
+       "the " + mono("ghl") + " tables do, because that schema is reachable only by the "
+       "integration worker and by nothing else.", BODY))
+A(para("<b>Every column of every table is defined in Appendix A</b>, with its type, "
+       "nullability, default, key role and foreign key target. That appendix is generated "
+       "from the live database rather than transcribed, so it cannot describe a schema the "
+       "system does not actually have.", BODY))
 
 # ------------------------------------------------------------------ 5
 A(para("5.  The API", H1))
@@ -535,5 +548,66 @@ A(para("There is no INSTALL file; section 2 of this document and the README's op
 # multiBuild, not build: the first pass discovers where each heading lands,
 # the second lays out the contents page with those numbers. A single pass
 # would print a contents page with every entry on page 0.
+
+# ------------------------------------------------------------- Appendix A
+A(PageBreak())
+A(para("Appendix A.  Table Definitions", H1))
+A(para("Every column of every base table, read from the live database by "
+       "<font face='Courier'>docs/extract_schema.py</font> and stored in "
+       "<font face='Courier'>docs/schema-snapshot.json</font>. Regenerate the snapshot after "
+       "any schema change and rebuild this document; the appendix cannot then describe a "
+       "schema the system does not have.", BODY))
+A(table([
+    hdr(["Marker", "Meaning"]),
+    ["PK", "Part of the primary key"],
+    ["FK", "Foreign key; the referenced table is named in the same row"],
+    ["UQ", "Covered by a unique constraint"],
+    ["CK", "Covered by a check constraint"],
+    ["not null", "The column is " + mono("NOT NULL")],
+], [0.7*inch, 5.2*inch]))
+A(Spacer(1, 6))
+
+_snapshot = os.path.join(os.path.dirname(__file__), "schema-snapshot.json")
+with open(_snapshot) as _fh:
+    SCHEMA = json.load(_fh)
+
+def _shorten(default):
+    """Sequence defaults are noise at this width; name the behaviour instead."""
+    if not default:
+        return ""
+    if default.startswith("nextval("):
+        return "auto-increment"
+    if default.startswith("'") and "::" in default:
+        return default.split("::")[0]
+    return default
+
+_current_schema = None
+for tbl in SCHEMA:
+    if tbl["schema"] != _current_schema:
+        _current_schema = tbl["schema"]
+        A(para(f"Schema <font face='Courier'>{_current_schema}</font>", H2))
+    rls = "row-level security enforced" if tbl["rls"] else "no row-level security"
+    A(para(f"{tbl['schema']}.{tbl['name']}", TNAME))
+    note = tbl["comment"].replace("\n", " ").strip()
+    A(para(f"{len(tbl['columns'])} columns &middot; {rls}" + (f" &middot; {note}" if note else ""), TDESC))
+
+    rows = [[Paragraph(c, SCELB) for c in
+             ["Column", "Type", "Null", "Key", "Default / references"]]]
+    for col in tbl["columns"]:
+        keybits = []
+        if col["key"]:
+            keybits.append(col["key"])
+        extra = _shorten(col["default"])
+        if col["references"]:
+            extra = (extra + " " if extra else "") + "&rarr; " + col["references"]
+        rows.append([
+            Paragraph(f"<font face='Courier'>{col['name']}</font>", SCELL),
+            Paragraph(f"<font face='Courier'>{col['type']}</font>", SCELL),
+            Paragraph("" if col["nullable"] else "not null", SCELL),
+            Paragraph(" ".join(keybits), SCELL),
+            Paragraph(extra, SCELL),
+        ])
+    A(table(rows, [1.55*inch, 1.1*inch, 0.55*inch, 0.5*inch, 2.2*inch]))
+
 doc.multiBuild(E)
 print("wrote", OUT)
