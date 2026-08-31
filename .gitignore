@@ -2,3 +2,6 @@ __pycache__/
 *.pyc
 .env
 .venv/
+node_modules/
+npm-debug.log*
+package-lock.json

@@ -56,6 +56,8 @@ sql/06_ghl_integration.sql   GoHighLevel bridge (ghl schema)
 sql/07_ghl_tests.sql         seven-check GHL bridge walkthrough
 web/server.js                demo web tier
 web/public/index.html        demo UI
+worker/src/                  GoHighLevel integration worker
+worker/test/                 31 tests (unit + end-to-end against the database)
 docs/GHL-Interface-Specification.pdf   the GHL API contract, 17pp
 ```
 
@@ -204,6 +206,52 @@ or by a GHL workflow posting to a custom webhook. The state lands here either wa
 | 5 | Attack — web persona reads `ghl.transaction` | `permission denied for schema ghl` |
 | 6 | Attack — web persona opens its own gate | `permission denied for schema core` |
 | 7 | Standing invariants after adding `ghl` | 0 violations |
+
+## The integration worker
+
+`worker/` is the Node service that talks to GoHighLevel. `npm test` runs 31
+checks; the database-backed ones skip cleanly if no database is reachable.
+
+**Signature verification is asymmetric.** GHL signs with an RSA private key and
+publishes the public key, so `worker/src/signature.js` verifies rather than
+recomputes an HMAC. Two rules it enforces, both easy to get wrong: verify the
+*raw* body bytes — parse-then-stringify changes whitespace and key order and the
+signature will never match, which is its own test — and reject deliveries
+outside a five-minute window or with a `webhookId` already seen.
+
+The exact algorithm and padding are not stated in GHL's published documentation.
+PKCS#1 v1.5 with SHA-256 is the conventional pairing for this key format and is
+what the code tries. **Confirm it against a captured live delivery before
+trusting it in production.**
+
+**The receiver is a plain function over `(rawBody, headers)`**, not an HTTP
+route. Live deliveries need an inbound public URL, which local development does
+not have, so it is driven from fixtures today and mounted on a route later
+without changing a line.
+
+**The client sets `Version: 2021-07-28` once.** It is a required header with a
+single-value enum in the spec, so omitting it is a deterministic failure — it
+belongs in the client, not at each call site. The client also paces itself well
+under the 100-request/10-second burst ceiling, retries 429 and 5xx with jittered
+backoff, and does not retry 403, since a missing scope will never succeed and
+retrying it just burns rate budget.
+
+### One thing the tests caught
+
+`core.person` is `FORCE ROW LEVEL SECURITY`, which applies to the table owner as
+well. A `SECURITY DEFINER` function therefore gets no free pass unless its owner
+is a superuser — true on a laptop, not something to rely on in production. The
+gate write is now authorised by an explicit `person_gate_write` policy keyed on a
+transaction-local flag that only `ghl.apply_fee_agreement()` sets, and
+`sdi_integration` holds no grants on `core` at all. It does not need any: it
+resolves identity through `ghl.id_map` and opens the gate only through that
+function.
+
+The integration test uses two connections for the same reason — the worker
+writes the gate as `sdi_integration`, and reading back what the investor now
+sees has to go through the web tier's own role, because the worker cannot
+`SET ROLE` into a persona. That separation is the point, so the test respects it
+rather than granting itself a shortcut.
 
 ## What this does not cover yet
 

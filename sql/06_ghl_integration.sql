@@ -138,6 +138,17 @@ CREATE INDEX ix_ghl_fee_person ON ghl.fee_agreement (person_id);
 -- should write core.person.fee_agreement_signed_at -- routing it through
 -- one definer-rights function means the condition for unlocking band 2
 -- is stated exactly once and is auditable.
+-- core.person is FORCE ROW LEVEL SECURITY, which applies to the table owner as
+-- well. A SECURITY DEFINER function therefore does NOT get a free pass unless
+-- its owner is a superuser -- true on a laptop, not something to rely on in
+-- production. So the gate write is authorised by an explicit policy keyed on a
+-- transaction-local flag that only the function below sets. sdi_integration
+-- holds no UPDATE grant on core.person, so it cannot reach this path directly.
+CREATE POLICY person_gate_write ON core.person
+  FOR UPDATE
+  USING      (current_setting('app.gate_write', true) = '1')
+  WITH CHECK (current_setting('app.gate_write', true) = '1');
+
 CREATE FUNCTION ghl.apply_fee_agreement(p_document_id text)
 RETURNS boolean
 LANGUAGE plpgsql
@@ -159,10 +170,12 @@ BEGIN
         RETURN false;
     END IF;
 
+    PERFORM set_config('app.gate_write', '1', true);   -- transaction-local
     UPDATE core.person
        SET fee_agreement_signed_at = COALESCE(fee_agreement_signed_at, fa.ghl_updated_at)
      WHERE person_id = fa.person_id
        AND fee_agreement_signed_at IS NULL;
+    PERFORM set_config('app.gate_write', '0', true);
 
     RETURN true;
 END;
@@ -216,7 +229,8 @@ GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA ghl TO sdi_integrat
 GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA ghl TO sdi_integration;
 GRANT EXECUTE ON FUNCTION ghl.apply_fee_agreement(text) TO sdi_integration;
 
--- The worker needs to write the gate and read identities, nothing more.
-GRANT USAGE ON SCHEMA core TO sdi_integration;
-GRANT SELECT, UPDATE ON core.person   TO sdi_integration;
-GRANT SELECT           ON core.property TO sdi_integration;
+-- Deliberately no grants on core. The worker resolves identity through
+-- ghl.id_map and opens the gate only via ghl.apply_fee_agreement(), so it needs
+-- neither USAGE on core nor any privilege on core.person. Granting them would
+-- have been theatre in any case: core.person is FORCE RLS with policies keyed
+-- on sec.actor_id(), so a direct SELECT from this role returns zero rows.

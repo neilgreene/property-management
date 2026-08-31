@@ -13,5 +13,13 @@ echo; echo "--- security walkthrough ---"
 psql -d "$DB" -f sql/05_tests.sql
 echo; echo "--- GHL bridge checks ---"
 psql -d "$DB" -f sql/07_ghl_tests.sql
+# --- GHL integration worker -------------------------------------------
+# Test-only fixture role; see worker/test/bootstrap.sql for why it exists.
+psql -d "$DB" -q -f worker/test/bootstrap.sql
+psql -d "$DB" -q -c "ALTER ROLE sdi_integration WITH LOGIN PASSWORD 'demo_int_pw';" \
+                -c "GRANT CONNECT ON DATABASE $DB TO sdi_integration, sdi_test_admin;"
+echo; echo "--- worker tests ---"
+(cd worker && npm install --silent && PGDATABASE="$DB" npm test)
+
 echo; echo "--- starting web demo on http://localhost:3000 ---"
 cd web && npm install --silent && PGDATABASE="$DB" node server.js
