@@ -44,6 +44,21 @@ The one behavioural difference worth knowing: Postgres column `GRANT`s raise
 `api` views restore the Oracle habit — every column is always present in the
 result, unauthorised ones come back NULL.
 
+## Layout
+
+```
+sql/01_schema.sql            core/sec/api schemas, roles, base tables
+sql/02_policies.sql          RLS policies
+sql/03_views.sql             masking views and the write path
+sql/04_seed.sql              demo data
+sql/05_tests.sql             eleven-check security walkthrough
+sql/06_ghl_integration.sql   GoHighLevel bridge (ghl schema)
+sql/07_ghl_tests.sql         seven-check GHL bridge walkthrough
+web/server.js                demo web tier
+web/public/index.html        demo UI
+docs/GHL-Interface-Specification.pdf   the GHL API contract, 17pp
+```
+
 ## The model
 
 One `core.property` row carries three visibility bands. They are separated by
@@ -141,6 +156,54 @@ hundred thousand rows, check the plan before assuming it still is.
 The demo maps personas to roles in `web/server.js` for convenience. In production
 that mapping comes out of the session after authentication — the database contract
 is identical either way. Passwords in `docker-compose.yml` are demo values.
+
+## The GoHighLevel bridge
+
+`sql/06_ghl_integration.sql` adds a `ghl` schema and an `sdi_integration` role.
+The web tier is deliberately not granted `USAGE` on it: `sdi_app` has no reason
+to read CRM plumbing, and keeping it out means a compromised web session cannot
+enumerate contacts, invoices or transactions.
+
+Three facts from the API shape it, all documented in
+`docs/GHL-Interface-Specification.pdf`:
+
+- **GHL has no endpoint that creates a transaction.** `ghl.transaction` is a
+  mirror, never a source, and keeps the raw payload for reconciliation.
+- **Webhook delivery is neither exactly-once nor ordered.** Every side effect is
+  gated on `ghl.webhook_event`, keyed on the payload's `webhookId`.
+- **There is no transactional import.** Outbound writes stage in `ghl.outbox`
+  with a deterministic `idempotency_key`, so a retry after an ambiguous failure
+  cannot duplicate a record in GHL.
+
+### The fee gate has two conditions, not one
+
+GHL's Documents & Contracts API (the `proposals` module) reports document status
+and payment status *independently*: `draft|sent|viewed|completed|accepted` and
+`waiting_for_payment|paid|no_payment`. A document can be signed and unpaid.
+
+`ghl.apply_fee_agreement()` is the only thing in the system that writes
+`core.person.fee_agreement_signed_at`, and it requires both — completed or
+accepted, *and* paid. Test 2 in `sql/07_ghl_tests.sql` is the signed-but-unpaid
+case, which a tag-based unlock gets wrong. It is also idempotent: replaying an
+event never moves an existing signature timestamp.
+
+Note there is no document-signed event in GHL's 58-event webhook catalogue, so
+`ghl.fee_agreement` is kept current either by polling `GET /proposals/document`
+or by a GHL workflow posting to a custom webhook. The state lands here either way.
+
+### GHL bridge walkthrough
+
+`sql/07_ghl_tests.sql` runs seven checks.
+
+| | Check | Result |
+|---|---|---|
+| 1 | Marcus, no agreement | address withheld |
+| 2 | Document completed but **unpaid** | gate stays shut |
+| 3 | Payment settles | band 2 opens, address released |
+| 4 | Replay the same event | signature timestamp unchanged |
+| 5 | Attack — web persona reads `ghl.transaction` | `permission denied for schema ghl` |
+| 6 | Attack — web persona opens its own gate | `permission denied for schema core` |
+| 7 | Standing invariants after adding `ghl` | 0 violations |
 
 ## What this does not cover yet
 

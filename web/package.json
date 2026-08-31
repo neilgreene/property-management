@@ -1,0 +1,16 @@
+{
+  "name": "sdi-visibility-demo",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Demo web tier for the SDI database-enforced visibility model",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "pg": "^8.13.1"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}
