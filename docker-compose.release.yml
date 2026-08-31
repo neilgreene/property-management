@@ -1,0 +1,71 @@
+# SDI Investment Property Marketplace -- deployment from published images.
+#
+# Pulls from GitHub Container Registry rather than building. Use this in
+# Portainer, and anywhere the target host should not be running a build.
+# docker-compose.yml is the development counterpart: same services, built
+# from source.
+#
+#   Portainer:  Stacks -> Add stack -> Web editor, paste this file,
+#               set the environment variables below, deploy.
+#   Command:    docker compose -f docker-compose.release.yml up -d
+#
+# Pin SDI_VERSION to a release tag for anything real. `latest` moves.
+
+services:
+  db:
+    image: ghcr.io/neilgreene/property-management/db:${SDI_VERSION:-latest}
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-sdi}
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in the stack environment}
+      # Handed to the application roles at first start. A role given no
+      # password here stays NOLOGIN, which fails at connect time rather than
+      # silently granting access.
+      SDI_APP_PASSWORD: ${SDI_APP_PASSWORD:?set SDI_APP_PASSWORD in the stack environment}
+      SDI_INTEGRATION_PASSWORD: ${SDI_INTEGRATION_PASSWORD:-}
+    # Not published. Nothing outside this stack needs the database.
+    volumes:
+      - db-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_DB:-sdi}"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+      start_period: 20s
+    restart: unless-stopped
+
+  web:
+    image: ghcr.io/neilgreene/property-management/web:${SDI_VERSION:-latest}
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      PGHOST: db
+      PGDATABASE: ${POSTGRES_DB:-sdi}
+      PGUSER: sdi_app
+      PGPASSWORD: ${SDI_APP_PASSWORD}
+    ports:
+      - "${WEB_PORT:-3000}:3000"
+    restart: unless-stopped
+
+  worker:
+    profiles: ["worker"]
+    image: ghcr.io/neilgreene/property-management/worker:${SDI_VERSION:-latest}
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      PGHOST: db
+      PGDATABASE: ${POSTGRES_DB:-sdi}
+      PGUSER: sdi_integration
+      PGPASSWORD: ${SDI_INTEGRATION_PASSWORD}
+      PORT: "3001"
+      GHL_TOKEN: ${GHL_TOKEN:-}
+      GHL_LOCATION_ID: ${GHL_LOCATION_ID:-}
+      GHL_WEBHOOK_PUBLIC_KEY: ${GHL_WEBHOOK_PUBLIC_KEY:-}
+    ports:
+      - "${WORKER_PORT:-3001}:3001"
+    restart: unless-stopped
+
+volumes:
+  db-data:

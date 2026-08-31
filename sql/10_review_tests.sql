@@ -85,5 +85,15 @@ ROLLBACK;
 \echo '=== 7. Standing invariants still hold.'
 SELECT * FROM api.security_invariants();
 
+-- Put SDI-1041 back as seeded. Check 4 has to COMMIT to show the change
+-- persisting, so it cannot simply roll back -- but leaving the property
+-- 'pending' changes what 05_tests reports when the walkthroughs run in
+-- sequence, which made an earlier check appear to lose a row.
+UPDATE core.property
+   SET status = 'active', list_price = 228000
+ WHERE listing_ref = 'SDI-1041';
+DELETE FROM ghl.review_queue;
+DELETE FROM ghl.id_map WHERE ghl_id = 'ghl_rec_41';
+
 \echo
 \echo '=== Review action checks complete.'

@@ -3,13 +3,16 @@
 Deploying the SDI Investment Property Marketplace, with Portainer as the
 primary path.
 
-**Status of these instructions.** The compose file and the three Dockerfiles
+**Status of these instructions.** Both compose files and the three Dockerfiles
 are validated (`docker compose config` passes, the worker appears only under
-its profile, the stack refuses to start without a database password). They have
-**not been executed** — the environment this was built in cannot run Docker, as
-image pulls are blocked there. Treat the first deployment as a test of these
-instructions as much as of the software, and report anything that does not
-match.
+its profile, the stack refuses to start without credentials, the database port
+is unpublished). They have **not been executed** — the environment this was
+built in cannot run Docker, as image pulls are blocked there. Treat the first
+deployment as a test of these instructions as much as of the software, and
+report anything that does not match.
+
+**Two ways in.** Deploy from published images (§3, recommended) or build on the
+host from source (§4). The images are the same either way.
 
 ---
 
@@ -19,11 +22,15 @@ match.
 |---|---|
 | Docker Engine 20.10+ | On the host Portainer manages |
 | Portainer CE 2.19+ | Business Edition not required |
-| A **standalone Docker** environment in Portainer | Not Swarm. See §6 for why, and for the Swarm path |
 | ~2 GB disk, 1 GB RAM | Images plus the database |
-| Outbound HTTPS from the host | To pull base images and one npm package at build time |
+| Outbound HTTPS from the host | To pull images from `ghcr.io` |
 
-Nothing else. No registry account, no external services.
+Nothing else. The images are public, so no registry login is needed to pull
+them.
+
+If you build on the host instead (§4) you additionally want a **standalone
+Docker** environment rather than Swarm — see §6. Deploying from published
+images works on either.
 
 ---
 
@@ -45,35 +52,52 @@ removes that failure mode entirely.
 
 ---
 
-## 3. Deploy from Git (recommended)
+## 3. Deploy from published images (recommended)
 
-1. In Portainer, choose your **standalone Docker** environment.
-2. **Stacks → Add stack**.
-3. Name it `sdi`.
-4. Build method: **Repository**.
-   - Repository URL: `https://github.com/neilgreene/property-management`
-   - Reference: `refs/heads/main`
-   - Compose path: `docker-compose.yml`
-5. Under **Environment variables**, add:
+Every push to `main` publishes three images to GitHub Container Registry, and
+every `v*` tag publishes a versioned set:
 
-   | Name | Value |
-   |---|---|
-   | `POSTGRES_PASSWORD` | something long and random |
+| Image | Contains |
+|---|---|
+| `ghcr.io/neilgreene/property-management/db` | PostgreSQL 16 with the schema baked in |
+| `ghcr.io/neilgreene/property-management/web` | The demo interface |
+| `ghcr.io/neilgreene/property-management/worker` | The GoHighLevel integration |
 
-   That one is **required** — the stack is written to refuse to start without
-   it rather than fall back to a guessable default.
+Nothing is built on your host, so this also works on Swarm.
 
-   Optionally also:
+1. In Portainer, **Stacks → Add stack**, name it `sdi`.
+2. Build method: **Web editor**. Paste the contents of
+   `docker-compose.release.yml` from the repository.
+3. Under **Environment variables**, add:
 
-   | Name | Value | Effect |
+   | Name | Value | Required |
    |---|---|---|
-   | `WEB_PORT` | `3000` | Host port for the demo |
-   | `DEMO_LOGINS` | `1` | Bakes the demo role passwords in. Set `0` for anything real |
+   | `POSTGRES_PASSWORD` | long and random | **yes** |
+   | `SDI_APP_PASSWORD` | long and random | **yes** |
+   | `SDI_VERSION` | `latest`, or a release tag such as `1.0.0` | no |
+   | `WEB_PORT` | `3000` | no |
 
-6. **Deploy the stack.**
+   The two passwords have no defaults on purpose. A stack that quietly starts
+   with a guessable database password is worse than one that refuses to start.
 
-First deploy builds three images and takes a few minutes. Then open
-`http://<host>:3000`.
+4. **Deploy the stack.**
+
+Then open `http://<host>:3000`.
+
+Pin `SDI_VERSION` to a release tag for anything real. `latest` moves whenever
+`main` does, so a redeploy months later would not give you back what you tested.
+
+### Where the role passwords go
+
+The database image ships with **no credentials at all**. On first start it
+reads `SDI_APP_PASSWORD` and `SDI_INTEGRATION_PASSWORD` from the environment
+and grants those roles login. A role given no password stays `NOLOGIN`, which
+fails visibly at connect time rather than silently allowing access.
+
+This is why there is no demo-password flag on the published images: an image
+built without credentials cannot serve the web tier, and one built with them
+would ship the same password to every deployment. Runtime is the only sensible
+place for that decision.
 
 ### Checking it worked
 
@@ -86,19 +110,27 @@ First deploy builds three images and takes a few minutes. Then open
 
 ---
 
-## 4. Deploy from the Web editor
+## 4. Build on the host instead
 
-If you would rather not point Portainer at GitHub:
+Use this when you want to deploy a branch that has not been published, or you
+would rather not depend on the registry.
 
-1. Clone the repository onto the Docker host: `git clone … /opt/sdi`
-2. **Stacks → Add stack → Web editor**, paste the contents of
-   `docker-compose.yml`.
-3. Set the same environment variables.
-4. Deploy.
+1. **Stacks → Add stack**, name it `sdi`.
+2. Build method: **Repository**.
+   - Repository URL: `https://github.com/neilgreene/property-management`
+   - Reference: `refs/heads/main`
+   - Compose path: `docker-compose.yml` — note: **not** the `.release.yml` one
+3. Set the same environment variables as §3, minus `SDI_VERSION`.
+4. Deploy. The first build takes a few minutes.
 
-The build contexts (`.`, `./web`, `./worker`) resolve relative to where
-Portainer runs the build. If the build cannot find them, use §3 instead — the
-Git method has no such ambiguity.
+This path needs a **standalone Docker** environment. Swarm does not build.
+
+Locally the same file works directly:
+
+```bash
+cp .env.example .env      # then set the two passwords
+docker compose up --build
+```
 
 ---
 
@@ -140,26 +172,30 @@ If your Portainer environment is a Swarm cluster (for example two nodes named
 | `profiles` | The worker starts whether you wanted it or not |
 | `build` | Swarm does not build; it only pulls |
 
-The fix is to build the images once and push them to a registry, then deploy a
-compose file that references them by tag instead of building:
+Two of those three are already solved by deploying from published images (§3),
+which is why that is the recommended path: there is nothing to build, so
+`build` being ignored costs nothing.
 
-```bash
-docker build -t <registry>/sdi-db:1.0     -f docker/db.Dockerfile .
-docker build -t <registry>/sdi-web:1.0    ./web
-docker build -t <registry>/sdi-worker:1.0 ./worker
-docker push <registry>/sdi-db:1.0
-docker push <registry>/sdi-web:1.0
-docker push <registry>/sdi-worker:1.0
-```
+The remaining two need edits to `docker-compose.release.yml` before
+`docker stack deploy` will behave:
 
-Then replace each `build:` block with `image: <registry>/…:1.0`, drop the
-`profiles:` line, and replace the `depends_on` condition with a
-`restart_policy` — `web` will retry until the database answers.
+- Drop the `profiles:` line from `worker` — and simply omit the service
+  entirely if you do not want it running.
+- Replace the `depends_on` condition with a restart policy. `web` will
+  crash-loop until the database answers, then settle:
 
-**Recommendation: use a standalone Docker environment for this.** The stack is
-one database with local state and two small stateless services. Swarm adds
-orchestration this does not need, and costs you the health-gated startup
-ordering that makes a first deploy clean.
+  ```yaml
+  deploy:
+    restart_policy:
+      condition: on-failure
+      delay: 5s
+  ```
+
+**Recommendation: use a standalone Docker environment anyway.** This is one
+database holding local state plus two small stateless services. Swarm adds
+orchestration it does not need, and costs you the health-gated startup ordering
+that makes a first deploy clean. Published images remove the only real argument
+for Swarm here, which was avoiding a build on the host.
 
 ---
 
@@ -168,12 +204,12 @@ ordering that makes a first deploy clean.
 The defaults are tuned for a laptop. Four changes before anything else can
 reach it:
 
-1. **PostgreSQL is not published, and should stay that way.** The compose file
-   deliberately has no `ports:` entry for `db`. If you need to inspect it, bind
-   to loopback (`127.0.0.1:5432:5432`) and tunnel over SSH — never to `0.0.0.0`.
-2. **Set `DEMO_LOGINS=0`.** `sql/99_local_logins.sql` gives the application
-   roles passwords that are published in a public repository. With it off, they
-   take credentials from the deployment instead.
+1. **PostgreSQL is not published, and should stay that way.** Neither compose
+   file has a `ports:` entry for `db`. If you need to inspect it, bind to
+   loopback (`127.0.0.1:5432:5432`) and tunnel over SSH — never to `0.0.0.0`.
+2. **Set real role passwords.** `SDI_APP_PASSWORD` and, if you run the worker,
+   `SDI_INTEGRATION_PASSWORD`. Never reuse the demo values from
+   `.env.example`, which are in a public repository.
 3. **Never load `worker/test/bootstrap.sql`.** It creates `sdi_test_admin`,
    which carries `BYPASSRLS` and can read past every security policy in the
    system. It is a test fixture, not a deployment script.
@@ -187,8 +223,12 @@ reach it:
 
 ## 8. Updating
 
-**From Git:** Portainer → Stacks → `sdi` → **Pull and redeploy**. Tick
-*re-pull image* so the images rebuild.
+**From published images:** bump `SDI_VERSION`, or if you are tracking
+`latest`, Portainer → Stacks → `sdi` → **Update the stack** with *re-pull
+image* ticked.
+
+**From a Git build:** Portainer → Stacks → `sdi` → **Pull and redeploy**, with
+*re-pull image* ticked so the images rebuild.
 
 **Schema changes** need a rebuild, because the schema is baked into the image.
 Note that PostgreSQL only runs the init scripts **when the data directory is
@@ -230,7 +270,8 @@ backup.
 | Symptom | Cause |
 |---|---|
 | Stack will not deploy, complains about `POSTGRES_PASSWORD` | It is required and has no default. Add it to the stack environment |
-| Demo loads but every persona shows no properties | The database initialised empty. Almost always a bind-mount deployment on Portainer CE — use the built images in §3 |
+| Demo loads but every persona shows no properties | The database initialised empty. Almost always a bind-mount deployment on Portainer CE — use §3 |
+| `web` cannot authenticate to the database | `SDI_APP_PASSWORD` was not set at **first** start. The roles are given credentials only when the data directory is initialised, so set it and recreate the volume, or set the password by hand with `ALTER ROLE` |
 | `web` restarts repeatedly | It cannot reach `db`. In Swarm, this is the dropped `depends_on` condition (§6) |
 | Address visible when signed out | Stop and raise it immediately. That is the one thing the system exists to prevent, and it should be impossible — see §7 of the System Documentation |
 | `worker` exits at once | Missing `GHL_TOKEN` or `GHL_LOCATION_ID`. It refuses to start rather than fail later on the first call |

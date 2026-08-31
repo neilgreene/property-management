@@ -18,15 +18,15 @@ services:
     build:
       context: .
       dockerfile: docker/db.Dockerfile
-      args:
-        # 0 in production: the application roles then carry no password of
-        # their own and take credentials from the deployment instead.
-        DEMO_LOGINS: ${DEMO_LOGINS:-1}
     image: sdi-db:local
     environment:
       POSTGRES_DB: ${POSTGRES_DB:-sdi}
       POSTGRES_USER: ${POSTGRES_USER:-postgres}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in the stack environment}
+      # Handed to the application roles at first start. A role with no password
+      # here stays NOLOGIN, which fails at connect time rather than silently.
+      SDI_APP_PASSWORD: ${SDI_APP_PASSWORD:?set SDI_APP_PASSWORD in the stack environment}
+      SDI_INTEGRATION_PASSWORD: ${SDI_INTEGRATION_PASSWORD:-}
     # Deliberately NOT published. Nothing outside this stack needs the
     # database, and publishing 5432 puts it on every interface of the host.
     # To inspect it, uncomment and bind to loopback only:

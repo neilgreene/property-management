@@ -74,7 +74,11 @@ initialises with no schema at all, silently.
 PostgreSQL is deliberately **not published**. Nothing outside the stack needs
 it. To inspect it, uncomment the loopback binding in `docker-compose.yml`.
 
-**Deploying through Portainer, or anywhere that is not a laptop:** see
+**Deploying anywhere that is not a laptop:** use the published images rather
+than building. Every push to `main` publishes `db`, `web` and `worker` to
+`ghcr.io/neilgreene/property-management/…`, and `docker-compose.release.yml`
+pulls them — no build on the target host, which also makes it work on Swarm.
+Full runbook, including Portainer step by step:
 [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md).
 
 The integration worker is **not** started by that, because it needs real GHL

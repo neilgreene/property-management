@@ -24,14 +24,13 @@ COPY sql/11_pipeline.sql         /docker-entrypoint-initdb.d/11_pipeline.sql
 COPY sql/12_pipeline_policies.sql /docker-entrypoint-initdb.d/12_pipeline_policies.sql
 COPY sql/13_pipeline_seed.sql    /docker-entrypoint-initdb.d/13_pipeline_seed.sql
 
-# Demo logins. Loaded last, and only because DEMO_LOGINS=1 is set at build
-# time -- a production image is built without it and the application roles
-# keep no password of their own.
-ARG DEMO_LOGINS=1
-COPY sql/99_local_logins.sql     /tmp/99_local_logins.sql
-RUN if [ "$DEMO_LOGINS" = "1" ]; then \
-      cp /tmp/99_local_logins.sql /docker-entrypoint-initdb.d/99_local_logins.sql; \
-    fi; rm -f /tmp/99_local_logins.sql
+# Application roles take their credentials from the environment at first
+# start, not from anything baked in. See the script for why a build-time flag
+# cannot work for an image people pull by tag.
+COPY docker/98_role_logins.sh    /docker-entrypoint-initdb.d/98_role_logins.sh
+
+# sql/99_local_logins.sql is deliberately NOT copied. Its passwords are
+# published in a public repository; it exists only for `./run.sh` on a laptop.
 
 # The test-fixture role carries BYPASSRLS and is never baked in. It is applied
 # by hand against a test database only. See worker/test/bootstrap.sql.
