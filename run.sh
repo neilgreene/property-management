@@ -4,7 +4,8 @@ set -euo pipefail
 DB=${DB:-sdi}
 createdb "$DB" 2>/dev/null || true
 for f in sql/01_schema.sql sql/02_policies.sql sql/03_views.sql \
-         sql/04_seed.sql sql/06_ghl_integration.sql; do
+         sql/04_seed.sql sql/06_ghl_integration.sql \
+         sql/08_review_queue.sql; do
   echo "loading $f"; psql -d "$DB" -v ON_ERROR_STOP=1 -q -f "$f"
 done
 psql -d "$DB" -q -c "ALTER ROLE sdi_app WITH LOGIN PASSWORD 'demo_app_pw';" \

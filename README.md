@@ -54,11 +54,13 @@ sql/04_seed.sql              demo data
 sql/05_tests.sql             eleven-check security walkthrough
 sql/06_ghl_integration.sql   GoHighLevel bridge (ghl schema)
 sql/07_ghl_tests.sql         seven-check GHL bridge walkthrough
+sql/08_review_queue.sql      inbound CRM edits awaiting a human
 web/server.js                demo web tier
 web/public/index.html        demo UI
 worker/src/                  GoHighLevel integration worker
 worker/src/migrate/          EspoCRM -> GHL load passes
-worker/test/                 48 tests (unit + end-to-end against the database)
+worker/src/index.js          the worker daemon: HTTP surface + loops
+worker/test/                 63 tests (unit + end-to-end against the database)
 docs/GHL-Interface-Specification.pdf   the GHL API contract, 17pp
 ```
 
@@ -253,6 +255,54 @@ writes the gate as `sdi_integration`, and reading back what the investor now
 sees has to go through the web tier's own role, because the worker cannot
 `SET ROLE` into a persona. That separation is the point, so the test respects it
 rather than granting itself a shortcut.
+
+## Running the worker
+
+```bash
+cd worker
+GHL_TOKEN=... GHL_LOCATION_ID=... PGUSER=sdi_integration npm start
+```
+
+It refuses to start without credentials rather than failing later on the first
+call. Two routes and four loops:
+
+| | |
+|---|---|
+| `POST /webhooks/ghl` | receive a delivery; acknowledge fast, work happens in the loops |
+| `GET /healthz` | liveness plus queue depth — pending events, bad signatures, outbox backlog, stuck rows, open reviews |
+| loop `events` | 5s — dispatch received events |
+| loop `outbox` | 10s — drain outbound writes |
+| loop `documents` | 5m — fee agreement state |
+| loop `transactions` | 15m — reconciliation sweep |
+
+**There is no web framework here, deliberately.** GHL signs the exact bytes it
+sent, so the request is buffered and that Buffer reaches the verifier untouched.
+Any JSON body-parsing middleware in front of this endpoint would parse and
+discard those bytes, and every signature would fail. `test/server.test.js` posts
+a body with deliberately odd whitespace over a real socket to prove the bytes
+survive transport.
+
+### Direction decides the handlers
+
+`core.property` and `core.person` are the system of record; GHL is downstream of
+them for listings. So an inbound `RecordUpdate` means somebody edited a property
+*inside the CRM*, against the grain of the architecture.
+
+Applying it would let the CRM silently overwrite the authoritative row — the
+failure mode that makes two-way sync notorious. Dropping it loses a real edit
+somebody made. So it is neither: it goes to `ghl.review_queue` for a person.
+Events that genuinely originate in GHL — a signed document, a settled payment, a
+contact created by staff — are applied directly, because for those GHL *is* the
+source.
+
+The nightly external status check (Zillow/MLS) lands in the same queue for the
+same reason: a scraped "Pending" is evidence, not fact.
+
+`ux_review_open_object` allows one *open* item per object, so a property edited
+five times in the CRM is one decision for a human rather than five — but any
+number of decided rows, because a plain `UNIQUE (object, id, state)` would have
+capped each object at one rejected row for all time. That would only have
+surfaced the first time somebody rejected a second change, months later.
 
 ## The EspoCRM migration
 
