@@ -9,8 +9,9 @@ for f in sql/01_schema.sql sql/02_policies.sql sql/03_views.sql \
          sql/11_pipeline.sql sql/12_pipeline_policies.sql sql/13_pipeline_seed.sql; do
   echo "loading $f"; psql -d "$DB" -v ON_ERROR_STOP=1 -q -f "$f"
 done
-psql -d "$DB" -q -c "ALTER ROLE sdi_app WITH LOGIN PASSWORD 'demo_app_pw';" \
-                -c "GRANT CONNECT ON DATABASE $DB TO sdi_app;"
+# Demo logins for both roles. Same file docker-compose loads, so the two
+# paths cannot drift apart. See its header: local development only.
+psql -d "$DB" -q -v ON_ERROR_STOP=1 -f sql/99_local_logins.sql
 echo; echo "--- security walkthrough ---"
 psql -d "$DB" -f sql/05_tests.sql
 echo; echo "--- GHL bridge checks ---"
@@ -22,8 +23,7 @@ psql -d "$DB" -f sql/14_pipeline_tests.sql
 # --- GHL integration worker -------------------------------------------
 # Test-only fixture role; see worker/test/bootstrap.sql for why it exists.
 psql -d "$DB" -q -f worker/test/bootstrap.sql
-psql -d "$DB" -q -c "ALTER ROLE sdi_integration WITH LOGIN PASSWORD 'demo_int_pw';" \
-                -c "GRANT CONNECT ON DATABASE $DB TO sdi_integration, sdi_test_admin;"
+psql -d "$DB" -q -c "GRANT CONNECT ON DATABASE $DB TO sdi_test_admin;"
 echo; echo "--- worker tests ---"
 (cd worker && npm install --silent && PGDATABASE="$DB" npm test)
 

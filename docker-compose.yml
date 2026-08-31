@@ -16,6 +16,8 @@ services:
       - ./sql/11_pipeline.sql:/docker-entrypoint-initdb.d/11.sql:ro
       - ./sql/12_pipeline_policies.sql:/docker-entrypoint-initdb.d/12.sql:ro
       - ./sql/13_pipeline_seed.sql:/docker-entrypoint-initdb.d/13.sql:ro
+      # Demo logins, loaded last. See the header of that file.
+      - ./sql/99_local_logins.sql:/docker-entrypoint-initdb.d/99.sql:ro
     healthcheck:
       test: ["CMD-SHELL","pg_isready -U postgres -d sdi"]
       interval: 3s
@@ -34,3 +36,30 @@ services:
     ports: ["3000:3000"]
     volumes: ["./web:/app"]
     command: sh -c "npm install --silent && node server.js"
+
+  # The GoHighLevel integration worker. Not started by a bare `docker compose
+  # up`, because it needs real GHL credentials and there is no point starting
+  # it without them:
+  #
+  #   GHL_TOKEN=... GHL_LOCATION_ID=... docker compose --profile worker up
+  #
+  # GHL_TOKEN is a Private Integration Token, scoped to a whole sub-account.
+  # It comes from the environment and is never written to this file.
+  worker:
+    image: node:22-alpine
+    profiles: ["worker"]
+    working_dir: /app
+    depends_on:
+      db: {condition: service_healthy}
+    environment:
+      PGHOST: db
+      PGDATABASE: sdi
+      PGUSER: sdi_integration
+      PGPASSWORD: demo_int_pw
+      GHL_TOKEN: ${GHL_TOKEN:-}
+      GHL_LOCATION_ID: ${GHL_LOCATION_ID:-}
+      GHL_WEBHOOK_PUBLIC_KEY: ${GHL_WEBHOOK_PUBLIC_KEY:-}
+      PORT: "3001"
+    ports: ["3001:3001"]
+    volumes: ["./worker:/app"]
+    command: sh -c "npm install --silent && node src/index.js"

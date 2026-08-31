@@ -6,21 +6,68 @@ own SQL. Built on PostgreSQL 16, verified end to end.
 
 ## Run it
 
-```bash
-docker compose up          # then open http://localhost:3000
-```
-
-Or against a local Postgres 16+:
+### Docker — nothing installed but Docker
 
 ```bash
-./run.sh                   # loads schema, runs the walkthrough, starts the web demo
+docker compose up
 ```
 
-The psql walkthrough on its own:
+Builds the database from `sql/`, seeds it, and serves the demo on
+<http://localhost:3000>. Postgres is on `localhost:5432` (`sdi`/`postgres`).
+Stop with Ctrl-C; `docker compose down -v` also discards the database, which is
+what you want before re-running the schema from scratch.
+
+The integration worker is **not** started by that, because it needs real GHL
+credentials and there is no point running it without them:
 
 ```bash
-psql -d sdi -f sql/05_tests.sql
+GHL_TOKEN=... GHL_LOCATION_ID=... docker compose --profile worker up
 ```
+
+`GHL_TOKEN` is a Private Integration Token (GHL: Settings → Private
+Integrations). It is scoped to an entire sub-account, so it comes from your
+environment and is never written into a file here.
+
+### Local Postgres 16+ and Node 18+
+
+```bash
+./run.sh
+```
+
+Loads every schema file, runs all four walkthroughs, runs the 63 worker tests,
+then starts the demo. It assumes `psql` and `createdb` work as your own user,
+which is the default for Postgres.app and Homebrew.
+
+Individual pieces:
+
+```bash
+psql -d sdi -f sql/05_tests.sql          # security walkthrough
+psql -d sdi -f sql/14_pipeline_tests.sql # deal visibility
+cd worker && npm test                    # 63 checks
+```
+
+### Capturing a live webhook
+
+The one thing that cannot be verified without a GHL account. Run the capture
+tool somewhere GHL can reach — any host with a public address, or behind
+`cloudflared tunnel --url http://localhost:3999`, which needs no account:
+
+```bash
+node worker/tools/capture-webhook.js
+```
+
+Point a GHL webhook at it, push **a test contact, not a real one** (the payload
+is written to disk), and it saves the raw bytes and headers untouched. That
+settles the signature algorithm, which GHL does not document.
+
+### Demo credentials
+
+`sql/99_local_logins.sql` gives the application roles passwords so the stack is
+connectable. The roles are otherwise created `NOLOGIN` and passwordless on
+purpose — in a real deployment they are assumed via `SET ROLE`, or given
+credentials by the deployment, never by a file in the repository. Both
+`docker compose` and `run.sh` load that same file, so the two paths cannot
+drift apart.
 
 ## Why Postgres and not MySQL
 
