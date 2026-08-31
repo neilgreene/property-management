@@ -115,7 +115,7 @@ worker/src/migrate/          EspoCRM -> GHL load passes
 worker/src/index.js          the worker daemon: HTTP surface + loops
 worker/test/                 63 tests (unit + end-to-end against the database)
 docs/GHL-Interface-Specification.pdf   the GHL API contract, 17pp
-docs/System-Documentation.pdf          what was built, 19pp, incl. every table definition
+docs/System-Documentation.pdf          what was built + next steps, 27pp
 docs/schema-snapshot.json              the schema, read from a live database
 ```
 

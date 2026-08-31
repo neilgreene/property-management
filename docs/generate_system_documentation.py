@@ -124,6 +124,105 @@ class CoverMark(Flowable):
         c.restoreState()
 
 
+# --- Gantt flowable -----------------------------------------------------
+# Form: horizontal bars over time is the right encoding for a schedule --
+# each row is one phase, length is duration, position is when. Colour
+# carries the track (identity, so categorical), never the rank. Palette is
+# the validated four-slot categorical order; the contrast warning on two of
+# those slots is discharged by the direct labels on every row.
+TRACKS = [
+    ("Foundation",  colors.HexColor("#2a78d6")),
+    ("Migration",   colors.HexColor("#eb6834")),
+    ("Product",     colors.HexColor("#1baf7a")),
+    ("Operations",  colors.HexColor("#eda100")),
+]
+TRACK_IX = {name: i for i, (name, _) in enumerate(TRACKS)}
+
+# (phase label, track, start week, duration weeks)
+PLAN = [
+    ("P0  Signature check + first deploy", "Foundation",  0, 1),
+    ("P1  Authentication and sessions",    "Foundation",  1, 3),
+    ("P2  EspoCRM mapping + rehearsal",    "Migration",   1, 4),
+    ("P3  Audit trail on gated reads",     "Foundation",  4, 2),
+    ("P4  Public marketplace UI",          "Product",     4, 4),
+    ("P5  Investor portal + fee flow",     "Product",     8, 3),
+    ("P6  Document storage",               "Product",    10, 2),
+    ("P7  Agent portal",                   "Product",    11, 2),
+    ("P8  Messaging / unified inbox",      "Product",    13, 3),
+    ("P9  External status feed",           "Operations", 15, 2),
+    ("P10 Co-investment matching",         "Product",    16, 3),
+    ("P11 Hardening and cutover",          "Operations", 18, 2),
+]
+TOTAL_WEEKS = 20
+
+
+class Gantt(Flowable):
+    def __init__(self, width, height):
+        Flowable.__init__(self)
+        self.width, self.height = width, height
+
+    def draw(self):
+        c = self.canv
+        w, h = self.width, self.height
+        label_w = 2.0 * inch
+        legend_h = 34          # clearance for the legend AND the week axis below it
+        axis_h = 14
+        plot_x = label_w
+        plot_w = w - label_w - 4
+        rows = len(PLAN)
+        plot_h = h - legend_h - axis_h
+        row_h = plot_h / rows
+        bar_h = min(row_h - 4.0, 11.0)
+        wk = plot_w / TOTAL_WEEKS
+
+        c.saveState()
+
+        # Recessive week gridlines, every 2 weeks so the field stays quiet.
+        c.setStrokeColor(colors.HexColor("#E7EAEF")); c.setLineWidth(0.5)
+        for k in range(0, TOTAL_WEEKS + 1, 2):
+            x = plot_x + k * wk
+            c.line(x, axis_h, x, axis_h + plot_h)
+
+        # Axis
+        c.setStrokeColor(RULE); c.setLineWidth(0.7)
+        c.line(plot_x, axis_h + plot_h, plot_x + plot_w, axis_h + plot_h)
+        c.setFont("Helvetica", 6.4); c.setFillColor(MUTED)
+        for k in range(0, TOTAL_WEEKS + 1, 2):
+            c.drawCentredString(plot_x + k * wk, axis_h + plot_h + 4, f"w{k}")
+
+        # Bars, top row first
+        for i, (label, track, start, dur) in enumerate(PLAN):
+            y = axis_h + plot_h - (i + 1) * row_h + (row_h - bar_h) / 2.0
+            x = plot_x + start * wk
+            bw = dur * wk - 2.0            # 2pt surface gap between adjacent bars
+
+            c.setFont("Helvetica", 6.9); c.setFillColor(INK)
+            c.drawString(0, y + bar_h / 2.0 - 2.4, label)
+
+            c.setFillColor(dict(TRACKS)[track])
+            c.roundRect(x, y, bw, bar_h, 2.0, stroke=0, fill=1)
+
+            # Direct label on every bar: the palette's two low-contrast slots
+            # are only legal with visible labels, and a duration is what a
+            # reader wants anyway.
+            c.setFont("Helvetica", 6.2); c.setFillColor(MUTED)
+            c.drawString(x + bw + 3, y + bar_h / 2.0 - 2.2,
+                         f"{dur}w" if dur > 1 else "1w")
+
+        # Legend: four tracks, always present for >= 2 series
+        c.setFont("Helvetica", 6.9)
+        lx = plot_x
+        ly = h - 8
+        for name, col in TRACKS:
+            c.setFillColor(col)
+            c.roundRect(lx, ly - 4.5, 9, 6, 1.5, stroke=0, fill=1)
+            c.setFillColor(MUTED)
+            c.drawString(lx + 13, ly - 4, name)
+            lx += 13 + c.stringWidth(name, "Helvetica", 6.9) + 16
+
+        c.restoreState()
+
+
 def para(t, s=BODY): return Paragraph(t, s)
 def mono(t): return f"<font face='Courier'>{t}</font>"
 def hdr(cs): return [Paragraph(c, CELLB) for c in cs]
@@ -524,7 +623,200 @@ A(table([
     ["Any deployment", "Nothing is hosted. Nothing is internet-facing."],
 ], [1.7*inch, 4.2*inch]))
 
-A(para("9.  Where Things Are", H1))
+
+# ---------------------------------------------------------------- 9. next
+A(PageBreak())
+A(para("9.  Next Steps", H1))
+A(para("Section 8 lists what is missing. This section says what each item needs, in "
+       "what order, what has to be true before a phase can start, and how each one is "
+       "tested. Durations are working weeks for one experienced developer and are "
+       "estimates, not commitments.", BODY))
+
+A(para("9.1  What each item needs", H2))
+A(table([
+    hdr(["Item", "What it is", "What it needs before it can be built"]),
+    ["Authentication and sessions",
+     "Real sign-in. A session resolves to a person id and a role, which the web tier then "
+     "assumes for the transaction.",
+     "Nothing external. The database contract already exists — the session replaces the "
+     "persona dropdown and no policy, view or grant changes."],
+    ["EspoCRM field mapping",
+     "Which EspoCRM field becomes which column, and which of the 30+ SDI metrics are genuine "
+     "inputs rather than derived.",
+     "Read access to the live EspoCRM instance, or a full export. The load ordering and "
+     "resumability are already built and tested."],
+    ["Audit trail on gated reads",
+     "A record of who saw which address, and when.",
+     "A decision on where it is enforced. PostgreSQL cannot trigger on SELECT, so band 2 has "
+     "to be released through an auditing accessor rather than read straight from the view."],
+    ["Public marketplace UI",
+     "The real browsing surface: search, filters, property cards, the masked map.",
+     "Authentication (P1), because the same pages serve gated and ungated viewers. Design "
+     "direction. Real listing content, so P2 in practice."],
+    ["Investor portal and fee flow",
+     "Registration, the fee agreement, and the unlock.",
+     "P1 and P4. The GoHighLevel side is built: sending the document and reading its state "
+     "both work, and the two-condition gate is tested."],
+    ["Document storage",
+     "The signed PDF kept as an artifact rather than only as a status flag.",
+     "A storage decision — object store or filesystem — and a retention policy. The signed "
+     "document is a financial record."],
+    ["Agent portal",
+     "An agent's own assignments and conversations, and nothing else.",
+     "P1. The per-agent isolation is already enforced and tested at the database level; this "
+     "is the interface over it."],
+    ["Messaging / unified inbox",
+     "Email, SMS and WhatsApp threaded against a contact and a property.",
+     "A decision on whether GoHighLevel owns the conversation or only relays it. That "
+     "decision sets the whole data model, so make it before starting."],
+    ["External status feed",
+     "Nightly check that a listing has not gone pending or sold elsewhere.",
+     "A source. A licensed feed is strongly preferable to scraping a portal that forbids it "
+     "and actively blocks it. The review queue that receives the output is built."],
+    ["Co-investment matching",
+     "Pairing two vetted investors on one property.",
+     "The matching rules, in writing. The COINVEST pipeline and its stages already exist."],
+    ["Deployment",
+     "Somewhere to run.",
+     "Section 9.5. P0 needs only a public webhook endpoint, which is small."],
+], [1.35*inch, 2.1*inch, 2.45*inch]))
+
+A(PageBreak())
+A(para("9.2  Recommended sequence", H2))
+A(para("Two things drive this order. <b>Authentication gates everything user-facing</b>, so "
+       "it goes first and almost nothing can be demonstrated to a real user before it lands. "
+       "And <b>the audit trail should precede real investor data</b>, not follow it — the "
+       "first time anyone asks who saw an address, the answer has to already exist.", BODY))
+A(para("P0 is deliberately tiny and first. It deploys nothing but a webhook receiver, which "
+       "authenticates by signature rather than by session, so it needs no login and exposes "
+       "no data. It settles the one unverified item in the system and proves the deployment "
+       "path at the same time.", GOOD))
+A(Spacer(1, 6))
+A(Gantt(5.9*inch, 3.5*inch))
+A(para("Figure 1. Indicative schedule, one developer. P2 runs alongside P1 because the "
+       "migration work needs EspoCRM access rather than the new authentication, so the two "
+       "do not contend.", CAP))
+A(Spacer(1, 4))
+A(para("The critical path is P1 &rarr; P4 &rarr; P5: authentication, then the browsing "
+       "surface, then the paid unlock. Everything else can move without moving the launch "
+       "date. If the schedule has to compress, P8, P9 and P10 are the ones to defer — none "
+       "of them is required for an investor to find a property, pay, and see the address.", BODY))
+
+A(para("9.3  What must be true before a phase starts", H2))
+A(table([
+    hdr(["Phase", "Entry condition", "Done when"]),
+    ["P0", "A host with a public HTTPS address and a GoHighLevel account",
+     "A live delivery verifies against the published key, and the algorithm is confirmed in code and in the spec document"],
+    ["P1", "A decision on the identity provider: own accounts, or an external one",
+     "A session resolves to a person id and role; every existing SQL walkthrough still passes unchanged"],
+    ["P2", "Read access to live EspoCRM, plus the field mapping agreed in writing",
+     "A full rehearsal load into a disposable sub-account reconciles with zero shortfall and zero unresolved links"],
+    ["P3", "P1 complete. A decision on where band 2 is released from",
+     "Every band 2 and band 3 read is attributable to a person and a time; the attack tests still pass"],
+    ["P4", "P1 complete; design direction; listing content from P2",
+     "An anonymous visitor can browse and filter, and cannot obtain an address by any route including the network tab"],
+    ["P5", "P4 complete; a payment provider connected in GoHighLevel",
+     "An investor signs, pays, and the address unlocks — driven end to end against a GoHighLevel test sub-account"],
+    ["P6", "A storage and retention decision", "The signed PDF is retrievable and its retention is enforced"],
+    ["P7", "P1 complete", "An agent sees only their own assignments and conversations, proven by test, not by inspection"],
+    ["P8", "The ownership decision in 9.1", "A thread is readable against both the contact and the property"],
+    ["P9", "A data source", "A status change reaches the review queue and no listing changes without a human"],
+    ["P10", "Matching rules in writing", "Two vetted investors are matched and both are notified"],
+    ["P11", "Everything above that is in scope for launch", "Cutover rehearsed on staging, with a tested rollback"],
+], [0.52*inch, 2.3*inch, 3.08*inch]))
+
+A(PageBreak())
+A(para("9.4  How each phase is tested", H2))
+A(para("Every phase adds its own tests and must leave the existing ones green. That second "
+       "half is the part that usually erodes, so it is stated as a gate rather than a habit.", BODY))
+A(para("The standing regression suite", H2))
+A(table([
+    hdr(["Suite", "Checks", "Must remain"]),
+    [mono("sql/05_tests.sql"), "11", "All five attacks refused"],
+    [mono("sql/07_ghl_tests.sql"), "7", "Signed-but-unpaid still does not open the gate"],
+    [mono("sql/10_review_tests.sql"), "7", "The allowlist still refuses band 2 and band 3 columns"],
+    [mono("sql/14_pipeline_tests.sql"), "9", "No cross-agent or cross-investor read"],
+    [mono("worker/ npm test"), "63", "All passing"],
+    [mono("api.security_invariants()"), "—", "Zero rows, on every build"],
+], [1.75*inch, 0.55*inch, 3.6*inch]))
+A(Spacer(1, 6))
+A(para("Run the whole thing with " + mono("./run.sh") + ", which loads the schema, runs all "
+       "four walkthroughs and the worker suite in one pass. Wire "
+       + mono("api.security_invariants()") + " into CI and into a nightly job: it catches the "
+       "four changes that quietly dismantle the model, and it catches them whether they came "
+       "from a migration, a hotfix, or a well-meant grant.", NOTE))
+
+A(para("Per-phase development tests", H2))
+A(table([
+    hdr(["Phase", "New tests it must bring"]),
+    ["P0", "Signature verification against a captured live delivery, added as a fixture so it is checked forever after"],
+    ["P1", "Session to role mapping; an expired session; a tampered session; a session for a deactivated person"],
+    ["P2", "Reconciliation counts; a resumed load after a forced failure; a link whose endpoints are missing"],
+    ["P3", "An audit row exists for every band 2 and band 3 release; the audit log cannot be written by the reader"],
+    ["P4", "An anonymous HTTP response contains no restricted field — asserted on the response body, not the rendered page"],
+    ["P5", "Signed-and-paid unlocks; signed-and-unpaid does not; a refund after unlock"],
+    ["P6", "The stored artifact matches what was signed; retention removes it on schedule"],
+    ["P7", "One agent cannot reach another's assignment or conversation by id"],
+    ["P8", "A message is attributable to a contact and a property; no cross-tenant leak"],
+    ["P9", "A source change raises exactly one review item; a flapping source does not raise many"],
+    ["P10", "A match requires two vetted parties; an unvetted party is never matched"],
+    ["P11", "A restore from backup produces a working system; rollback returns to the prior version"],
+], [0.52*inch, 5.38*inch]))
+A(Spacer(1, 5))
+A(para("Two habits worth keeping, both learned building what already exists. Write the test "
+       "that tries the attack, not only the one that proves the feature — several of the "
+       "checks in the suite exist because the naive version of a test passed while proving "
+       "nothing. And re-run the whole suite, not the file you are working on: two of the bugs "
+       "found so far only appeared when suites ran together.", GOOD))
+
+A(PageBreak())
+A(para("9.5  Deployment", H2))
+A(para("Both available options are suitable, for different jobs. The recommendation is to use "
+       "both rather than choose.", BODY))
+A(table([
+    hdr(["Environment", "Role", "Why"]),
+    ["Proxmox VM (local)", "Development and staging. The full stack, no public exposure.",
+     "The EspoCRM rehearsal belongs here: real client data never leaves the network, and a "
+     "rehearsal against a snapshot is repeatable in a way a live read is not. A VM rather "
+     "than a container — PostgreSQL wants a stable filesystem and its own kernel-level tuning."],
+    ["Linode (public)", "Production. Web tier and worker, publicly reachable.",
+     "P0 needs a public HTTPS endpoint for GoHighLevel to deliver to, and nothing else does "
+     "until P4. Start with the smallest instance that runs the worker."],
+], [1.15*inch, 1.85*inch, 2.9*inch]))
+A(Spacer(1, 6))
+A(para("Topology", H2))
+A(Preformatted(
+  "  INTERNET\n"
+  "     │\n"
+  "     ├── 443  Linode: web tier + worker      (public)\n"
+  "     │            │\n"
+  "     │            └── PostgreSQL, private interface only, NEVER port-forwarded\n"
+  "     │\n"
+  "  WireGuard ─── Proxmox VM: staging + EspoCRM rehearsal + backup target\n"
+  "                (no inbound from the internet at all)", CODE))
+A(Spacer(1, 4))
+A(para("Four rules for the production environment, each of which is cheap now and expensive "
+       "to retrofit:", BODY))
+for b in buls([
+    "<b>PostgreSQL is never exposed to the internet.</b> Bind it to the private interface. "
+    "The proxy this project was built behind refuses raw database ports for exactly this reason.",
+    "<b>" + mono("sdi_test_admin") + " must not exist in production.</b> It carries " +
+    mono("BYPASSRLS") + " and exists only for test fixtures. " + mono("worker/test/bootstrap.sql") +
+    " is not a deployment script.",
+    "<b>" + mono("sql/99_local_logins.sql") + " must not be loaded in production.</b> Its "
+    "passwords are published in a public repository. Production roles get credentials from "
+    "the deployment, not from the repository.",
+    "<b>The GoHighLevel token lives in the environment</b>, never in a file and never in "
+    "browser-reachable code. It is scoped to an entire sub-account.",
+]): A(b)
+A(Spacer(1, 4))
+A(para("Backups are the one thing to set up before there is anything worth backing up, "
+       "because that is the only time it is easy. Nightly " + mono("pg_dump") + " to the "
+       "Proxmox side over WireGuard, and a restore rehearsed at least once — an untested "
+       "backup is a belief, not a backup.", NOTE))
+
+A(PageBreak())
+A(para("10.  Where Things Are", H1))
 A(table([
     hdr(["Path", "Contents"]),
     [mono("sql/01–04"), "Schema, RLS policies, masking views, demo data"],
