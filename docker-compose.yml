@@ -1,0 +1,30 @@
+services:
+  db:
+    image: postgres:16
+    environment:
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: sdi
+    ports: ["5432:5432"]
+    volumes:
+      - ./sql/01_schema.sql:/docker-entrypoint-initdb.d/01.sql:ro
+      - ./sql/02_policies.sql:/docker-entrypoint-initdb.d/02.sql:ro
+      - ./sql/03_views.sql:/docker-entrypoint-initdb.d/03.sql:ro
+      - ./sql/04_seed.sql:/docker-entrypoint-initdb.d/04.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL","pg_isready -U postgres -d sdi"]
+      interval: 3s
+      retries: 20
+
+  web:
+    image: node:22-alpine
+    working_dir: /app
+    depends_on:
+      db: {condition: service_healthy}
+    environment:
+      PGHOST: db
+      PGDATABASE: sdi
+      PGUSER: sdi_app
+      PGPASSWORD: demo_app_pw
+    ports: ["3000:3000"]
+    volumes: ["./web:/app"]
+    command: sh -c "npm install --silent && node server.js"
