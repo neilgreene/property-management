@@ -45,6 +45,68 @@
   },
   {
     "schema": "core",
+    "name": "credential",
+    "comment": "No RLS policy exists on purpose. Direct access is refused for every role; api.authenticate() and api.set_password() are the only paths.",
+    "rls": true,
+    "columns": [
+      {
+        "name": "person_id",
+        "type": "uuid",
+        "nullable": false,
+        "default": "",
+        "key": "FK PK",
+        "references": "core.person",
+        "comment": ""
+      },
+      {
+        "name": "password_hash",
+        "type": "text",
+        "nullable": false,
+        "default": "",
+        "key": "",
+        "references": "",
+        "comment": ""
+      },
+      {
+        "name": "failed_attempts",
+        "type": "integer",
+        "nullable": false,
+        "default": "0",
+        "key": "",
+        "references": "",
+        "comment": ""
+      },
+      {
+        "name": "locked_until",
+        "type": "timestamptz",
+        "nullable": true,
+        "default": "",
+        "key": "",
+        "references": "",
+        "comment": ""
+      },
+      {
+        "name": "password_set_at",
+        "type": "timestamptz",
+        "nullable": false,
+        "default": "now()",
+        "key": "",
+        "references": "",
+        "comment": ""
+      },
+      {
+        "name": "updated_at",
+        "type": "timestamptz",
+        "nullable": false,
+        "default": "now()",
+        "key": "",
+        "references": "",
+        "comment": ""
+      }
+    ]
+  },
+  {
+    "schema": "core",
     "name": "deal",
     "comment": "",
     "rls": true,
@@ -233,6 +295,113 @@
         "type": "bigint",
         "nullable": true,
         "default": "",
+        "key": "",
+        "references": "",
+        "comment": ""
+      }
+    ]
+  },
+  {
+    "schema": "core",
+    "name": "market_area",
+    "comment": "",
+    "rls": true,
+    "columns": [
+      {
+        "name": "area_id",
+        "type": "text",
+        "nullable": false,
+        "default": "",
+        "key": "PK",
+        "references": "",
+        "comment": ""
+      },
+      {
+        "name": "city",
+        "type": "text",
+        "nullable": false,
+        "default": "",
+        "key": "UQ",
+        "references": "",
+        "comment": ""
+      },
+      {
+        "name": "state",
+        "type": "char(2)",
+        "nullable": false,
+        "default": "",
+        "key": "UQ",
+        "references": "",
+        "comment": ""
+      },
+      {
+        "name": "median_household_income",
+        "type": "numeric(12,2)",
+        "nullable": true,
+        "default": "",
+        "key": "",
+        "references": "",
+        "comment": ""
+      },
+      {
+        "name": "median_home_price",
+        "type": "numeric(12,2)",
+        "nullable": true,
+        "default": "",
+        "key": "",
+        "references": "",
+        "comment": ""
+      },
+      {
+        "name": "median_rent_monthly",
+        "type": "numeric(10,2)",
+        "nullable": true,
+        "default": "",
+        "key": "",
+        "references": "",
+        "comment": ""
+      },
+      {
+        "name": "rent_growth_1y_bps",
+        "type": "integer",
+        "nullable": true,
+        "default": "",
+        "key": "",
+        "references": "",
+        "comment": ""
+      },
+      {
+        "name": "vacancy_rate_bps",
+        "type": "integer",
+        "nullable": true,
+        "default": "",
+        "key": "",
+        "references": "",
+        "comment": ""
+      },
+      {
+        "name": "population",
+        "type": "integer",
+        "nullable": true,
+        "default": "",
+        "key": "",
+        "references": "",
+        "comment": ""
+      },
+      {
+        "name": "price_to_income",
+        "type": "numeric(5,2)",
+        "nullable": true,
+        "default": "",
+        "key": "",
+        "references": "",
+        "comment": ""
+      },
+      {
+        "name": "as_of",
+        "type": "date",
+        "nullable": false,
+        "default": "CURRENT_DATE",
         "key": "",
         "references": "",
         "comment": ""
@@ -748,6 +917,283 @@
   },
   {
     "schema": "core",
+    "name": "property_detail",
+    "comment": "",
+    "rls": true,
+    "columns": [
+      {
+        "name": "property_id",
+        "type": "uuid",
+        "nullable": false,
+        "default": "",
+        "key": "FK PK",
+        "references": "core.property",
+        "comment": ""
+      },
+      {
+        "name": "headline",
+        "type": "text",
+        "nullable": true,
+        "default": "",
+        "key": "",
+        "references": "",
+        "comment": ""
+      },
+      {
+        "name": "description",
+        "type": "text",
+        "nullable": true,
+        "default": "",
+        "key": "",
+        "references": "",
+        "comment": ""
+      },
+      {
+        "name": "market_rent_monthly",
+        "type": "numeric(10,2)",
+        "nullable": true,
+        "default": "",
+        "key": "",
+        "references": "",
+        "comment": ""
+      },
+      {
+        "name": "rent_basis",
+        "type": "text",
+        "nullable": true,
+        "default": "",
+        "key": "CK",
+        "references": "",
+        "comment": ""
+      },
+      {
+        "name": "property_tax_annual",
+        "type": "numeric(10,2)",
+        "nullable": true,
+        "default": "",
+        "key": "",
+        "references": "",
+        "comment": ""
+      },
+      {
+        "name": "insurance_annual",
+        "type": "numeric(10,2)",
+        "nullable": true,
+        "default": "",
+        "key": "",
+        "references": "",
+        "comment": ""
+      },
+      {
+        "name": "utilities_monthly",
+        "type": "numeric(10,2)",
+        "nullable": true,
+        "default": "",
+        "key": "",
+        "references": "",
+        "comment": ""
+      },
+      {
+        "name": "utilities_paid_by",
+        "type": "text",
+        "nullable": true,
+        "default": "",
+        "key": "CK",
+        "references": "",
+        "comment": ""
+      },
+      {
+        "name": "maintenance_annual",
+        "type": "numeric(10,2)",
+        "nullable": true,
+        "default": "",
+        "key": "",
+        "references": "",
+        "comment": ""
+      },
+      {
+        "name": "management_fee_bps",
+        "type": "integer",
+        "nullable": true,
+        "default": "",
+        "key": "",
+        "references": "",
+        "comment": ""
+      },
+      {
+        "name": "vacancy_allowance_bps",
+        "type": "integer",
+        "nullable": true,
+        "default": "",
+        "key": "",
+        "references": "",
+        "comment": ""
+      },
+      {
+        "name": "lot_sqft",
+        "type": "integer",
+        "nullable": true,
+        "default": "",
+        "key": "",
+        "references": "",
+        "comment": ""
+      },
+      {
+        "name": "stories",
+        "type": "smallint",
+        "nullable": true,
+        "default": "",
+        "key": "",
+        "references": "",
+        "comment": ""
+      },
+      {
+        "name": "garage_spaces",
+        "type": "smallint",
+        "nullable": true,
+        "default": "",
+        "key": "",
+        "references": "",
+        "comment": ""
+      },
+      {
+        "name": "heating",
+        "type": "text",
+        "nullable": true,
+        "default": "",
+        "key": "",
+        "references": "",
+        "comment": ""
+      },
+      {
+        "name": "cooling",
+        "type": "text",
+        "nullable": true,
+        "default": "",
+        "key": "",
+        "references": "",
+        "comment": ""
+      },
+      {
+        "name": "roof_year",
+        "type": "smallint",
+        "nullable": true,
+        "default": "",
+        "key": "",
+        "references": "",
+        "comment": ""
+      },
+      {
+        "name": "last_renovated",
+        "type": "smallint",
+        "nullable": true,
+        "default": "",
+        "key": "",
+        "references": "",
+        "comment": ""
+      },
+      {
+        "name": "parking",
+        "type": "text",
+        "nullable": true,
+        "default": "",
+        "key": "",
+        "references": "",
+        "comment": ""
+      },
+      {
+        "name": "features",
+        "type": "jsonb",
+        "nullable": false,
+        "default": "'[]'::jsonb",
+        "key": "",
+        "references": "",
+        "comment": ""
+      },
+      {
+        "name": "updated_at",
+        "type": "timestamptz",
+        "nullable": false,
+        "default": "now()",
+        "key": "",
+        "references": "",
+        "comment": ""
+      }
+    ]
+  },
+  {
+    "schema": "core",
+    "name": "property_media",
+    "comment": "",
+    "rls": true,
+    "columns": [
+      {
+        "name": "media_id",
+        "type": "uuid",
+        "nullable": false,
+        "default": "gen_random_uuid()",
+        "key": "PK",
+        "references": "",
+        "comment": ""
+      },
+      {
+        "name": "property_id",
+        "type": "uuid",
+        "nullable": false,
+        "default": "",
+        "key": "FK",
+        "references": "core.property",
+        "comment": ""
+      },
+      {
+        "name": "url",
+        "type": "text",
+        "nullable": false,
+        "default": "",
+        "key": "",
+        "references": "",
+        "comment": ""
+      },
+      {
+        "name": "caption",
+        "type": "text",
+        "nullable": true,
+        "default": "",
+        "key": "",
+        "references": "",
+        "comment": ""
+      },
+      {
+        "name": "position",
+        "type": "integer",
+        "nullable": false,
+        "default": "0",
+        "key": "",
+        "references": "",
+        "comment": ""
+      },
+      {
+        "name": "is_primary",
+        "type": "boolean",
+        "nullable": false,
+        "default": "false",
+        "key": "",
+        "references": "",
+        "comment": ""
+      },
+      {
+        "name": "reveals_location",
+        "type": "boolean",
+        "nullable": false,
+        "default": "false",
+        "key": "",
+        "references": "",
+        "comment": "True for exterior and street views. Such an image is band 2: showing it to an ungated caller would reopen the address gate through the photo gallery."
+      }
+    ]
+  },
+  {
+    "schema": "core",
     "name": "saved_property",
     "comment": "",
     "rls": true,
@@ -776,6 +1222,789 @@
         "nullable": false,
         "default": "now()",
         "key": "",
+        "references": "",
+        "comment": ""
+      }
+    ]
+  },
+  {
+    "schema": "core",
+    "name": "saved_search",
+    "comment": "",
+    "rls": true,
+    "columns": [
+      {
+        "name": "search_id",
+        "type": "uuid",
+        "nullable": false,
+        "default": "gen_random_uuid()",
+        "key": "PK",
+        "references": "",
+        "comment": ""
+      },
+      {
+        "name": "person_id",
+        "type": "uuid",
+        "nullable": false,
+        "default": "",
+        "key": "FK UQ",
+        "references": "core.person",
+        "comment": ""
+      },
+      {
+        "name": "name",
+        "type": "text",
+        "nullable": false,
+        "default": "",
+        "key": "CK UQ",
+        "references": "",
+        "comment": ""
+      },
+      {
+        "name": "criteria",
+        "type": "jsonb",
+        "nullable": false,
+        "default": "'{}'::jsonb",
+        "key": "CK",
+        "references": "",
+        "comment": ""
+      },
+      {
+        "name": "created_at",
+        "type": "timestamptz",
+        "nullable": false,
+        "default": "now()",
+        "key": "",
+        "references": "",
+        "comment": ""
+      },
+      {
+        "name": "last_run_at",
+        "type": "timestamptz",
+        "nullable": true,
+        "default": "",
+        "key": "",
+        "references": "",
+        "comment": ""
+      },
+      {
+        "name": "run_count",
+        "type": "integer",
+        "nullable": false,
+        "default": "0",
+        "key": "",
+        "references": "",
+        "comment": ""
+      }
+    ]
+  },
+  {
+    "schema": "core",
+    "name": "session",
+    "comment": "",
+    "rls": true,
+    "columns": [
+      {
+        "name": "token_hash",
+        "type": "bytea",
+        "nullable": false,
+        "default": "",
+        "key": "PK",
+        "references": "",
+        "comment": "SHA-256 of the bearer token. The token itself is returned once, at creation, and is never stored anywhere."
+      },
+      {
+        "name": "person_id",
+        "type": "uuid",
+        "nullable": false,
+        "default": "",
+        "key": "FK",
+        "references": "core.person",
+        "comment": ""
+      },
+      {
+        "name": "created_at",
+        "type": "timestamptz",
+        "nullable": false,
+        "default": "now()",
+        "key": "",
+        "references": "",
+        "comment": ""
+      },
+      {
+        "name": "expires_at",
+        "type": "timestamptz",
+        "nullable": false,
+        "default": "",
+        "key": "",
+        "references": "",
+        "comment": ""
+      },
+      {
+        "name": "last_seen_at",
+        "type": "timestamptz",
+        "nullable": false,
+        "default": "now()",
+        "key": "",
+        "references": "",
+        "comment": ""
+      },
+      {
+        "name": "revoked_at",
+        "type": "timestamptz",
+        "nullable": true,
+        "default": "",
+        "key": "",
+        "references": "",
+        "comment": ""
+      },
+      {
+        "name": "user_agent",
+        "type": "text",
+        "nullable": true,
+        "default": "",
+        "key": "",
+        "references": "",
+        "comment": ""
+      },
+      {
+        "name": "ip",
+        "type": "inet",
+        "nullable": true,
+        "default": "",
+        "key": "",
+        "references": "",
+        "comment": ""
+      }
+    ]
+  },
+  {
+    "schema": "feed",
+    "name": "listing_source",
+    "comment": "",
+    "rls": false,
+    "columns": [
+      {
+        "name": "source_code",
+        "type": "text",
+        "nullable": false,
+        "default": "",
+        "key": "PK",
+        "references": "",
+        "comment": ""
+      },
+      {
+        "name": "name",
+        "type": "text",
+        "nullable": false,
+        "default": "",
+        "key": "",
+        "references": "",
+        "comment": ""
+      },
+      {
+        "name": "kind",
+        "type": "text",
+        "nullable": false,
+        "default": "",
+        "key": "CK",
+        "references": "",
+        "comment": ""
+      },
+      {
+        "name": "base_url",
+        "type": "text",
+        "nullable": true,
+        "default": "",
+        "key": "",
+        "references": "",
+        "comment": ""
+      },
+      {
+        "name": "authoritative",
+        "type": "boolean",
+        "nullable": false,
+        "default": "false",
+        "key": "",
+        "references": "",
+        "comment": ""
+      },
+      {
+        "name": "confirm_after",
+        "type": "smallint",
+        "nullable": false,
+        "default": "2",
+        "key": "CK",
+        "references": "",
+        "comment": ""
+      },
+      {
+        "name": "may_retire",
+        "type": "boolean",
+        "nullable": false,
+        "default": "false",
+        "key": "",
+        "references": "",
+        "comment": ""
+      },
+      {
+        "name": "active",
+        "type": "boolean",
+        "nullable": false,
+        "default": "true",
+        "key": "",
+        "references": "",
+        "comment": ""
+      },
+      {
+        "name": "check_cron",
+        "type": "text",
+        "nullable": true,
+        "default": "",
+        "key": "",
+        "references": "",
+        "comment": ""
+      },
+      {
+        "name": "notes",
+        "type": "text",
+        "nullable": true,
+        "default": "",
+        "key": "",
+        "references": "",
+        "comment": ""
+      },
+      {
+        "name": "created_at",
+        "type": "timestamptz",
+        "nullable": false,
+        "default": "now()",
+        "key": "",
+        "references": "",
+        "comment": ""
+      }
+    ]
+  },
+  {
+    "schema": "feed",
+    "name": "manual_check",
+    "comment": "",
+    "rls": false,
+    "columns": [
+      {
+        "name": "check_id",
+        "type": "bigint",
+        "nullable": false,
+        "default": "nextval('feed.manual_check_check_id_seq'::regclass)",
+        "key": "PK",
+        "references": "",
+        "comment": ""
+      },
+      {
+        "name": "property_id",
+        "type": "uuid",
+        "nullable": false,
+        "default": "",
+        "key": "FK",
+        "references": "core.property",
+        "comment": ""
+      },
+      {
+        "name": "raw_status",
+        "type": "text",
+        "nullable": false,
+        "default": "",
+        "key": "",
+        "references": "",
+        "comment": ""
+      },
+      {
+        "name": "list_price",
+        "type": "numeric(12,2)",
+        "nullable": true,
+        "default": "",
+        "key": "",
+        "references": "",
+        "comment": ""
+      },
+      {
+        "name": "note",
+        "type": "text",
+        "nullable": true,
+        "default": "",
+        "key": "",
+        "references": "",
+        "comment": ""
+      },
+      {
+        "name": "noted_by",
+        "type": "uuid",
+        "nullable": true,
+        "default": "",
+        "key": "FK",
+        "references": "core.person",
+        "comment": ""
+      },
+      {
+        "name": "noted_at",
+        "type": "timestamptz",
+        "nullable": false,
+        "default": "now()",
+        "key": "",
+        "references": "",
+        "comment": ""
+      },
+      {
+        "name": "consumed_at",
+        "type": "timestamptz",
+        "nullable": true,
+        "default": "",
+        "key": "",
+        "references": "",
+        "comment": ""
+      }
+    ]
+  },
+  {
+    "schema": "feed",
+    "name": "observation",
+    "comment": "",
+    "rls": false,
+    "columns": [
+      {
+        "name": "observation_id",
+        "type": "bigint",
+        "nullable": false,
+        "default": "nextval('feed.observation_observation_id_seq'::regclass)",
+        "key": "PK",
+        "references": "",
+        "comment": ""
+      },
+      {
+        "name": "run_id",
+        "type": "uuid",
+        "nullable": true,
+        "default": "",
+        "key": "",
+        "references": "",
+        "comment": ""
+      },
+      {
+        "name": "property_id",
+        "type": "uuid",
+        "nullable": false,
+        "default": "",
+        "key": "FK",
+        "references": "core.property",
+        "comment": ""
+      },
+      {
+        "name": "source_code",
+        "type": "text",
+        "nullable": false,
+        "default": "",
+        "key": "FK",
+        "references": "feed.listing_source",
+        "comment": ""
+      },
+      {
+        "name": "observed_at",
+        "type": "timestamptz",
+        "nullable": false,
+        "default": "now()",
+        "key": "",
+        "references": "",
+        "comment": ""
+      },
+      {
+        "name": "outcome",
+        "type": "text",
+        "nullable": false,
+        "default": "",
+        "key": "CK",
+        "references": "",
+        "comment": ""
+      },
+      {
+        "name": "raw_status",
+        "type": "text",
+        "nullable": true,
+        "default": "",
+        "key": "",
+        "references": "",
+        "comment": ""
+      },
+      {
+        "name": "mapped_status",
+        "type": "text",
+        "nullable": true,
+        "default": "",
+        "key": "",
+        "references": "",
+        "comment": ""
+      },
+      {
+        "name": "list_price",
+        "type": "numeric(12,2)",
+        "nullable": true,
+        "default": "",
+        "key": "",
+        "references": "",
+        "comment": ""
+      },
+      {
+        "name": "payload",
+        "type": "jsonb",
+        "nullable": true,
+        "default": "",
+        "key": "",
+        "references": "",
+        "comment": ""
+      },
+      {
+        "name": "error_detail",
+        "type": "text",
+        "nullable": true,
+        "default": "",
+        "key": "",
+        "references": "",
+        "comment": ""
+      }
+    ]
+  },
+  {
+    "schema": "feed",
+    "name": "property_external",
+    "comment": "",
+    "rls": false,
+    "columns": [
+      {
+        "name": "property_id",
+        "type": "uuid",
+        "nullable": false,
+        "default": "",
+        "key": "FK PK",
+        "references": "core.property",
+        "comment": ""
+      },
+      {
+        "name": "source_code",
+        "type": "text",
+        "nullable": false,
+        "default": "",
+        "key": "FK PK UQ",
+        "references": "feed.listing_source",
+        "comment": ""
+      },
+      {
+        "name": "external_id",
+        "type": "text",
+        "nullable": false,
+        "default": "",
+        "key": "UQ",
+        "references": "",
+        "comment": ""
+      },
+      {
+        "name": "external_url",
+        "type": "text",
+        "nullable": true,
+        "default": "",
+        "key": "",
+        "references": "",
+        "comment": ""
+      },
+      {
+        "name": "first_seen_at",
+        "type": "timestamptz",
+        "nullable": false,
+        "default": "now()",
+        "key": "",
+        "references": "",
+        "comment": ""
+      },
+      {
+        "name": "last_checked_at",
+        "type": "timestamptz",
+        "nullable": true,
+        "default": "",
+        "key": "",
+        "references": "",
+        "comment": ""
+      },
+      {
+        "name": "last_seen_at",
+        "type": "timestamptz",
+        "nullable": true,
+        "default": "",
+        "key": "",
+        "references": "",
+        "comment": ""
+      },
+      {
+        "name": "last_raw_status",
+        "type": "text",
+        "nullable": true,
+        "default": "",
+        "key": "",
+        "references": "",
+        "comment": ""
+      },
+      {
+        "name": "last_price",
+        "type": "numeric(12,2)",
+        "nullable": true,
+        "default": "",
+        "key": "",
+        "references": "",
+        "comment": ""
+      },
+      {
+        "name": "miss_streak",
+        "type": "smallint",
+        "nullable": false,
+        "default": "0",
+        "key": "",
+        "references": "",
+        "comment": ""
+      },
+      {
+        "name": "agree_streak",
+        "type": "smallint",
+        "nullable": false,
+        "default": "0",
+        "key": "",
+        "references": "",
+        "comment": ""
+      },
+      {
+        "name": "enabled",
+        "type": "boolean",
+        "nullable": false,
+        "default": "true",
+        "key": "",
+        "references": "",
+        "comment": ""
+      }
+    ]
+  },
+  {
+    "schema": "feed",
+    "name": "review_flag",
+    "comment": "",
+    "rls": false,
+    "columns": [
+      {
+        "name": "flag_id",
+        "type": "bigint",
+        "nullable": false,
+        "default": "nextval('feed.review_flag_flag_id_seq'::regclass)",
+        "key": "PK",
+        "references": "",
+        "comment": ""
+      },
+      {
+        "name": "property_id",
+        "type": "uuid",
+        "nullable": false,
+        "default": "",
+        "key": "FK",
+        "references": "core.property",
+        "comment": ""
+      },
+      {
+        "name": "source_code",
+        "type": "text",
+        "nullable": true,
+        "default": "",
+        "key": "FK",
+        "references": "feed.listing_source",
+        "comment": ""
+      },
+      {
+        "name": "observation_id",
+        "type": "bigint",
+        "nullable": true,
+        "default": "",
+        "key": "FK",
+        "references": "feed.observation",
+        "comment": ""
+      },
+      {
+        "name": "kind",
+        "type": "text",
+        "nullable": false,
+        "default": "",
+        "key": "",
+        "references": "",
+        "comment": ""
+      },
+      {
+        "name": "detail",
+        "type": "text",
+        "nullable": false,
+        "default": "",
+        "key": "",
+        "references": "",
+        "comment": ""
+      },
+      {
+        "name": "raised_at",
+        "type": "timestamptz",
+        "nullable": false,
+        "default": "now()",
+        "key": "",
+        "references": "",
+        "comment": ""
+      },
+      {
+        "name": "resolved_at",
+        "type": "timestamptz",
+        "nullable": true,
+        "default": "",
+        "key": "",
+        "references": "",
+        "comment": ""
+      },
+      {
+        "name": "resolved_by",
+        "type": "uuid",
+        "nullable": true,
+        "default": "",
+        "key": "FK",
+        "references": "core.person",
+        "comment": ""
+      },
+      {
+        "name": "resolution",
+        "type": "text",
+        "nullable": true,
+        "default": "",
+        "key": "",
+        "references": "",
+        "comment": ""
+      }
+    ]
+  },
+  {
+    "schema": "feed",
+    "name": "status_change",
+    "comment": "",
+    "rls": false,
+    "columns": [
+      {
+        "name": "change_id",
+        "type": "bigint",
+        "nullable": false,
+        "default": "nextval('feed.status_change_change_id_seq'::regclass)",
+        "key": "PK",
+        "references": "",
+        "comment": ""
+      },
+      {
+        "name": "property_id",
+        "type": "uuid",
+        "nullable": false,
+        "default": "",
+        "key": "FK",
+        "references": "core.property",
+        "comment": ""
+      },
+      {
+        "name": "from_status",
+        "type": "text",
+        "nullable": false,
+        "default": "",
+        "key": "",
+        "references": "",
+        "comment": ""
+      },
+      {
+        "name": "to_status",
+        "type": "text",
+        "nullable": false,
+        "default": "",
+        "key": "",
+        "references": "",
+        "comment": ""
+      },
+      {
+        "name": "reason",
+        "type": "text",
+        "nullable": false,
+        "default": "",
+        "key": "",
+        "references": "",
+        "comment": ""
+      },
+      {
+        "name": "source_code",
+        "type": "text",
+        "nullable": true,
+        "default": "",
+        "key": "FK",
+        "references": "feed.listing_source",
+        "comment": ""
+      },
+      {
+        "name": "observation_id",
+        "type": "bigint",
+        "nullable": true,
+        "default": "",
+        "key": "FK",
+        "references": "feed.observation",
+        "comment": ""
+      },
+      {
+        "name": "actor",
+        "type": "text",
+        "nullable": false,
+        "default": "'worker'::text",
+        "key": "",
+        "references": "",
+        "comment": ""
+      },
+      {
+        "name": "changed_at",
+        "type": "timestamptz",
+        "nullable": false,
+        "default": "now()",
+        "key": "",
+        "references": "",
+        "comment": ""
+      }
+    ]
+  },
+  {
+    "schema": "feed",
+    "name": "status_map",
+    "comment": "",
+    "rls": false,
+    "columns": [
+      {
+        "name": "source_code",
+        "type": "text",
+        "nullable": false,
+        "default": "",
+        "key": "FK PK",
+        "references": "feed.listing_source",
+        "comment": ""
+      },
+      {
+        "name": "raw_status",
+        "type": "text",
+        "nullable": false,
+        "default": "",
+        "key": "PK",
+        "references": "",
+        "comment": ""
+      },
+      {
+        "name": "mapped_status",
+        "type": "text",
+        "nullable": true,
+        "default": "",
+        "key": "CK",
         "references": "",
         "comment": ""
       }

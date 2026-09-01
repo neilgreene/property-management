@@ -27,7 +27,7 @@ OK = colors.HexColor("#1E6B33")
 ss = getSampleStyleSheet()
 def S(n, parent=None, **kw): return ParagraphStyle(n, parent=parent or ss["Normal"], **kw)
 
-BODY  = S("body", fontName="Helvetica", fontSize=9.5, leading=13.6, textColor=INK, spaceAfter=7)
+BODY  = S("body", fontName="Helvetica", fontSize=11.5, leading=13.6, textColor=INK, spaceAfter=7)
 H1    = S("h1", fontName="Helvetica-Bold", fontSize=15, leading=19, textColor=INK, spaceBefore=16, spaceAfter=8)
 H2    = S("h2", fontName="Helvetica-Bold", fontSize=11, leading=15, textColor=ACCENT, spaceBefore=12, spaceAfter=5)
 BUL   = S("bul", parent=BODY, leftIndent=13, bulletIndent=3, spaceAfter=3.5)
@@ -40,8 +40,8 @@ NOTE  = S("note", parent=BODY, leftIndent=9, textColor=WARN, fontName="Helvetica
 GOOD  = S("good", fontName="Helvetica", fontSize=9, leading=12.8, textColor=INK, backColor=OKBG,
           borderPadding=7, borderColor=OK, borderWidth=0.7, spaceAfter=9, spaceBefore=3)
 CT    = S("ct", fontName="Helvetica-Bold", fontSize=25, leading=30, textColor=INK, alignment=TA_CENTER, spaceAfter=10)
-SCELL = S("scell", fontName="Helvetica", fontSize=7.4, leading=9.4, textColor=INK)
-SCELB = S("scelb", parent=None, fontName="Helvetica-Bold", fontSize=7.4, leading=9.4, textColor=INK)
+SCELL = S("scell", fontName="Helvetica", fontSize=7.4, leading=11.4, textColor=INK)
+SCELB = S("scelb", parent=None, fontName="Helvetica-Bold", fontSize=7.4, leading=11.4, textColor=INK)
 TNAME = S("tname", fontName="Courier-Bold", fontSize=10, leading=13, textColor=INK,
           spaceBefore=13, spaceAfter=2)
 TDESC = S("tdesc", fontName="Helvetica-Oblique", fontSize=8, leading=11, textColor=MUTED, spaceAfter=4)
@@ -527,21 +527,35 @@ A(PageBreak())
 
 # ------------------------------------------------------------------ 3
 A(para("3.  Users and Access", H1))
-A(para("3.1  There is no login system yet", H2))
-A(para("This must be stated plainly, because it is the most likely thing to be misread. The "
-       "system has <b>no authentication</b>: no password for a person, no session, no sign-in "
-       "page. The demo presents a persona switcher, and choosing a persona makes the web tier "
-       "assume the matching database role and set that person's id for the duration of one "
-       "transaction.", NOTE))
-A(para("That is deliberate for this stage and costs nothing later. The database contract is "
-       "identical either way: in production the persona and actor id come out of an "
-       "authenticated session instead of a dropdown, and not one policy, view or grant changes. "
-       "Authentication is the missing piece — the authorisation model beneath it is complete "
-       "and tested.", BODY))
+A(para("3.1  Signing in", H2))
+A(para("Authentication is built. A person signs in with an email and a password, gets a "
+       "session cookie, and the web tier resolves that cookie to a person id and a database "
+       "role for the duration of one transaction.", BODY))
+A(table([
+    hdr(["Concern", "How it is handled"]),
+    ["Password storage", mono("scrypt") + " with per-password salt and explicit cost parameters. Node's built-in implementation \u2014 no dependency"],
+    ["Failed sign-in", "One message and one shape for every failure. Distinguishing \u201cno such account\u201d from \u201cwrong password\u201d is an enumeration oracle, so the failure path does the same hashing work as the success path"],
+    ["Repeated failures", "The account locks after five. Setting a new password clears the lock"],
+    ["Sessions", "A random token; only its SHA-256 is stored, so the session table is not a set of usable credentials. Changing a password revokes every existing session"],
+    ["Credential tables", mono("core.credential") + " and " + mono("core.session") + " are RLS-forced with <b>no policy at all</b> \u2014 every direct read is refused for every role, including the owner. They are reachable only through " + mono("SECURITY DEFINER") + " functions"],
+], [1.15*inch, 4.75*inch]))
+A(Spacer(1, 5))
+A(para("<b>Authentication changed nothing beneath it.</b> Not one policy, view or grant was "
+       "modified to add it: the database contract was always \u201chere is a role and an actor "
+       "id\u201d, and a session now supplies those instead of a dropdown. That is the payoff of "
+       "having put the authorisation model in the database first.", GOOD))
+A(para("The demo persona switcher still exists, but it is off unless " +
+       mono("DEMO_PERSONAS=1") + " is set. A dropdown that hands out an admin session must "
+       "not be reachable by accident.", NOTE))
+A(para("Still missing: password reset, email delivery, and multi-factor. A person who "
+       "forgets a password needs a staff member to set a new one.", BODY))
 
 A(para("3.2  Seeded people", H2))
 A(para("Created by " + mono("sql/04_seed.sql") + ". These are demonstration records, not real "
-       "people; the addresses and financials attached to them are invented.", BODY))
+       "people; the addresses and financials attached to them are invented. Every one of "
+       "them has the password " + mono("demo1234") + ", set by " +
+       mono("sql/17_demo_passwords.sql") + " \u2014 a file that belongs in a demo and nowhere "
+       "else.", BODY))
 A(table([
     hdr(["Name", "Role", "Email", "Fee agreement", "Brand", "What they demonstrate"]),
     ["Jessica Pool", "admin", mono("jpool2@yahoo.com"), "n/a", "BRAND_A", "Full staff access, all bands"],
@@ -660,15 +674,25 @@ A(para("The " + mono("sec.*") + " predicates (" + mono("can_see_address") + ", "
 A(para("5.3  HTTP endpoints", H2))
 A(table([
     hdr(["Service", "Method and path", "Purpose"]),
-    ["Web demo", mono("GET /"), "The demo interface"],
-    ["Web demo", mono("GET /api/view?persona=&amp;brand="), "Everything one persona sees, in one payload"],
-    ["Web demo", mono("GET /api/probe?persona="), "Attempts a direct base-table read, to show the refusal"],
+    ["Marketplace", mono("GET /"), "The marketplace: filters, map, cards, drill-down"],
+    ["Marketplace", mono("POST /api/login") + " &middot; " + mono("/api/logout"), "Sign in and out. One response shape for every failure"],
+    ["Marketplace", mono("GET /api/whoami"), "Who this session is, and whether personas are enabled"],
+    ["Marketplace", mono("GET /api/listings?&lt;filters&gt;"), "Filtered listings, plus facet ranges and the vocabularies for the dropdowns"],
+    ["Marketplace", mono("GET /api/property?id="), "One listing in full, with its photographs. 404 when the row policy hides it"],
+    ["Marketplace", mono("POST|DELETE /api/favorite"), "Add or remove a favourite"],
+    ["Marketplace", mono("GET /api/favorites"), "The caller's favourites, as full listing cards"],
+    ["Marketplace", mono("GET|POST|DELETE /api/saved-search"), "List, upsert by name, delete"],
+    ["Marketplace", mono("POST /api/saved-search/run"), "Replay a saved search; returns its criteria and records the run"],
+    ["Marketplace", mono("POST /api/parse"), "Plain English to a bounded criteria object \u2014 see 7.5"],
+    ["Marketplace", mono("GET /media/&lt;id&gt;/&lt;kind&gt;.svg"), "Generated listing illustration"],
+    ["Marketplace", mono("GET /api/view") + " &middot; " + mono("/api/probe"), "The teaching endpoints: one persona's whole payload, and a direct base-table read that is refused"],
     ["Worker", mono("POST /webhooks/ghl"), "Receives a GoHighLevel delivery, verifies its signature"],
     ["Worker", mono("GET /healthz"), "Queue depth: pending events, bad signatures, outbox backlog, open reviews"],
 ], [0.85*inch, 2.35*inch, 2.7*inch]))
 A(Spacer(1, 5))
-A(para("The web demo runs on port 3000, the worker on 3001. Neither is authenticated; neither "
-       "should be exposed to a network until section 8 is addressed.", NOTE))
+A(para("The marketplace runs on port 3000, the worker on 3001. The marketplace authenticates; "
+       "the worker does not, and neither should be exposed to a network until the deployment "
+       "gaps in section 10 are addressed.", NOTE))
 A(PageBreak())
 
 # ------------------------------------------------------------------ 6
@@ -766,21 +790,255 @@ A(para("Two artifacts, neither of which needs any code to be written: <b>one cap
        "</b>. That is phase P0 in section 9, budgeted at one week, and it is first in the "
        "schedule for this reason.", GOOD))
 
+
 # ------------------------------------------------------------------ 7
-A(para("7.  What Is Tested", H1))
+A(PageBreak())
+A(para("7.  The Marketplace", H1))
+A(para("The browsing surface an investor actually uses: filters across the top, a map on "
+       "the left, listing cards on the right, and a drill-down panel over the top. The "
+       "layout is the one every property portal has converged on, for the reason they "
+       "converged on it \u2014 price and geography are the two questions a buyer asks "
+       "first, and the layout answers both at once.", BODY))
+
+A(para("7.1  What the browser can and cannot do", H2))
+A(para("The front end contains no security logic. It does not decide whose address to show, "
+       "which photographs to display, or which listings to draw. It draws what the API hands "
+       "it, and it finds out that an address is withheld at the same moment the reader does \u2014 "
+       "because " + mono("street_address") + " arrives as null.", GOOD))
+A(para("This is worth stating because it is the difference between a gate and a curtain. A "
+       "front end that receives every address and hides some of them is defeated by the "
+       "browser's developer tools. This one is not sent them.", BODY))
+
+A(para("7.2  Searching", H2))
+A(table([
+    hdr(["Control", "Filters on", "Where it runs"]),
+    ["Price, beds, baths, square feet", "Range on each", "Bound parameters against " + mono("api.property")],
+    ["Type, city", "Exact match; the options are drawn from what this caller can see", "Same query"],
+    ["Sort", "Price, cap rate, size, bedrooms", "An allowlisted ORDER BY, never interpolated"],
+    ["Plain English", "Parsed into the same criteria as the controls above", "See 7.5"],
+], [1.6*inch, 2.35*inch, 1.95*inch]))
+A(Spacer(1, 5))
+A(para("Two properties of this that are structural rather than incidental. <b>A filter can "
+       "only narrow.</b> The row policies and the view's masking run first; every filter "
+       "clause runs inside that result, so there is no filter value that widens what a "
+       "caller sees. And <b>filtering happens in the database</b>, so a listing the caller "
+       "may not see is never sent and then hidden \u2014 it is not sent.", BODY))
+A(para("Even the facet ranges \u2014 the price floor and ceiling, the bedroom counts offered in "
+       "the dropdown \u2014 are computed from the same policy-bounded relation. The bounds a "
+       "caller sees are the bounds of their own data, so the filter bar itself does not leak "
+       "the existence of listings they cannot open.", GOOD))
+
+A(para("7.3  The map, and why gated pins are drawn as rings", H2))
+A(para("Every listing carries true coordinates in band 2. An ungated viewer receives a "
+       "deterministic offset of roughly a kilometre instead, seeded on the property id so "
+       "repeated loads cannot be averaged back to the true point.", BODY))
+A(para("The map draws that difference rather than hiding it: an unlocked listing gets a "
+       "sharp price pin, a gated one gets a soft ring around an approximate centre. Drawing "
+       "a gated listing as a precise pin would claim an accuracy the data does not have, "
+       "and would teach the viewer to trust a position that is deliberately wrong.", BODY))
+A(para("The map library and its tiles come from a CDN. When that CDN is unreachable \u2014 an "
+       "air-gapped host, a restrictive proxy \u2014 a built-in renderer plots the same listings to "
+       "scale with no dependencies, priced, clickable and hover-linked to their cards, "
+       "labelled so nobody mistakes it for a basemap. A demo that shows a grey rectangle on "
+       "a locked-down network is a demo that fails in the room it matters in.", NOTE))
+
+A(para("7.4  The drill-down", H2))
+A(para("One property, in full. The 404 for a listing the caller may not see is produced by "
+       "the row policy, not by a check in application code: " + mono("api.property_detail") +
+       " is a view over " + mono("api.property") + ", so an invisible property returns zero "
+       "rows and the route reports not-found. Not <i>forbidden</i> \u2014 saying \u201cforbidden\u201d would "
+       "confirm the listing exists to anyone who guessed an id.", BODY))
+A(table([
+    hdr(["Section", "Contains", "Band"]),
+    ["Photography", "Interior views. The front elevation is band 2 \u2014 see below", "1, and 2"],
+    ["Headline figures", "Cap rate, monthly rent, NOI, price per square foot", "1"],
+    ["Income and expenses", "Gross rent, vacancy, management, tax, insurance, maintenance, utilities, HOA, and the net", "1"],
+    ["Area", "Median household income, median price and rent, rent growth, vacancy, price-to-income, and this rent as a share of local income", "1"],
+    ["The building", "Lot, storeys, garage, parking, heating, cooling, roof year, renovations, features", "1"],
+    ["Location", "Street address, unit, exact coordinates, front elevation photograph", "2"],
+], [1.3*inch, 3.3*inch, 0.75*inch]))
+A(Spacer(1, 5))
+A(para("<b>The whole financial analysis is band 1.</b> That is a deliberate commercial "
+       "choice, not an oversight: the analysis is what sells the listing, so withholding it "
+       "would defeat the purpose of publishing at all. What is withheld is what identifies "
+       "the parcel \u2014 nothing on the page is a teaser.", BODY))
+A(para("<b>Photographs respect the same gate as the address.</b> A picture of the front of a "
+       "house identifies it as surely as its street number: a door number, a recognisable "
+       "streetscape. So " + mono("core.property_media") + " carries " + mono("reveals_location") +
+       ", and any image flagged that way is released on the same predicate as the address "
+       "itself. Interiors stay public. Without this, the gate would be reopened through the "
+       "picture gallery.", GOOD))
+A(para("The expense breakdown sums exactly to the " + mono("opex_annual") + " published on "
+       "the listing. That is enforced by generation rather than trusted: an investor who "
+       "adds up the components gets the headline figure back, and a detail page whose "
+       "arithmetic does not close is a page nobody underwrites on twice.", BODY))
+
+A(para("7.5  Plain-English search", H2))
+A(para("A free-text box turns \u201c3 bed duplex in Cleveland under 200k, best yield\u201d into "
+       + mono("{min_beds:3, property_type:'Duplex', city:'Cleveland', max_price:200000, "
+              "sort:'cap_desc'}") + " and shows the reader what it understood, so the box is "
+       "never opaque about what it did.", BODY))
+A(para("<b>It is a rules parser today. It is not a language model and it does not call "
+       "one.</b> It is built now because the shape of the feature \u2014 free text in, a bounded "
+       "criteria object out \u2014 is the part that has to be right, and it is worth having that "
+       "seam built and tested before a model is put behind it.", NOTE))
+A(para("The design is what makes a model safe to add later. The parser's only output is a "
+       "criteria object whose keys are fixed and whose values the query builder binds, and "
+       "every object passes a validator on the way out. So the blast radius of a wrong "
+       "answer \u2014 from these rules today or from a model tomorrow \u2014 is a bad search, never a "
+       "bad query. Swapping in a model means replacing one function body; the validator is "
+       "not optional in that world, it is the thing that makes model output executable.", GOOD))
+
+A(para("7.6  Favourites and saved searches", H2))
+A(table([
+    hdr(["Feature", "Stored in", "Visibility"]),
+    ["Favourites", mono("core.saved_property"), "Owner only, plus staff. Saving is checked against the same predicate the row policy uses, so an investor cannot favourite a listing their own policy hides"],
+    ["Saved searches", mono("core.saved_search"), "Owner only, with no staff override. What an investor is hunting for is their own business"],
+], [1.1*inch, 1.55*inch, 3.25*inch]))
+A(Spacer(1, 5))
+A(para("Search criteria are stored as " + mono("jsonb") + " because the filter set will keep "
+       "growing and each addition should not be a migration. The cost of " + mono("jsonb") +
+       " is that it accepts anything \u2014 so the storable keys are constrained at the table. A "
+       "saved search is replayed later, possibly by different code, and what cannot be stored "
+       "cannot be replayed.", BODY))
+A(para("The favourites view joins " + mono("api.property") + ", not " + mono("core.property") +
+       ". An address hidden in the grid must not appear because the listing was favourited; "
+       "inheriting the mask rather than reimplementing it is what guarantees the two cannot "
+       "drift apart.", GOOD))
+
+A(para("7.7  Photography", H2))
+A(para("The listing images are generated: deterministic flat vector illustrations, seeded on "
+       "the property id so a listing always looks the same. Real photographs are somebody's "
+       "copyright and a stock service is an account and a dependency, so the demo draws its "
+       "own and makes them visibly illustrations rather than photo-imitations.", BODY))
+A(para("Replacing them is a URL change. " + mono("core.property_media") + " stores a url and "
+       "nothing outside the renderer assumes where it is served from. The gate lives in the "
+       "database and does not care where the bytes come from.", BODY))
+
+# ------------------------------------------------------------------ 8
+A(PageBreak())
+A(para("8.  Where Listing Data Comes From", H1))
+A(para("A property in this marketplace is also listed somewhere else \u2014 an MLS, a consumer "
+       "portal, a wholesaler's sheet. It goes under contract, it sells, it is withdrawn, and "
+       "nobody tells us. An investor who calls about a house that went pending three weeks "
+       "ago is the single most expensive kind of stale data this system can hold.", BODY))
+A(para("<b>The wrinkle that shapes the entire design: escrow fails.</b> A property that went "
+       "pending comes back to market perhaps one time in five. So this cannot be a one-way "
+       "\u201cmark it gone\u201d job. It has to follow the source in both directions, and a design that "
+       "only knows how to retire a listing will quietly bury the ones that come back.", GOOD))
+
+A(para("8.1  Where the data can actually come from", H2))
+A(para("Worth being blunt, because the obvious answer is not available.", BODY))
+A(table([
+    hdr(["Route", "What it gives", "What it costs"]),
+    ["MLS via RESO Web API", "The correct answer. A standardised feed with a closed status vocabulary, served by essentially every modern MLS", "An MLS membership or approved vendor status, a signed data agreement, and a per-MLS contract. Coverage is per-market, so a national portfolio means several"],
+    ["Bridge Interactive (Zillow Group)", "MLS data under Zillow Group's own platform", "Same gate: manual approval, restricted to industry partners, brokerages and MLS organisations"],
+    ["Zillow's public API", "Nothing. The legacy Web API (ZWSID) was retired; there is no self-serve endpoint for live listing inventory", "\u2014"],
+    ["Vendor property APIs (e.g. RentCast)", "Self-serve, no membership. Property records, rent comps, and a derived listing status", "A key and a subscription. Status is derivative rather than primary, which is why it is treated as advisory here"],
+    ["Scraping a consumer portal", "Apparent completeness", "Outside the portal's terms, and technically the weakest option \u2014 see 8.5"],
+    ["A person with a browser", "Authoritative, immediate, and available today", "Someone's time. For a portfolio of a few dozen listings this is a real answer, not a placeholder"],
+], [1.3*inch, 2.1*inch, 2.5*inch]))
+A(Spacer(1, 5))
+A(para("The system is built so that which of these is used is a row in a table, not a "
+       "rewrite. Every source implements one adapter interface and every answer goes through "
+       "the same reconciler, so adding the MLS feed later changes no logic that is already "
+       "tested.", BODY))
+
+A(para("8.2  Four tables and one rule", H2))
+A(table([
+    hdr(["Table", "Holds"]),
+    [mono("feed.listing_source"), "Who is telling us, and how far they are trusted: authoritative or advisory, whether they may retire a listing, and how many agreeing checks a change needs"],
+    [mono("feed.property_external"), "Our property against their key, with " + mono("last_checked_at") + " and " + mono("last_seen_at") + " kept apart \u2014 \u201cwe looked\u201d and \u201cwe found it\u201d are different facts, and their difference is how a delisting is detected"],
+    [mono("feed.observation"), "Append-only. What a source said, when, verbatim, alongside our reading of it. Never updated"],
+    [mono("feed.status_change"), "What we actually did about it, why, and whether a worker or a person did it"],
+], [1.55*inch, 4.35*inch]))
+A(Spacer(1, 5))
+A(para("<b>The rule: an observation never writes a status directly.</b> It is recorded, then "
+       "reconciled. That separation is what makes the history answerable after the fact \u2014 "
+       "\u201cwhy is this pending?\u201d has an answer with a timestamp and a source \u2014 and what lets an "
+       "unreliable source raise a flag without being allowed to act.", GOOD))
+
+A(para("8.3  Vocabulary is data, not code", H2))
+A(para("Every feed has its own words. RESO says <i>Active Under Contract</i>; one portal says "
+       "<i>Pending</i>; another says <i>Contingent</i> or <i>Accepting backup offers</i>. All "
+       "four mean the same thing here. " + mono("feed.status_map") + " holds the translation, "
+       "so a term a portal invented last week is a row, not a release.", BODY))
+A(para("A term nobody has mapped is <b>recorded and flagged, never guessed</b>. An unmapped "
+       "status appears on an operator worklist as \u201cwe saw something we do not understand\u201d "
+       "rather than silently defaulting to whatever seems closest.", BODY))
+
+A(para("8.4  What the nightly job is allowed to do", H2))
+A(para("The sweep runs once a night, walks every enabled watch oldest-check-first so a run "
+       "cut short has still done the most overdue work, and rate-limits per source. It "
+       "decides nothing: it records what it saw and the database decides what it means.", BODY))
+A(table([
+    hdr(["Signal", "What happens"]),
+    ["The source reports a status", "Recorded. Acted on once " + mono("confirm_after") + " checks agree \u2014 one reading of a feed is not evidence"],
+    ["The source reports Active on something we had pending", "Acted on <b>immediately</b>. See below"],
+    ["The listing is absent from the feed", "Counted. After enough consecutive absences the listing becomes <i>withdrawn</i> \u2014 not <i>sold</i>. Gone is not the same as sold, so we do not guess; withdrawn is the reversible one"],
+    ["The request failed", "Ignored entirely. An outage is not a market emptying"],
+    ["An advisory source disagrees with us", "A flag on the staff review queue. No status changes"],
+    ["A staff member changed the status by hand", "The reconciler defers. A person who set it knows something the feed does not"],
+], [1.85*inch, 4.05*inch]))
+A(Spacer(1, 5))
+A(para("<b>Two asymmetries, both deliberate.</b> An error is never read as an absence: an "
+       "adapter that reports a timeout as \u201cmissing\u201d would, over one bad night, walk the "
+       "entire portfolio to withdrawn, so an adapter in doubt must report an error. And "
+       "coming back to market is acted on the first sighting rather than the second: a "
+       "failed escrow is a house that is saleable <i>now</i>, and every night it waits shown "
+       "as unavailable is a night of lost enquiries. The two mistakes do not cost the same, "
+       "so they are not treated the same.", GOOD))
+
+A(para("8.5  Why the scraper is a named seam and not an implementation", H2))
+A(para("It is wired in, it is registered as a source, and it returns \u201cnot implemented\u201d. The "
+       "reason is engineering before it is legal.", BODY))
+A(para("A scraper cannot reliably distinguish <i>this listing is gone</i> from <i>the page "
+       "changed shape</i>. Both render as a missing selector. So its most common failure mode "
+       "is indistinguishable from its most destructive signal, and a scraper allowed to "
+       "retire listings will one day retire the whole portfolio in a single run \u2014 correctly, "
+       "as far as it can tell.", NOTE))
+A(para("If one is ever built, two flags stay where they are: it remains <i>advisory</i>, so "
+       "it raises flags instead of changing statuses, and it remains barred from retiring a "
+       "listing. Those are columns on its source row, already set that way, so switching it "
+       "on does not silently grant it authority.", BODY))
+
+A(para("8.6  Getting a listing into the system today", H2))
+A(table([
+    hdr(["Route", "How"]),
+    ["MLS feed", "Set " + mono("RESO_BASE_URL") + " and " + mono("RESO_TOKEN") + ", activate the source row. Listings arrive complete and stay current"],
+    ["By hand, in bulk", mono("worker/tools/import-listing.js") + " takes a JSON file of the details and merges it \u2014 only the keys present are written, so re-running with one corrected field does not blank the rest"],
+    ["By hand, one status", "A staff member records what they saw; the next sweep picks it up and it goes through the same reconciler as any feed, so it is auditable and reversible"],
+], [1.25*inch, 4.65*inch]))
+A(Spacer(1, 5))
+A(para("The Irvine listing in the seed data (108 Fairgrove, 92618) shows the intended "
+       "posture. It is tracked \u2014 two watches, a real external key \u2014 and it is a <b>draft</b> "
+       "with null sizes and zero prices, so it reaches nobody. The facts held are the ones "
+       "in the source URL; the price, the room counts and the photographs are licensed "
+       "content that has not been obtained. Inventing plausible numbers to fill the gaps "
+       "would produce exactly the confident wrong record this schema exists to prevent. It "
+       "is tracked before it is trusted.", GOOD))
+
+# ------------------------------------------------------------------ 9
+A(para("9.  What Is Tested", H1))
 A(para("Not a coverage percentage. These are the specific claims that are checked, and the "
        "attacks that are run against them.", BODY))
 A(para("Read this alongside 6.4. The database suites exercise a real PostgreSQL and prove "
        "what they claim. The worker suite proves its logic against test doubles, and proves "
-       "nothing about GoHighLevel's actual behaviour.", NOTE))
+       "nothing about GoHighLevel's or an MLS's actual behaviour.", NOTE))
 A(table([
     hdr(["Suite", "Checks", "Notable"]),
     [mono("sql/05_tests.sql"), "11", "Five attacks: direct base-table read, another investor's saved list, saving an invisible property, a VOLATILE predicate side-channel, and the standing invariants"],
     [mono("sql/07_ghl_tests.sql"), "7", "A signed-but-unpaid document must not open the gate; replay must not move a signature timestamp"],
     [mono("sql/10_review_tests.sql"), "7", "A payload smuggling an address and a cost basis alongside a legitimate status change; only the allowlist is applied"],
     [mono("sql/14_pipeline_tests.sql"), "9", "One agent cannot read another's deal by naming its id; one investor cannot read another's stage history"],
-    [mono("worker/ (npm test)"), "63", "Signature forgery, replay, oversized bodies, rate-limit handling, ambiguous-create duplication, migration resumability. All against doubles — no real GoHighLevel call, see 6.4"],
-], [1.5*inch, 0.55*inch, 3.85*inch]))
+    [mono("sql/23_listing_sync_tests.sql"), "10", "The whole listing lifecycle: under contract, failed escrow back to market, a feed outage, a genuine delisting, an advisory source, and a status term nobody has mapped"],
+    [mono("web/ (npm test)"), "34", "Password verification cost on the failure path, session revocation on password change, lockout after repeated failures, and that no application role can read a credential hash"],
+    [mono("worker/ (npm test)"), "69", "Signature forgery, replay, oversized bodies, rate-limit handling, ambiguous-create duplication, migration resumability, and the sweep's discipline \u2014 an error is never an absence, an advisory source cannot act. All against doubles, see 6.4"],
+], [1.95*inch, 0.62*inch, 3.33*inch]))
+A(Spacer(1, 5))
+A(para("Every suite that changes demo data restores it. That is not tidiness: a test that "
+       "leaves a property pending, or an investor's fee agreement open, breaks the "
+       "side-by-side contrast the whole demo rests on \u2014 and does it silently, one run later.", NOTE))
 A(Spacer(1, 5))
 A(para(mono("api.security_invariants()") + " must always return zero rows. It catches the four "
        "changes that quietly dismantle the model: " + mono("USAGE") + " granted on " +
@@ -789,33 +1047,35 @@ A(para(mono("api.security_invariants()") + " must always return zero rows. It ca
        "into CI and a nightly check.", GOOD))
 
 # ------------------------------------------------------------------ 8
-A(para("8.  What Is Not Built", H1))
+A(para("10.  What Is Not Built", H1))
 A(para("Stated plainly so nothing here is mistaken for finished.", BODY))
 A(table([
     hdr(["Missing", "Consequence"]),
-    ["Authentication", "No login, no sessions, no passwords for people. The demo selects a persona. This is the gap between the current system and anything user-facing."],
-    ["The public marketplace UI", "Only the demo interface exists. It exercises the model; it is not the product."],
+    ["A real listing feed", "The MLS adapter is written against the RESO standard and has never run against a live feed. Until credentials exist, listing status is maintained by staff. See section 8"],
+    ["The portal scraper", "Deliberately unimplemented. The source row, the trust flags and the review queue that would receive its output all exist \u2014 see 8.5 for why it stays that way"],
     ["Document storage", "The signed PDF artifact is not stored"],
     ["Messaging and unified inbox", "Not started"],
     ["Audit trail on band 2 and 3 reads", "Who viewed which address, and when, is not recorded"],
     ["Co-investment matching", "The pipeline exists; the matching engine does not"],
-    ["The external status scraper", "Not built. The review queue that would receive its output is."],
-    ["EspoCRM field mapping", "The load ordering and resumability are built and tested. The field-level mapping needs the live EspoCRM schema."],
-    ["Any deployment", "Nothing is hosted. Nothing is internet-facing."],
+    ["A language model behind the search box", "The text parser is rules, not a model. The seam and the validator that would make model output safe to execute are built and tested \u2014 see 7.5"],
+    ["Real listing photography", "Images are generated illustrations. Swapping them is a URL change; the gate does not depend on where they are served from"],
+    ["Password reset and email delivery", "Authentication works, but a person who forgets a password needs staff to set a new one"],
+    ["EspoCRM field mapping", "The load ordering and resumability are built and tested. The field-level mapping needs the live EspoCRM schema"],
+    ["A hardened deployment", "The stack runs under Docker Compose and has been deployed on a VM. Nothing is internet-facing, and nothing should be until TLS, a reverse proxy and secret management are in place"],
 ], [1.7*inch, 4.2*inch]))
 
 
 # ---------------------------------------------------------------- 9. next
 A(PageBreak())
-A(para("9.  Next Steps", H1))
-A(para("Section 8 lists what is missing. This section says what each item needs, in "
+A(para("11.  Next Steps", H1))
+A(para("Section 10 lists what is missing. This section says what each item needs, in "
        "what order, what has to be true before a phase can start, and how each one is "
        "tested. Durations are working weeks for one experienced developer and are "
        "estimates, not commitments.", BODY))
 
-A(para("9.1  What each item needs, and how long", H2))
-A(para("Ordered as recommended in 9.2. Estimates are working weeks for one experienced "
-       "developer who already knows this codebase, and cover build plus the tests in 9.4. "
+A(para("11.1  What each item needs, and how long", H2))
+A(para("Ordered as recommended in 11.2. Estimates are working weeks for one experienced "
+       "developer who already knows this codebase, and cover build plus the tests in 11.4. "
        "They exclude design iteration, review latency, and waiting on a third party — the "
        "three things that actually move dates.", BODY))
 A(table([
@@ -861,13 +1121,13 @@ A(table([
      "Everything above that is in scope for launch.", "2w"],
 ], [0.32*inch, 1.08*inch, 1.75*inch, 2.4*inch, 0.35*inch]))
 A(Spacer(1, 5))
-A(para("Total build effort is roughly <b>31 developer-weeks</b>. The calendar in 9.2 is "
+A(para("Total build effort is roughly <b>31 developer-weeks</b>. The calendar in 11.2 is "
        "20 weeks because P2, P7 and P9 run alongside other work rather than after it. With "
        "one developer and no parallelism the same scope is about 31 weeks; the difference is "
        "entirely whether the EspoCRM and operations tracks can proceed independently.", GOOD))
 
 A(PageBreak())
-A(para("9.2  Recommended sequence", H2))
+A(para("11.2  Recommended sequence", H2))
 A(para("Two things drive this order. <b>Authentication gates everything user-facing</b>, so "
        "it goes first and almost nothing can be demonstrated to a real user before it lands. "
        "And <b>the audit trail should precede real investor data</b>, not follow it — the "
@@ -887,7 +1147,7 @@ A(para("The critical path is P1 &rarr; P4 &rarr; P5: authentication, then the br
        "date. If the schedule has to compress, P8, P9 and P10 are the ones to defer — none "
        "of them is required for an investor to find a property, pay, and see the address.", BODY))
 
-A(para("9.3  What must be true before a phase starts", H2))
+A(para("11.3  What must be true before a phase starts", H2))
 A(table([
     hdr(["Phase", "Entry condition", "Done when"]),
     ["P0", "A host with a public HTTPS address and a GoHighLevel account",
@@ -904,14 +1164,14 @@ A(table([
      "An investor signs, pays, and the address unlocks — driven end to end against a GoHighLevel test sub-account"],
     ["P6", "A storage and retention decision", "The signed PDF is retrievable and its retention is enforced"],
     ["P7", "P1 complete", "An agent sees only their own assignments and conversations, proven by test, not by inspection"],
-    ["P8", "The ownership decision in 9.1", "A thread is readable against both the contact and the property"],
+    ["P8", "The ownership decision in 11.1", "A thread is readable against both the contact and the property"],
     ["P9", "A data source", "A status change reaches the review queue and no listing changes without a human"],
     ["P10", "Matching rules in writing", "Two vetted investors are matched and both are notified"],
     ["P11", "Everything above that is in scope for launch", "Cutover rehearsed on staging, with a tested rollback"],
 ], [0.52*inch, 2.3*inch, 3.08*inch]))
 
 A(PageBreak())
-A(para("9.4  How each phase is tested", H2))
+A(para("11.4  How each phase is tested", H2))
 A(para("Every phase adds its own tests and must leave the existing ones green. That second "
        "half is the part that usually erodes, so it is stated as a gate rather than a habit.", BODY))
 A(para("The standing regression suite", H2))
@@ -955,8 +1215,8 @@ A(para("Two habits worth keeping, both learned building what already exists. Wri
        "found so far only appeared when suites ran together.", GOOD))
 
 A(PageBreak())
-A(para("9.5  Validation methods to consider", H2))
-A(para("Section 9.4 says what to test. This says <i>how</i>, and which technique earns its "
+A(para("11.5  Validation methods to consider", H2))
+A(para("Section 11.4 says what to test. This says <i>how</i>, and which technique earns its "
        "place where. Not all of these are worth adopting; they are listed with the judgement "
        "attached rather than as a checklist to complete.", BODY))
 A(table([
@@ -1030,7 +1290,7 @@ for b in buls([
 
 
 A(PageBreak())
-A(para("9.6  Deployment", H2))
+A(para("11.6  Deployment", H2))
 A(para("Both available options are suitable, for different jobs. The recommendation is to use "
        "both rather than choose.", BODY))
 A(table([
@@ -1076,18 +1336,23 @@ A(para("Backups are the one thing to set up before there is anything worth backi
        "backup is a belief, not a backup.", NOTE))
 
 A(PageBreak())
-A(para("10.  Where Things Are", H1))
+A(para("12.  Where Things Are", H1))
 A(table([
     hdr(["Path", "Contents"]),
-    [mono("sql/01–04"), "Schema, RLS policies, masking views, demo data"],
-    [mono("sql/05, 07, 10, 14"), "The four walkthroughs. Each is readable top to bottom as an argument"],
+    [mono("sql/01\u201304"), "Schema, RLS policies, masking views, demo data"],
+    [mono("sql/05, 07, 10, 14, 23"), "The five walkthroughs. Each is readable top to bottom as an argument, and each restores what it changes"],
     [mono("sql/06, 08, 09"), "GoHighLevel bridge, review queue, review actions"],
-    [mono("sql/11–13"), "Deals, stage history, pipeline policies and seed"],
+    [mono("sql/11\u201313"), "Deals, stage history, pipeline policies and seed"],
+    [mono("sql/15_auth.sql"), "Credentials and sessions \u2014 see 3.1"],
+    [mono("sql/16\u201317, 20"), "The demo dataset: 24 listings, their passwords, and the generated detail and market data"],
+    [mono("sql/18\u201319"), "Property detail, market areas, photographs; saved searches"],
+    [mono("sql/21\u201322"), "Listing sources, status vocabulary, reconciliation \u2014 see section 8"],
     [mono("sql/99_local_logins.sql"), "Demo passwords. Local development only"],
-    [mono("web/"), "The demo: " + mono("server.js") + " and one HTML page"],
-    [mono("worker/src/"), "The GoHighLevel integration worker"],
-    [mono("worker/test/"), "63 tests"],
-    [mono("worker/tools/"), "The webhook capture tool"],
+    [mono("web/"), "The marketplace. " + mono("server.js") + ", " + mono("auth.js") + ", " + mono("nlq.js") + " (the text parser), " + mono("media.js") + " (the illustrations), and " + mono("public/")],
+    [mono("web/test/"), "34 tests"],
+    [mono("worker/src/"), "The GoHighLevel worker and the listing sweep (" + mono("listings/") + ")"],
+    [mono("worker/test/"), "69 tests"],
+    [mono("worker/tools/"), "The webhook capture tool, the nightly sweep entry point, and the listing importer"],
     [mono("docs/"), "This document and the GoHighLevel interface specification, with their generators"],
     [mono("README.md"), "The same ground in more technical detail, including the reasoning behind each design decision"],
 ], [1.7*inch, 4.2*inch]))
