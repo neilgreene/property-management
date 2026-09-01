@@ -47,8 +47,14 @@ jobs:
         uses: docker/metadata-action@v5
         with:
           images: ${{ env.REGISTRY }}/${{ github.repository }}/${{ matrix.name }}
+          # `latest` is pinned to main explicitly rather than via
+          # {{is_default_branch}}. This repository's default branch is a working
+          # branch, not main, so the template evaluated false and the first run
+          # published only an immutable sha- tag -- leaving nothing for a
+          # compose file referencing :latest to pull.
           tags: |
-            type=raw,value=latest,enable={{is_default_branch}}
+            type=raw,value=latest,enable=${{ github.ref == 'refs/heads/main' }}
+            type=ref,event=branch
             type=semver,pattern={{version}}
             type=semver,pattern={{major}}.{{minor}}
             type=sha,format=long
