@@ -180,8 +180,8 @@ test('changing a password ends every existing session', async (t) => {
   if (!available) return t.skip('no database');
   const d = await db();
   const a = await auth.authenticate(d, 'jessica@x', 'x'); // wrong email on purpose
-  const s1 = await auth.authenticate(d, 'jpool@yahoo.com', 'jessica-correct-password');
-  const s2 = await auth.authenticate(d, 'jpool@yahoo.com', 'jessica-correct-password');
+  const s1 = await auth.authenticate(d, 'jpool2@yahoo.com', 'jessica-correct-password');
+  const s2 = await auth.authenticate(d, 'jpool2@yahoo.com', 'jessica-correct-password');
   assert.ok(await auth.resolveSession(d, s1.token));
   assert.ok(await auth.resolveSession(d, s2.token));
   await setPassword(d, JESS, 'jessica-new-password');

@@ -11,7 +11,9 @@ const http = require('http');
 const fs   = require('fs');
 const path = require('path');
 const { Pool } = require('pg');
-const auth = require('./auth');
+const auth  = require('./auth');
+const media = require('./media');
+const nlq   = require('./nlq');
 
 const pool = new Pool({
   host:     process.env.PGHOST     || 'localhost',
@@ -153,15 +155,44 @@ function readBody(req, limit = 8192) {
 //   Filtering in the database rather than the browser means a listing the
 //   caller cannot see is never sent and then hidden. It is not sent.
 const FILTERS = [
-  ['minPrice', 'p.list_price >= $', Number],
-  ['maxPrice', 'p.list_price <= $', Number],
-  ['minBeds',  'p.beds       >= $', Number],
-  ['maxBeds',  'p.beds       <= $', Number],
-  ['minBaths', 'p.baths      >= $', Number],
-  ['maxBaths', 'p.baths      <= $', Number],
-  ['minSqft',  'p.sqft       >= $', Number],
-  ['maxSqft',  'p.sqft       <= $', Number],
+  ['min_price', 'p.list_price >= $', Number],
+  ['max_price', 'p.list_price <= $', Number],
+  ['min_beds',  'p.beds       >= $', Number],
+  ['max_beds',  'p.beds       <= $', Number],
+  ['min_baths', 'p.baths      >= $', Number],
+  ['max_baths', 'p.baths      <= $', Number],
+  ['min_sqft',  'p.sqft       >= $', Number],
+  ['max_sqft',  'p.sqft       <= $', Number],
 ];
+
+// Non-numeric filters. Same rule: an allowlisted clause, a bound value.
+const TEXT_FILTERS = [
+  ['city',          'p.city          = $'],
+  ['state',         'p.state         = $'],
+  ['property_type', 'p.property_type = $'],
+  ['status',        'p.status        = $'],
+];
+
+// The camelCase names the first version of this demo used. Kept so an old
+// bookmark still works; the snake_case names are canonical because they
+// are the ones the database's saved-search allowlist accepts, and having
+// one spelling for "the same filter" in two places was a bug waiting.
+const ALIASES = {
+  minPrice: 'min_price', maxPrice: 'max_price', minBeds: 'min_beds',
+  maxBeds: 'max_beds', minBaths: 'min_baths', maxBaths: 'max_baths',
+  minSqft: 'min_sqft', maxSqft: 'max_sqft', propertyType: 'property_type',
+};
+
+// URLSearchParams -> plain criteria object, canonical names only.
+function criteriaFrom(params) {
+  const c = {};
+  for (const [k, v] of params) {
+    const key = ALIASES[k] || k;
+    if (v === '' || v === null) continue;
+    c[key] = v;
+  }
+  return nlq.interpret(c);
+}
 
 const SORTS = {
   price_asc:  'p.list_price ASC NULLS LAST',
@@ -172,44 +203,83 @@ const SORTS = {
   ref:        'p.listing_ref ASC',
 };
 
-async function listings(identity, params) {
+// One transaction, one identity, one unit of work. Every route below goes
+// through here, so there is exactly one place that decides who the
+// database thinks is asking -- and it is three statements long.
+async function withTx(identity, brand, fn) {
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    // SET LOCAL ROLE, not SET ROLE. Reverts at COMMIT, so a pooled
+    // connection cannot carry one user's identity into the next request.
+    await client.query(`SET LOCAL ROLE ${identity.role}`);
+    await client.query(
+      `SELECT set_config('app.actor_id', $1, true), set_config('app.brand', $2, true)`,
+      [identity.actor || '', brand || 'BRAND_A']);
+    const out = await fn(client);
+    await client.query('COMMIT');
+    return out;
+  } catch (e) {
+    await client.query('ROLLBACK').catch(() => {});
+    throw e;
+  } finally {
+    client.release();
+  }
+}
+
+// Which of these listings has the caller favourited. Empty for anyone who
+// cannot hold favourites (anonymous, agent) -- the view is not granted to
+// them and the failure is expected, not an error.
+async function favoriteIds(client) {
+  try {
+    const r = await client.query('SELECT property_id FROM core.saved_property');
+    return r.rows.map((x) => x.property_id);
+  } catch { return []; }
+}
+
+function buildListingQuery(criteria) {
   const where = [];
   const args = [];
-  const applied = {};
 
-  for (const [name, clause, cast] of FILTERS) {
-    const raw = params.get(name);
-    if (raw === null || raw === '') continue;
-    const v = cast(raw);
-    if (!Number.isFinite(v)) continue;     // a junk value is ignored, not an error
+  for (const [name, clause] of FILTERS) {
+    const v = criteria[name];
+    if (v === undefined) continue;
     args.push(v);
     where.push(clause + args.length);
-    applied[name] = v;
+  }
+  for (const [name, clause] of TEXT_FILTERS) {
+    const v = criteria[name];
+    if (v === undefined) continue;
+    args.push(v);
+    where.push(clause + args.length);
+  }
+  // Free text, matched against the fields a caller can see in every case.
+  // Deliberately NOT against street_address: matching on a masked column
+  // would let a caller confirm an address by probing for it.
+  if (criteria.q) {
+    args.push('%' + criteria.q + '%');
+    where.push(`(p.city ILIKE $${args.length} OR p.property_type ILIKE $${args.length}
+                 OR p.listing_ref ILIKE $${args.length} OR p.state ILIKE $${args.length})`);
   }
 
-  const city = params.get('city');
-  if (city) { args.push(city); where.push(`p.city = $${args.length}`); applied.city = city; }
-
-  // Allowlisted, never interpolated from input.
-  const sort = SORTS[params.get('sort')] || SORTS.ref;
-
+  const sort = SORTS[criteria.sort] || SORTS.ref;
   const sql =
-    `SELECT p.property_id, p.listing_ref, p.status, p.city, p.state, p.property_type,
+    `SELECT p.property_id, p.listing_ref, p.status, p.city, p.state, p.zip, p.property_type,
             p.beds, p.baths, p.sqft, p.year_built, p.list_price, p.noi_annual,
-            p.cap_rate, p.street_address, p.unit, p.address_unlocked,
+            p.cap_rate, p.gross_rent_annual, p.hoa_annual,
+            p.street_address, p.unit, p.lat, p.lng, p.address_unlocked,
             p.brand_service_tier, p.brand_platform_fee
        FROM api.property p
       ${where.length ? 'WHERE ' + where.join(' AND ') : ''}
       ORDER BY ${sort}`;
+  return { sql, args };
+}
 
-  const client = await pool.connect();
-  try {
-    await client.query('BEGIN');
-    await client.query(`SET LOCAL ROLE ${identity.role}`);
-    await client.query(
-      `SELECT set_config('app.actor_id', $1, true), set_config('app.brand', $2, true)`,
-      [identity.actor || '', params.get('brand') || 'BRAND_A']);
+async function listings(identity, params) {
+  const criteria = criteriaFrom(params);
+  const { sql, args } = buildListingQuery(criteria);
 
+  return withTx(identity, params.get('brand'), async (client) => {
     const rows = (await client.query(sql, args)).rows;
 
     // The facet ranges come from the same policy-bounded relation, so the
@@ -221,16 +291,96 @@ async function listings(identity, params) {
               count(*)::int AS total
          FROM api.property p`)).rows[0];
 
-    await client.query('COMMIT');
-    return { identity: { label: identity.label, role: identity.role, note: identity.note,
-                         signedIn: identity.key === 'session' },
-             applied, sort: params.get('sort') || 'ref', facets, count: rows.length, rows };
-  } catch (e) {
-    await client.query('ROLLBACK').catch(() => {});
-    throw e;
-  } finally {
-    client.release();
-  }
+    // The city list feeds both the filter dropdown and the plain-English
+    // parser. Drawn from api.property so it lists only cities this caller
+    // has a listing in -- the vocabulary is bounded by the policy too.
+    const cities = (await client.query(
+      `SELECT DISTINCT city FROM api.property ORDER BY city`)).rows.map((r) => r.city);
+    const types = (await client.query(
+      `SELECT DISTINCT property_type FROM api.property ORDER BY property_type`))
+      .rows.map((r) => r.property_type);
+
+    const favs = new Set(await favoriteIds(client));
+    for (const r of rows) r.is_favorite = favs.has(r.property_id);
+
+    return {
+      identity: { label: identity.label, role: identity.role, note: identity.note,
+                  signedIn: identity.key === 'session', canFavorite: favs !== null &&
+                    (identity.role === 'sdi_investor' || identity.role === 'sdi_admin') },
+      criteria, applied: criteria, sort: criteria.sort || 'ref',
+      facets, cities, types, count: rows.length, rows,
+    };
+  });
+}
+
+// The drill-down. One property, its detail, its photographs.
+//
+// Note what is NOT here: any check that the caller may see this property.
+// api.property_detail is a view over api.property, so a property the
+// caller cannot see returns zero rows and this returns 404. The 404 is
+// produced by the row policy, not by an if-statement in this file.
+async function propertyDetail(identity, id, brand) {
+  return withTx(identity, brand, async (client) => {
+    const r = await client.query('SELECT * FROM api.property_detail WHERE property_id = $1', [id]);
+    if (!r.rows.length) return null;
+    const m = await client.query(
+      'SELECT media_id, url, caption, position, is_primary, reveals_location '
+      + 'FROM api.property_media WHERE property_id = $1', [id]);
+    let is_favorite = false;
+    try {
+      const f = await client.query(
+        'SELECT 1 FROM core.saved_property WHERE property_id = $1', [id]);
+      is_favorite = f.rows.length > 0;
+    } catch { /* role cannot hold favourites */ }
+    return { property: r.rows[0], media: m.rows, is_favorite };
+  });
+}
+
+async function setFavorite(identity, id, on) {
+  return withTx(identity, null, async (client) => {
+    const fn = on ? 'api.save_property($1)' : 'api.unsave_property($1)';
+    const r = await client.query(`SELECT ${fn} AS ok`, [id]);
+    return { ok: r.rows[0].ok, is_favorite: on && r.rows[0].ok };
+  });
+}
+
+async function favorites(identity, brand) {
+  return withTx(identity, brand, async (client) => {
+    const r = await client.query(
+      'SELECT * FROM api.my_favorite ORDER BY saved_at DESC');
+    for (const row of r.rows) row.is_favorite = true;
+    return { count: r.rows.length, rows: r.rows };
+  });
+}
+
+async function savedSearches(identity) {
+  return withTx(identity, null, async (client) =>
+    ({ rows: (await client.query('SELECT * FROM api.my_saved_search')).rows }));
+}
+
+async function saveSearch(identity, name, criteria) {
+  // interpret() again on the way in. The browser already sent canonical
+  // keys, but this is a write, and a write validates its own input.
+  const clean = nlq.interpret(criteria);
+  return withTx(identity, null, async (client) => {
+    const r = await client.query('SELECT api.save_search($1, $2::jsonb) AS id',
+                                 [name, JSON.stringify(clean)]);
+    return { ok: true, search_id: r.rows[0].id, criteria: clean };
+  });
+}
+
+async function deleteSearch(identity, id) {
+  return withTx(identity, null, async (client) => {
+    const r = await client.query('SELECT api.delete_saved_search($1) AS ok', [id]);
+    return { ok: r.rows[0].ok };
+  });
+}
+
+async function runSearch(identity, id) {
+  return withTx(identity, null, async (client) => {
+    const r = await client.query('SELECT api.run_saved_search($1) AS criteria', [id]);
+    return { ok: true, criteria: nlq.interpret(r.rows[0].criteria) };
+  });
 }
 
 async function probeBaseTable(identity) {
@@ -351,6 +501,150 @@ const server = http.createServer(async (req, res) => {
       res.writeHead(500, { 'Content-Type': 'application/json' });
       return res.end(JSON.stringify({ error: 'query failed' }));
     }
+  }
+
+  // ---- the drill-down ---------------------------------------------------
+  if (url.pathname === '/api/property') {
+    try {
+      const identity = await identityFor(req, url);
+      const id = url.searchParams.get('id') || '';
+      if (!/^[0-9a-f-]{36}$/i.test(id)) {
+        res.writeHead(400, { 'Content-Type': 'application/json' });
+        return res.end(JSON.stringify({ error: 'bad id' }));
+      }
+      const data = await propertyDetail(identity, id, url.searchParams.get('brand'));
+      if (!data) {
+        // Not "forbidden". A listing this caller may not see does not
+        // exist as far as this caller is concerned, and saying otherwise
+        // would confirm the listing_ref space to anyone who guessed.
+        res.writeHead(404, { 'Content-Type': 'application/json' });
+        return res.end(JSON.stringify({ error: 'not found' }));
+      }
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      return res.end(JSON.stringify(data));
+    } catch (e) {
+      console.error('detail failed:', e.message);
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      return res.end(JSON.stringify({ error: 'query failed' }));
+    }
+  }
+
+  // ---- favourites -------------------------------------------------------
+  if (url.pathname === '/api/favorite' && (req.method === 'POST' || req.method === 'DELETE')) {
+    try {
+      const identity = await identityFor(req, url);
+      const body = JSON.parse(await readBody(req) || '{}');
+      const id = String(body.property_id || '');
+      if (!/^[0-9a-f-]{36}$/i.test(id)) {
+        res.writeHead(400, { 'Content-Type': 'application/json' });
+        return res.end(JSON.stringify({ error: 'bad id' }));
+      }
+      const data = await setFavorite(identity, id, req.method === 'POST');
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      return res.end(JSON.stringify(data));
+    } catch (e) {
+      // api.save_property raises 28000 when nobody is signed in and 42501
+      // when the listing is not visible. Both are the caller's problem and
+      // both are reported without saying which.
+      console.error('favorite failed:', e.message);
+      res.writeHead(403, { 'Content-Type': 'application/json' });
+      return res.end(JSON.stringify({ error: 'not permitted' }));
+    }
+  }
+
+  if (url.pathname === '/api/favorites') {
+    try {
+      const identity = await identityFor(req, url);
+      const data = await favorites(identity, url.searchParams.get('brand'));
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      return res.end(JSON.stringify(data));
+    } catch {
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      return res.end(JSON.stringify({ count: 0, rows: [] }));
+    }
+  }
+
+  // ---- saved searches ---------------------------------------------------
+  if (url.pathname === '/api/saved-search') {
+    try {
+      const identity = await identityFor(req, url);
+      if (req.method === 'GET') {
+        const data = await savedSearches(identity);
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        return res.end(JSON.stringify(data));
+      }
+      if (req.method === 'POST') {
+        const body = JSON.parse(await readBody(req) || '{}');
+        const name = String(body.name || '').trim().slice(0, 80);
+        if (!name) {
+          res.writeHead(400, { 'Content-Type': 'application/json' });
+          return res.end(JSON.stringify({ error: 'name required' }));
+        }
+        const data = await saveSearch(identity, name, body.criteria || {});
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        return res.end(JSON.stringify(data));
+      }
+      if (req.method === 'DELETE') {
+        const body = JSON.parse(await readBody(req) || '{}');
+        const data = await deleteSearch(identity, String(body.search_id || ''));
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        return res.end(JSON.stringify(data));
+      }
+    } catch (e) {
+      console.error('saved search failed:', e.message);
+      res.writeHead(403, { 'Content-Type': 'application/json' });
+      return res.end(JSON.stringify({ error: 'not permitted' }));
+    }
+  }
+
+  if (url.pathname === '/api/saved-search/run' && req.method === 'POST') {
+    try {
+      const identity = await identityFor(req, url);
+      const body = JSON.parse(await readBody(req) || '{}');
+      const data = await runSearch(identity, String(body.search_id || ''));
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      return res.end(JSON.stringify(data));
+    } catch (e) {
+      console.error('run saved search failed:', e.message);
+      res.writeHead(404, { 'Content-Type': 'application/json' });
+      return res.end(JSON.stringify({ error: 'not found' }));
+    }
+  }
+
+  // ---- plain-English search ---------------------------------------------
+  // The text never reaches SQL. It becomes a criteria object, the object
+  // is validated against a fixed key set, and the caller gets back both
+  // the criteria and a sentence saying what was understood.
+  if (url.pathname === '/api/parse' && req.method === 'POST') {
+    try {
+      const identity = await identityFor(req, url);
+      const body = JSON.parse(await readBody(req) || '{}');
+      const cities = await withTx(identity, null, async (client) =>
+        (await client.query('SELECT DISTINCT city FROM api.property ORDER BY city'))
+          .rows.map((r) => r.city));
+      const criteria = nlq.interpret(nlq.parse(String(body.text || '').slice(0, 300), cities));
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      return res.end(JSON.stringify({ criteria, explain: nlq.explain(criteria) }));
+    } catch (e) {
+      console.error('parse failed:', e.message);
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      return res.end(JSON.stringify({ error: 'parse failed' }));
+    }
+  }
+
+  // ---- placeholder photography ------------------------------------------
+  // Which images a caller is TOLD about is decided in the database. This
+  // route only draws; it is reached with an id the caller already has.
+  if (url.pathname.startsWith('/media/')) {
+    const m = /^\/media\/([0-9a-f-]{36})\/([a-z]+)\.svg$/i.exec(url.pathname);
+    if (!m) { res.writeHead(404); return res.end('Not found'); }
+    const svg = media.render(m[1], m[2]);
+    if (!svg) { res.writeHead(404); return res.end('Not found'); }
+    res.writeHead(200, {
+      'Content-Type': 'image/svg+xml',
+      'Cache-Control': 'public, max-age=86400',
+    });
+    return res.end(svg);
   }
 
   // ---- data -------------------------------------------------------------

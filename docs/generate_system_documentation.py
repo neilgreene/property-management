@@ -544,7 +544,7 @@ A(para("Created by " + mono("sql/04_seed.sql") + ". These are demonstration reco
        "people; the addresses and financials attached to them are invented.", BODY))
 A(table([
     hdr(["Name", "Role", "Email", "Fee agreement", "Brand", "What they demonstrate"]),
-    ["Jessica Pool", "admin", mono("jpool@yahoo.com"), "n/a", "BRAND_A", "Full staff access, all bands"],
+    ["Jessica Pool", "admin", mono("jpool2@yahoo.com"), "n/a", "BRAND_A", "Full staff access, all bands"],
     ["Dan Beitor", "admin", mono("dan@example.com"), "n/a", "BRAND_A", "Full staff access, all bands"],
     ["Tom Bradbury", "agent", mono("tom@example.com"), "n/a", "BRAND_A", "4 assigned properties, incl. an unpublished draft"],
     ["Priya Raman", "agent", mono("priya@example.com"), "n/a", "BRAND_A", "A second agent, to prove agents are isolated"],

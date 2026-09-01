@@ -1,199 +1,90 @@
-<title>SDI Investment Property Marketplace</title>
-<style>
-  :root{
-    --ink:#12161c; --ink-2:#3d4650; --muted:#6b7480; --rule:#e2e6ec; --rule-2:#f0f2f5;
-    --bg:#fbfbfa; --panel:#fff; --accent:#1f5fa9; --good:#1e6b33; --warn:#a8410e;
-    --lock-bg:#fdf3ec;
-  }
-  *{box-sizing:border-box}
-  body{margin:0;background:var(--bg);color:var(--ink);
-       font:14px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",Helvetica,Arial,sans-serif}
-  a{color:var(--accent)}
+<!doctype html>
+<meta charset="utf-8">
+<title>SDI — Investment Property Marketplace</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
+<link rel="stylesheet" href="/app.css">
 
-  header{background:var(--panel);border-bottom:1px solid var(--rule);position:sticky;top:0;z-index:5}
-  .bar{max-width:1180px;margin:0 auto;padding:13px 20px;display:flex;align-items:center;gap:16px}
-  .brand{font-weight:700;letter-spacing:-.01em;font-size:15.5px;margin-right:auto}
-  .brand span{color:var(--muted);font-weight:400}
-  .who{text-align:right;line-height:1.3}
-  .who b{display:block;font-size:13px}
-  .who small{color:var(--muted);font-size:11.5px}
-  .btn{border:1px solid var(--rule);background:var(--panel);color:var(--ink);
-       padding:7px 13px;font:inherit;font-size:13px;cursor:pointer;text-decoration:none;display:inline-block}
-  .btn:hover{border-color:var(--ink-2)}
-  .btn-p{background:var(--ink);border-color:var(--ink);color:#fff}
+<header class="bar">
+  <div class="brand"><span class="mark">SDI</span> <span class="brandtxt">Investment Property Marketplace</span></div>
 
-  main{max-width:1180px;margin:0 auto;padding:22px 20px 60px}
+  <form id="ask" class="ask" autocomplete="off">
+    <span class="askicon">✦</span>
+    <input id="asktext" placeholder="Ask in plain English — “3 bed duplex in Cleveland under 200k, best yield”">
+    <button type="submit">Search</button>
+  </form>
 
-  .banner{padding:11px 14px;margin-bottom:18px;font-size:13px;border:1px solid;display:flex;gap:9px}
-  .banner.locked{background:var(--lock-bg);border-color:var(--warn);color:var(--warn)}
-  .banner.open{background:#edf5ee;border-color:var(--good);color:var(--good)}
-  .banner b{font-weight:700}
-
-  .filters{background:var(--panel);border:1px solid var(--rule);padding:14px 16px;margin-bottom:18px}
-  .frow{display:flex;flex-wrap:wrap;gap:16px;align-items:flex-end}
-  .fld{display:flex;flex-direction:column;gap:4px}
-  .fld label{font-size:11px;font-weight:700;letter-spacing:.03em;text-transform:uppercase;color:var(--muted)}
-  .pair{display:flex;gap:5px;align-items:center}
-  .pair span{color:var(--muted);font-size:12px}
-  input,select{border:1px solid var(--rule);padding:6px 8px;font:inherit;font-size:13px;background:#fff;color:var(--ink)}
-  input{width:88px}
-  input:focus,select:focus{outline:2px solid var(--accent);outline-offset:-1px}
-  .facts{margin-left:auto;color:var(--muted);font-size:12.5px;text-align:right;line-height:1.4}
-
-  .grid{display:grid;gap:14px;grid-template-columns:repeat(auto-fill,minmax(320px,1fr))}
-  .card{background:var(--panel);border:1px solid var(--rule);padding:15px 16px;display:flex;flex-direction:column;gap:9px}
-  .card h3{margin:0;font-size:15px;letter-spacing:-.01em}
-  .ref{color:var(--muted);font-weight:400;font-size:12.5px}
-  .price{font-size:21px;font-weight:700;letter-spacing:-.02em}
-  .spec{display:flex;gap:12px;color:var(--ink-2);font-size:13px;flex-wrap:wrap}
-  .spec b{font-weight:600}
-  .addr{padding:8px 10px;font-size:12.5px;border:1px solid var(--rule-2);background:#fafbfc}
-  .addr.locked{background:var(--lock-bg);border-color:#f0d9c8;color:var(--warn)}
-  .addr.open{background:#f2f8f3;border-color:#d5e8d9;color:var(--good)}
-  .addr .k{display:block;font-size:10.5px;letter-spacing:.04em;text-transform:uppercase;opacity:.75;margin-bottom:2px}
-  .fin{display:flex;gap:14px;font-size:12.5px;color:var(--muted);border-top:1px solid var(--rule-2);padding-top:9px;margin-top:auto}
-  .fin b{color:var(--ink);font-weight:600}
-  .pill{font-size:10.5px;letter-spacing:.04em;text-transform:uppercase;padding:2px 7px;border:1px solid var(--rule);color:var(--muted)}
-  .pill.active{border-color:#cfe3d4;background:#f2f8f3;color:var(--good)}
-  .empty{padding:50px 20px;text-align:center;color:var(--muted);border:1px dashed var(--rule);background:var(--panel)}
-</style>
-
-<header>
-  <div class="bar">
-    <div class="brand">SDI <span>Investment Property Marketplace</span></div>
-    <div class="who">
-      <b id="who-name">…</b>
-      <small id="who-note"></small>
-    </div>
-    <a class="btn btn-p" id="signin" href="/login.html">Sign in</a>
-    <button class="btn" id="signout" hidden>Sign out</button>
+  <div class="who">
+    <span id="whoami" class="chip">…</span>
+    <button id="favtoggle" class="ghost" hidden>♥ Favourites <span id="favcount">0</span></button>
+    <a id="signin" class="ghost" href="/login.html">Sign in</a>
+    <button id="signout" class="ghost" hidden>Sign out</button>
   </div>
 </header>
 
-<main>
-  <div class="banner" id="banner" hidden></div>
+<div id="parsed" class="parsed" hidden></div>
 
-  <section class="filters">
-    <div class="frow">
-      <div class="fld"><label for="minPrice">Price</label>
-        <div class="pair"><input id="minPrice" type="number" placeholder="min" step="5000">
-        <span>to</span><input id="maxPrice" type="number" placeholder="max" step="5000"></div>
-      </div>
-      <div class="fld"><label for="minBeds">Bedrooms</label>
-        <div class="pair"><input id="minBeds" type="number" placeholder="min" min="0" style="width:64px">
-        <span>to</span><input id="maxBeds" type="number" placeholder="max" min="0" style="width:64px"></div>
-      </div>
-      <div class="fld"><label for="minBaths">Bathrooms</label>
-        <div class="pair"><input id="minBaths" type="number" placeholder="min" min="0" step="0.5" style="width:64px">
-        <span>to</span><input id="maxBaths" type="number" placeholder="max" min="0" step="0.5" style="width:64px"></div>
-      </div>
-      <div class="fld"><label for="minSqft">Square feet</label>
-        <div class="pair"><input id="minSqft" type="number" placeholder="min" step="100">
-        <span>to</span><input id="maxSqft" type="number" placeholder="max" step="100"></div>
-      </div>
-      <div class="fld"><label for="sort">Sort</label>
-        <select id="sort">
-          <option value="ref">Listing</option>
-          <option value="price_asc">Price, low to high</option>
-          <option value="price_desc">Price, high to low</option>
-          <option value="sqft_desc">Largest</option>
-          <option value="beds_desc">Most bedrooms</option>
-          <option value="cap_desc">Highest cap rate</option>
-        </select>
-      </div>
-      <button class="btn" id="reset">Clear</button>
-      <div class="facts" id="facts"></div>
+<nav class="filters">
+  <label>Price
+    <span class="pair">
+      <input id="min_price" type="number" placeholder="min" step="5000">
+      <i>–</i>
+      <input id="max_price" type="number" placeholder="max" step="5000">
+    </span>
+  </label>
+  <label>Beds <select id="min_beds"><option value="">Any</option></select></label>
+  <label>Baths <select id="min_baths"><option value="">Any</option></select></label>
+  <label>Sq ft
+    <span class="pair">
+      <input id="min_sqft" type="number" placeholder="min" step="100">
+      <i>–</i>
+      <input id="max_sqft" type="number" placeholder="max" step="100">
+    </span>
+  </label>
+  <label>Type <select id="property_type"><option value="">Any</option></select></label>
+  <label>City <select id="city"><option value="">Any</option></select></label>
+  <label>Sort
+    <select id="sort">
+      <option value="ref">Listing ref</option>
+      <option value="price_asc">Price: low to high</option>
+      <option value="price_desc">Price: high to low</option>
+      <option value="cap_desc">Cap rate</option>
+      <option value="sqft_desc">Largest</option>
+      <option value="beds_desc">Most bedrooms</option>
+    </select>
+  </label>
+  <span class="spacer"></span>
+  <select id="searchpicker" class="saved"><option value="">Saved searches…</option></select>
+  <button id="savesearch" class="primary" hidden>Save search</button>
+  <button id="reset" class="ghost">Reset</button>
+</nav>
+
+<p id="gate" class="gate"></p>
+
+<main>
+  <section id="mapwrap" class="mapwrap">
+    <div id="map"></div>
+    <div id="mapfallback" class="fallback" hidden></div>
+    <div class="legend">
+      <span><i class="dot exact"></i> exact location</span>
+      <span><i class="dot approx"></i> approximate — address gated</span>
     </div>
   </section>
 
-  <div class="grid" id="grid"></div>
-  <div class="empty" id="empty" hidden>No properties match those filters.</div>
+  <section class="results">
+    <div class="resulthead">
+      <h1 id="count">…</h1>
+      <span id="scope" class="muted"></span>
+    </div>
+    <div id="grid" class="grid"></div>
+  </section>
 </main>
 
-<script>
-const $ = (id) => document.getElementById(id);
-const FIELDS = ['minPrice','maxPrice','minBeds','maxBeds','minBaths','maxBaths','minSqft','maxSqft'];
-const money = (n) => n == null ? '—' :
-  '$' + Number(n).toLocaleString('en-US', { maximumFractionDigits: 0 });
+<aside id="detail" class="detail" hidden>
+  <button id="closedetail" class="close" aria-label="Close">×</button>
+  <div id="detailbody"></div>
+</aside>
+<div id="scrim" class="scrim" hidden></div>
 
-let timer;
-function scheduleLoad(){ clearTimeout(timer); timer = setTimeout(load, 220); }
-
-FIELDS.forEach(f => $(f).addEventListener('input', scheduleLoad));
-$('sort').addEventListener('change', load);
-$('reset').addEventListener('click', () => {
-  FIELDS.forEach(f => $(f).value = ''); $('sort').value = 'ref'; load();
-});
-$('signout').addEventListener('click', async () => {
-  await fetch('/api/logout', { method: 'POST' });
-  location.reload();
-});
-
-async function load(){
-  const p = new URLSearchParams();
-  FIELDS.forEach(f => { if ($(f).value !== '') p.set(f, $(f).value); });
-  if ($('sort').value !== 'ref') p.set('sort', $('sort').value);
-
-  const d = await (await fetch('/api/listings?' + p)).json();
-  render(d);
-}
-
-function render(d){
-  const me = d.identity;
-  $('who-name').textContent = me.signedIn ? me.label : 'Not signed in';
-  $('who-note').textContent = me.note || '';
-  $('signin').hidden  = me.signedIn;
-  $('signout').hidden = !me.signedIn;
-
-  // The banner states the rule in plain words, because the whole point of
-  // the demo is that the reader can predict what they are about to see.
-  const b = $('banner');
-  const anyUnlocked = d.rows.some(r => r.address_unlocked);
-  b.hidden = false;
-  if (anyUnlocked) {
-    b.className = 'banner open';
-    b.innerHTML = '<b>Addresses unlocked.</b> Your platform fee agreement is signed and settled, so street addresses are released to you.';
-  } else {
-    b.className = 'banner locked';
-    b.innerHTML = '<b>Addresses withheld.</b> ' + (me.signedIn
-      ? 'Your platform fee agreement is not settled, so the database withholds street addresses — even from you.'
-      : 'Sign in and complete the fee agreement to see street addresses. They are not sent to this page at all.');
-  }
-
-  const f = d.facets;
-  $('facts').innerHTML =
-    `<b>${d.count}</b> of ${f.total} properties visible to you<br>` +
-    `${money(f.min_price)}–${money(f.max_price)} · ${f.min_beds}–${f.max_beds} bd · ` +
-    `${Number(f.min_sqft).toLocaleString()}–${Number(f.max_sqft).toLocaleString()} sqft`;
-
-  $('empty').hidden = d.rows.length > 0;
-  $('grid').innerHTML = d.rows.map(r => {
-    const unlocked = r.address_unlocked && r.street_address;
-    return `<article class="card">
-      <div>
-        <h3>${r.city}, ${r.state} <span class="ref">${r.listing_ref}</span></h3>
-        <div class="price">${money(r.list_price)}</div>
-      </div>
-      <div class="spec">
-        <span><b>${r.beds ?? '—'}</b> bd</span>
-        <span><b>${r.baths ?? '—'}</b> ba</span>
-        <span><b>${r.sqft ? Number(r.sqft).toLocaleString() : '—'}</b> sqft</span>
-        <span>${r.property_type ?? ''}</span>
-        <span class="pill ${r.status === 'active' ? 'active' : ''}">${r.status}</span>
-      </div>
-      <div class="addr ${unlocked ? 'open' : 'locked'}">
-        <span class="k">${unlocked ? 'Street address' : 'Street address withheld'}</span>
-        ${unlocked ? `${r.street_address}${r.unit ? ', ' + r.unit : ''}`
-                   : 'Released only after the fee agreement settles.'}
-      </div>
-      <div class="fin">
-        <span>NOI <b>${money(r.noi_annual)}</b></span>
-        <span>Cap rate <b>${r.cap_rate == null ? '—' : (r.cap_rate * 100).toFixed(2) + '%'}</b></span>
-        <span>Built <b>${r.year_built ?? '—'}</b></span>
-      </div>
-    </article>`;
-  }).join('');
-}
-
-load();
-</script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<script src="/app.js"></script>

@@ -13,7 +13,7 @@ INSERT INTO core.person (person_id, role, full_name, email, fee_agreement_signed
   ('44444444-4444-4444-4444-444444444444','agent',   'Tom Bradbury',  'tom@example.com',    NULL,                       'BRAND_A'),
   ('55555555-5555-5555-5555-555555555555','agent',   'Priya Raman',   'priya@example.com',  NULL,                       'BRAND_A'),
   ('66666666-6666-6666-6666-666666666666','admin',   'Dan Beitor',    'dan@example.com',    NULL,                       'BRAND_A'),
-  ('77777777-7777-7777-7777-777777777777','admin',   'Jessica Pool',  'jpool@yahoo.com',    NULL,                       'BRAND_A');
+  ('77777777-7777-7777-7777-777777777777','admin',   'Jessica Pool',  'jpool2@yahoo.com',    NULL,                       'BRAND_A');
 
 INSERT INTO core.property
  (property_id, listing_ref, status, city, state, zip, property_type, beds, baths, sqft, year_built,
