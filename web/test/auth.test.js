@@ -230,4 +230,18 @@ test('cookies are HttpOnly, SameSite and Secure', () => {
   assert.equal(auth.tokenFromRequest({ headers: {} }), null);
 });
 
+// Put the demo credentials back. These tests necessarily change passwords,
+// and leaving them changed means every demo login stops working the moment
+// anyone runs the suite -- which is exactly what happened once.
+test('teardown: restore the demo password for every seeded person', async (t) => {
+  if (!available) return t.skip('no database');
+  const d = await db();
+  const { rows } = await d.query('SELECT person_id FROM core.person');
+  for (const r of rows) {
+    await d.query('SELECT api.set_password($1, $2)',
+                  [r.person_id, await auth.hashPassword('demo1234')]);
+  }
+  await d.query('DELETE FROM core.session');
+});
+
 test.after(async () => { if (pool) await pool.end(); });

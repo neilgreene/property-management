@@ -7,7 +7,7 @@ for f in sql/01_schema.sql sql/02_policies.sql sql/03_views.sql \
          sql/04_seed.sql sql/06_ghl_integration.sql \
          sql/08_review_queue.sql sql/09_review_actions.sql \
          sql/11_pipeline.sql sql/12_pipeline_policies.sql sql/13_pipeline_seed.sql \
-         sql/15_auth.sql; do
+         sql/15_auth.sql sql/16_demo_dataset.sql sql/17_demo_passwords.sql; do
   echo "loading $f"; psql -d "$DB" -v ON_ERROR_STOP=1 -q -f "$f"
 done
 # Demo logins for both roles. Same file docker-compose loads, so the two

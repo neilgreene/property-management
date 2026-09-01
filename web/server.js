@@ -140,6 +140,99 @@ function readBody(req, limit = 8192) {
   });
 }
 
+// Filtered listings.
+//
+// Every filter is a bound parameter appended to a query against api.property,
+// never string-built and never applied in JavaScript after the fact. Two
+// consequences worth being explicit about:
+//
+//   A filter can only ever NARROW what the caller was already allowed to see.
+//   The view's masking and the table's row policies run first; these clauses
+//   run inside that result. There is no filter value that widens it.
+//
+//   Filtering in the database rather than the browser means a listing the
+//   caller cannot see is never sent and then hidden. It is not sent.
+const FILTERS = [
+  ['minPrice', 'p.list_price >= $', Number],
+  ['maxPrice', 'p.list_price <= $', Number],
+  ['minBeds',  'p.beds       >= $', Number],
+  ['maxBeds',  'p.beds       <= $', Number],
+  ['minBaths', 'p.baths      >= $', Number],
+  ['maxBaths', 'p.baths      <= $', Number],
+  ['minSqft',  'p.sqft       >= $', Number],
+  ['maxSqft',  'p.sqft       <= $', Number],
+];
+
+const SORTS = {
+  price_asc:  'p.list_price ASC NULLS LAST',
+  price_desc: 'p.list_price DESC NULLS LAST',
+  sqft_desc:  'p.sqft DESC NULLS LAST',
+  beds_desc:  'p.beds DESC NULLS LAST',
+  cap_desc:   'p.cap_rate DESC NULLS LAST',
+  ref:        'p.listing_ref ASC',
+};
+
+async function listings(identity, params) {
+  const where = [];
+  const args = [];
+  const applied = {};
+
+  for (const [name, clause, cast] of FILTERS) {
+    const raw = params.get(name);
+    if (raw === null || raw === '') continue;
+    const v = cast(raw);
+    if (!Number.isFinite(v)) continue;     // a junk value is ignored, not an error
+    args.push(v);
+    where.push(clause + args.length);
+    applied[name] = v;
+  }
+
+  const city = params.get('city');
+  if (city) { args.push(city); where.push(`p.city = $${args.length}`); applied.city = city; }
+
+  // Allowlisted, never interpolated from input.
+  const sort = SORTS[params.get('sort')] || SORTS.ref;
+
+  const sql =
+    `SELECT p.property_id, p.listing_ref, p.status, p.city, p.state, p.property_type,
+            p.beds, p.baths, p.sqft, p.year_built, p.list_price, p.noi_annual,
+            p.cap_rate, p.street_address, p.unit, p.address_unlocked,
+            p.brand_service_tier, p.brand_platform_fee
+       FROM api.property p
+      ${where.length ? 'WHERE ' + where.join(' AND ') : ''}
+      ORDER BY ${sort}`;
+
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    await client.query(`SET LOCAL ROLE ${identity.role}`);
+    await client.query(
+      `SELECT set_config('app.actor_id', $1, true), set_config('app.brand', $2, true)`,
+      [identity.actor || '', params.get('brand') || 'BRAND_A']);
+
+    const rows = (await client.query(sql, args)).rows;
+
+    // The facet ranges come from the same policy-bounded relation, so the
+    // slider bounds a caller sees are the bounds of their own data.
+    const facets = (await client.query(
+      `SELECT min(list_price)::int AS min_price, max(list_price)::int AS max_price,
+              min(beds) AS min_beds,  max(beds) AS max_beds,
+              min(sqft) AS min_sqft,  max(sqft) AS max_sqft,
+              count(*)::int AS total
+         FROM api.property p`)).rows[0];
+
+    await client.query('COMMIT');
+    return { identity: { label: identity.label, role: identity.role, note: identity.note,
+                         signedIn: identity.key === 'session' },
+             applied, sort: params.get('sort') || 'ref', facets, count: rows.length, rows };
+  } catch (e) {
+    await client.query('ROLLBACK').catch(() => {});
+    throw e;
+  } finally {
+    client.release();
+  }
+}
+
 async function probeBaseTable(identity) {
   const p = identity;
   const client = await pool.connect();
@@ -244,6 +337,20 @@ const server = http.createServer(async (req, res) => {
         ? Object.entries(PERSONAS).map(([k, v]) => ({ key: k, label: v.label, note: v.note }))
         : [],
     }));
+  }
+
+  // ---- listings, filtered -----------------------------------------------
+  if (url.pathname === '/api/listings') {
+    try {
+      const identity = await identityFor(req, url);
+      const data = await listings(identity, url.searchParams);
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      return res.end(JSON.stringify(data));
+    } catch (e) {
+      console.error('listings failed:', e.message);
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      return res.end(JSON.stringify({ error: 'query failed' }));
+    }
   }
 
   // ---- data -------------------------------------------------------------

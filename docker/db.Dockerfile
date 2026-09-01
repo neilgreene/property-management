@@ -25,6 +25,13 @@ COPY sql/12_pipeline_policies.sql /docker-entrypoint-initdb.d/12_pipeline_polici
 COPY sql/13_pipeline_seed.sql    /docker-entrypoint-initdb.d/13_pipeline_seed.sql
 COPY sql/15_auth.sql             /docker-entrypoint-initdb.d/15_auth.sql
 
+# Demo dataset and demo credentials. Both are demonstration data: every
+# seeded person's password is `demo1234`, which is published in a public
+# repository. Fine for a demo whose purpose is to be signed into; strip both
+# for anything real.
+COPY sql/16_demo_dataset.sql     /docker-entrypoint-initdb.d/16_demo_dataset.sql
+COPY sql/17_demo_passwords.sql   /docker-entrypoint-initdb.d/17_demo_passwords.sql
+
 # Application roles take their credentials from the environment at first
 # start, not from anything baked in. See the script for why a build-time flag
 # cannot work for an image people pull by tag.

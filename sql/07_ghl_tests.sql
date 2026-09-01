@@ -75,5 +75,14 @@ ROLLBACK;
 \echo '=== 7. Standing invariants still hold after adding the ghl schema.'
 SELECT * FROM api.security_invariants();
 
+-- Shut Marcus's gate again. Check 3 has to COMMIT to show the unlock
+-- persisting, so it cannot roll back -- but leaving him unlocked destroys
+-- the demo's central comparison, where he and Ruth differ by exactly one
+-- settled agreement.
+UPDATE core.person SET fee_agreement_signed_at = NULL
+ WHERE email = 'marcus@example.com';
+DELETE FROM ghl.fee_agreement WHERE document_id = 'doc_marcus_1';
+DELETE FROM ghl.id_map WHERE ghl_id = 'ghl_c_marcus';
+
 \echo
 \echo '=== GHL bridge checks complete.'
