@@ -1,0 +1,71 @@
+<title>Sign in — SDI</title>
+<style>
+  :root{--ink:#12161c;--muted:#5a6572;--rule:#d4d9e0;--accent:#1f5fa9;--bg:#fbfbfa}
+  *{box-sizing:border-box}
+  body{margin:0;font:15px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",Helvetica,Arial,sans-serif;
+       color:var(--ink);background:var(--bg);display:grid;place-items:center;min-height:100vh}
+  .card{width:min(380px,92vw);background:#fff;border:1px solid var(--rule);padding:30px 28px 26px}
+  h1{margin:0 0 4px;font-size:19px;letter-spacing:-.01em}
+  .sub{margin:0 0 22px;color:var(--muted);font-size:13.5px}
+  label{display:block;font-size:12.5px;font-weight:600;margin:14px 0 5px}
+  input{width:100%;padding:9px 10px;border:1px solid var(--rule);font:inherit;font-size:14px;background:#fff}
+  input:focus{outline:2px solid var(--accent);outline-offset:-1px;border-color:var(--accent)}
+  button{width:100%;margin-top:20px;padding:10px;border:0;background:var(--ink);color:#fff;
+         font:inherit;font-weight:600;cursor:pointer}
+  button:disabled{opacity:.55;cursor:default}
+  .err{margin-top:14px;padding:9px 11px;background:#fdf3ec;border:1px solid #a8410e;
+       color:#a8410e;font-size:13px;display:none}
+  .err[data-shown]{display:block}
+  .foot{margin-top:20px;padding-top:16px;border-top:1px solid var(--rule);
+        color:var(--muted);font-size:12.5px}
+</style>
+
+<form class="card" id="f">
+  <h1>SDI Investment Property Marketplace</h1>
+  <p class="sub">Sign in to continue.</p>
+
+  <label for="email">Email</label>
+  <input id="email" name="email" type="email" autocomplete="username" required autofocus>
+
+  <label for="password">Password</label>
+  <input id="password" name="password" type="password" autocomplete="current-password" required>
+
+  <button id="go" type="submit">Sign in</button>
+  <!-- One message for every failure. Telling the visitor which half was
+       wrong turns the form into an account-enumeration tool. -->
+  <p class="err" id="err" role="alert"></p>
+
+  <p class="foot">Browsing without an account shows listings with addresses
+  withheld. <a href="/">Continue without signing in</a>.</p>
+</form>
+
+<script>
+const f = document.getElementById('f');
+const err = document.getElementById('err');
+const go = document.getElementById('go');
+
+f.addEventListener('submit', async (e) => {
+  e.preventDefault();
+  err.removeAttribute('data-shown');
+  go.disabled = true; go.textContent = 'Signing in…';
+  try {
+    const r = await fetch('/api/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        email: document.getElementById('email').value,
+        password: document.getElementById('password').value,
+      }),
+    });
+    const j = await r.json().catch(() => ({}));
+    if (r.ok && j.ok) { window.location = '/'; return; }
+    err.textContent = j.error || 'Sign in failed.';
+    err.setAttribute('data-shown', '');
+  } catch {
+    err.textContent = 'Sign in failed.';
+    err.setAttribute('data-shown', '');
+  } finally {
+    go.disabled = false; go.textContent = 'Sign in';
+  }
+});
+</script>

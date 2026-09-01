@@ -11,6 +11,7 @@ const http = require('http');
 const fs   = require('fs');
 const path = require('path');
 const { Pool } = require('pg');
+const auth = require('./auth');
 
 const pool = new Pool({
   host:     process.env.PGHOST     || 'localhost',
@@ -58,9 +59,17 @@ const INTERNAL_SQL = `SELECT listing_ref, acquisition_cost, source_channel,
 FROM   api.property_internal
 ORDER  BY listing_ref`;
 
-async function runAs(personaKey, brand) {
-  const p = PERSONAS[personaKey];
-  if (!p) throw new Error('unknown persona');
+// Demo personas are a switch, not the default. They exist because showing
+// Ruth and Marcus side by side is the clearest way to demonstrate the model
+// to someone non-technical -- but a dropdown that hands out an admin session
+// must never be reachable by accident. Off unless explicitly enabled.
+const DEMO_PERSONAS = process.env.DEMO_PERSONAS === '1';
+
+// Identity: { role: <db role>, actor: <person uuid|null>, label }
+// Produced either by a real session or, when enabled, by a demo persona.
+async function runAs(identity, brand) {
+  const p = identity;
+  if (!p || !p.role) throw new Error('no identity');
 
   const client = await pool.connect();
   try {
@@ -98,7 +107,7 @@ async function runAs(personaKey, brand) {
 
     await client.query('COMMIT');
     return {
-      persona: { key: personaKey, ...p },
+      persona: p,
       brand,
       sql: LISTING_SQL,
       internalSql: INTERNAL_SQL,
@@ -115,8 +124,24 @@ async function runAs(personaKey, brand) {
 
 // Demonstrates that going around the api schema fails at the database,
 // not at some allowlist in this file.
-async function probeBaseTable(personaKey) {
-  const p = PERSONAS[personaKey];
+// Reads a request body, capped. The login route is the only thing that
+// takes one, and an uncapped read on an unauthenticated endpoint is a
+// free way to make the process eat memory.
+function readBody(req, limit = 8192) {
+  return new Promise((resolve, reject) => {
+    const chunks = []; let size = 0;
+    req.on('data', (c) => {
+      size += c.length;
+      if (size > limit) { reject(new Error('body too large')); req.destroy(); return; }
+      chunks.push(c);
+    });
+    req.on('end', () => resolve(Buffer.concat(chunks).toString('utf8')));
+    req.on('error', reject);
+  });
+}
+
+async function probeBaseTable(identity) {
+  const p = identity;
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
@@ -135,13 +160,97 @@ async function probeBaseTable(personaKey) {
 
 const MIME = { '.html': 'text/html', '.css': 'text/css', '.js': 'text/javascript' };
 
+const ANON = { key: 'anon', label: 'Not signed in', role: 'sdi_public',
+               actor: null, note: 'Anonymous visitor' };
+
+// The one place a request becomes an identity.
+//
+// A real session wins. A demo persona is consulted only when DEMO_PERSONAS
+// is on, so the default deployment has exactly one way to become anybody:
+// signing in.
+async function identityFor(req, url) {
+  const token = auth.tokenFromRequest(req);
+  if (token) {
+    const s = await auth.resolveSession(pool, token);
+    if (s) {
+      const role = auth.dbRoleFor(s.role);
+      if (role) {
+        return { key: 'session', label: s.full_name, role,
+                 actor: s.person_id, note: `Signed in as ${s.role}` };
+      }
+    }
+  }
+  if (DEMO_PERSONAS) {
+    const key = url.searchParams.get('persona');
+    if (key && PERSONAS[key]) return { key, ...PERSONAS[key] };
+  }
+  return ANON;
+}
+
 const server = http.createServer(async (req, res) => {
   const url = new URL(req.url, 'http://localhost');
 
+  const secureCookie = process.env.COOKIE_INSECURE !== '1';
+
+  // ---- authentication ---------------------------------------------------
+  if (url.pathname === '/api/login' && req.method === 'POST') {
+    try {
+      const body = JSON.parse(await readBody(req) || '{}');
+      const out = await auth.authenticate(pool, body.email || '', body.password || '', {
+        userAgent: req.headers['user-agent'] || null,
+        // Behind a proxy this must come from a trusted forwarded header, not
+        // the socket. Left as the socket address until a proxy is in front.
+        ip: (req.socket && req.socket.remoteAddress) || null,
+      });
+      if (!out.ok) {
+        // One message, one shape, whatever went wrong. Distinguishing
+        // "no such account" from "wrong password" is an enumeration oracle.
+        res.writeHead(401, { 'Content-Type': 'application/json' });
+        return res.end(JSON.stringify({ ok: false, error: out.reason }));
+      }
+      res.writeHead(200, {
+        'Content-Type': 'application/json',
+        'Set-Cookie': auth.sessionCookie(out.token, { secure: secureCookie }),
+      });
+      return res.end(JSON.stringify({
+        ok: true, name: out.full_name, role: out.role, expiresAt: out.expires_at,
+      }));
+    } catch (e) {
+      // Specific in the log, generic on the wire. The caller learns nothing
+      // about why; the operator learns everything.
+      console.error('login failed:', e.message);
+      res.writeHead(400, { 'Content-Type': 'application/json' });
+      return res.end(JSON.stringify({ ok: false, error: 'bad request' }));
+    }
+  }
+
+  if (url.pathname === '/api/logout' && req.method === 'POST') {
+    await auth.logout(pool, auth.tokenFromRequest(req));
+    res.writeHead(200, {
+      'Content-Type': 'application/json',
+      'Set-Cookie': auth.clearCookie({ secure: secureCookie }),
+    });
+    return res.end(JSON.stringify({ ok: true }));
+  }
+
+  if (url.pathname === '/api/whoami') {
+    const who = await identityFor(req, url);
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    return res.end(JSON.stringify({
+      label: who.label, role: who.role, note: who.note,
+      signedIn: who.key === 'session',
+      demoPersonas: DEMO_PERSONAS,
+      personas: DEMO_PERSONAS
+        ? Object.entries(PERSONAS).map(([k, v]) => ({ key: k, label: v.label, note: v.note }))
+        : [],
+    }));
+  }
+
+  // ---- data -------------------------------------------------------------
   if (url.pathname === '/api/view') {
     try {
-      const data = await runAs(url.searchParams.get('persona') || 'anon',
-                              url.searchParams.get('brand')   || 'BRAND_A');
+      const identity = await identityFor(req, url);
+      const data = await runAs(identity, url.searchParams.get('brand') || 'BRAND_A');
       res.writeHead(200, { 'Content-Type': 'application/json' });
       return res.end(JSON.stringify(data));
     } catch (e) {
@@ -151,7 +260,8 @@ const server = http.createServer(async (req, res) => {
   }
 
   if (url.pathname === '/api/probe') {
-    const data = await probeBaseTable(url.searchParams.get('persona') || 'anon');
+    const identity = await identityFor(req, url);
+    const data = await probeBaseTable(identity);
     res.writeHead(200, { 'Content-Type': 'application/json' });
     return res.end(JSON.stringify(data));
   }

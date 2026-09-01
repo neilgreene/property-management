@@ -244,6 +244,14 @@ $$;
 -- sdi_app is the connection role, before it assumes a persona. It is the
 -- only thing that authenticates, which is correct: authentication runs
 -- before there is a persona to assume.
+--
+-- That ordering is also why this grant is needed. 01_schema gives USAGE on
+-- api to the four persona roles, and sdi_app is NOINHERIT -- it holds their
+-- privileges only while it has SET ROLE into one. At login time it has not,
+-- so without this it cannot even name api.begin_authentication. It gains
+-- nothing else: it holds EXECUTE on the functions below and SELECT on
+-- nothing, so it still cannot read a single row of property data.
+GRANT USAGE ON SCHEMA api TO sdi_app;
 REVOKE ALL ON FUNCTION api.begin_authentication(text)         FROM PUBLIC;
 REVOKE ALL ON FUNCTION api.complete_authentication(uuid, boolean, bytea, interval, text, inet) FROM PUBLIC;
 REVOKE ALL ON FUNCTION api.resolve_session(bytea)             FROM PUBLIC;

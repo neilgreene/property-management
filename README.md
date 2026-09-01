@@ -554,6 +554,38 @@ on a machine with no PostgreSQL running. Its contents page is built in two
 passes: the first records where each heading lands, the second lays out the page
 with those numbers.
 
+## Authentication
+
+Real sign-in, as of phase P1. `POST /api/login` with an email and password
+returns an HttpOnly, SameSite=Lax session cookie; `/api/logout` revokes it
+server-side; every other route resolves identity from that cookie alone.
+
+**Nothing downstream changed.** The web tier still assumes a persona role and
+sets `app.actor_id` for the transaction, exactly as the demo switcher did — so
+every policy, view and grant written before this still works untouched. That is
+the payoff from building authorisation first: authentication only decides which
+person id goes into the setting the policies already read.
+
+`core.credential` and `core.session` sit in `core` with RLS forced and **no
+policy at all**, so direct access is refused for every role including the owner.
+The definer functions in `api` are the only way in. Hashing is Node's built-in
+scrypt — still no dependency beyond `pg` — and only the SHA-256 of a session
+token is stored, so a dump of `core.session` cannot be replayed as live
+sessions.
+
+Tested rather than assumed: a session dies the moment its account is
+deactivated; changing a password revokes every existing session; an unknown
+email and a wrong password return the identical response; and `sdi_app` cannot
+read a password hash.
+
+### The demo persona switcher is now off by default
+
+It is genuinely useful — showing Ruth and Marcus side by side is the clearest
+way to demonstrate the model to someone non-technical — but a dropdown that
+hands out an admin session must not be reachable by accident. Set
+`DEMO_PERSONAS=1` to enable it. With it off, `?persona=jessica` is ignored and
+the caller stays anonymous, which is its own test.
+
 ## What this does not cover yet
 
 Deal pipeline and stage history, document storage and the signed-PDF artifact,
