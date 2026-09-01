@@ -13,7 +13,12 @@ BEGIN
   END IF;
 END $$;
 
-GRANT USAGE ON SCHEMA core, ghl TO sdi_test_admin;
+GRANT USAGE ON SCHEMA core, ghl, api, sec TO sdi_test_admin;
 GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA core TO sdi_test_admin;
 GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA ghl  TO sdi_test_admin;
 GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA core, ghl TO sdi_test_admin;
+GRANT EXECUTE ON ALL FUNCTIONS IN SCHEMA api, sec TO sdi_test_admin;
+
+-- Re-run this after adding tables or functions: the grants above are a
+-- snapshot, not a standing rule, so anything created later is not covered.
+-- That is why the auth suite failed the first time it ran.

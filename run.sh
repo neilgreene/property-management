@@ -6,7 +6,8 @@ createdb "$DB" 2>/dev/null || true
 for f in sql/01_schema.sql sql/02_policies.sql sql/03_views.sql \
          sql/04_seed.sql sql/06_ghl_integration.sql \
          sql/08_review_queue.sql sql/09_review_actions.sql \
-         sql/11_pipeline.sql sql/12_pipeline_policies.sql sql/13_pipeline_seed.sql; do
+         sql/11_pipeline.sql sql/12_pipeline_policies.sql sql/13_pipeline_seed.sql \
+         sql/15_auth.sql; do
   echo "loading $f"; psql -d "$DB" -v ON_ERROR_STOP=1 -q -f "$f"
 done
 # Demo logins for both roles. Same file docker-compose loads, so the two
@@ -24,6 +25,8 @@ psql -d "$DB" -f sql/14_pipeline_tests.sql
 # Test-only fixture role; see worker/test/bootstrap.sql for why it exists.
 psql -d "$DB" -q -f worker/test/bootstrap.sql
 psql -d "$DB" -q -c "GRANT CONNECT ON DATABASE $DB TO sdi_test_admin;"
+echo; echo "--- web tests ---"
+(cd web && npm install --silent && PGDATABASE="$DB" npm test)
 echo; echo "--- worker tests ---"
 (cd worker && npm install --silent && PGDATABASE="$DB" npm test)
 

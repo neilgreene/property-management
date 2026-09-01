@@ -10,7 +10,7 @@ ENV NODE_ENV=production
 COPY package.json package-lock.json ./
 RUN npm ci --omit=dev
 
-COPY server.js ./
+COPY server.js auth.js ./
 COPY public ./public
 
 # Runs unprivileged. node:alpine ships a `node` user for exactly this.

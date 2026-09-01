@@ -23,6 +23,7 @@ COPY sql/09_review_actions.sql   /docker-entrypoint-initdb.d/09_review_actions.s
 COPY sql/11_pipeline.sql         /docker-entrypoint-initdb.d/11_pipeline.sql
 COPY sql/12_pipeline_policies.sql /docker-entrypoint-initdb.d/12_pipeline_policies.sql
 COPY sql/13_pipeline_seed.sql    /docker-entrypoint-initdb.d/13_pipeline_seed.sql
+COPY sql/15_auth.sql             /docker-entrypoint-initdb.d/15_auth.sql
 
 # Application roles take their credentials from the environment at first
 # start, not from anything baked in. See the script for why a build-time flag
