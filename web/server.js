@@ -713,16 +713,45 @@ async function assertNoProhibitedFilters() {
     'q',
   ].map((n) => n.toLowerCase()));
 
-  let banned;
-  try {
-    const r = await pool.query('SELECT dimension, basis FROM api.prohibited_dimensions');
-    banned = r.rows;
-  } catch (e) {
-    // Not fatal: an older database has no register. Loud, though --
-    // silently skipping a safety check is how it stops existing.
-    console.warn('WARNING: could not read the fair-housing register '
-      + `(${e.message}). Filter names are unchecked.`);
-    return;
+  // Two failures look identical from here and must not be treated the
+  // same. A database that has no register is an older deployment, and
+  // running unchecked against it is a considered trade. A database we
+  // could not REACH is almost always this container winning the race
+  // against a Postgres that is still running its init scripts -- and an
+  // earlier version of this function caught both in one clause, so the
+  // safety check announced a warning once at boot and then never ran
+  // again for the life of the process. That is worse than having no
+  // check, because the log line looks like diligence.
+  //
+  // So: retry a connection failure, and only accept a genuinely absent
+  // register as the benign case.
+  const ABSENT = new Set([
+    '42P01',   // undefined_table
+    '3F000',   // invalid_schema_name
+    '42501',   // insufficient_privilege
+  ]);
+  const ATTEMPTS = 15;
+  let banned = null;
+
+  for (let i = 1; i <= ATTEMPTS; i++) {
+    try {
+      const r = await pool.query('SELECT dimension, basis FROM api.prohibited_dimensions');
+      banned = r.rows;
+      break;
+    } catch (e) {
+      if (ABSENT.has(e.code)) {
+        console.warn('WARNING: this database has no fair-housing register '
+          + `(${e.code}). Filter names are unchecked -- see sql/24_data_governance.sql.`);
+        return;
+      }
+      if (i === ATTEMPTS) {
+        console.error(`FATAL: could not reach the database to read the fair-housing `
+          + `register after ${ATTEMPTS} attempts (${e.message}).`);
+        console.error('Refusing to start: serving unchecked filters is worse than being down.');
+        process.exit(1);
+      }
+      await new Promise((r) => setTimeout(r, Math.min(250 * i, 2000)));
+    }
   }
 
   const hits = banned.filter((b) => names.has(b.dimension.toLowerCase()));
