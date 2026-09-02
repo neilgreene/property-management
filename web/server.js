@@ -353,6 +353,74 @@ async function favorites(identity, brand) {
   });
 }
 
+// ---------------------------------------------------------------------
+// The intake review queue
+//
+// Every one of these is staff-only, and none of them says so. The
+// functions behind them are granted to sdi_admin alone, so an investor
+// who calls them gets a refusal from the database rather than passing an
+// if-statement here. Keeping the check in one place -- the grant --
+// rather than two is what stops the two disagreeing later.
+// ---------------------------------------------------------------------
+async function intakeBatches(identity) {
+  return withTx(identity, null, async (client) =>
+    ({ rows: (await client.query('SELECT * FROM api.intake_batch')).rows }));
+}
+
+async function intakeRows(identity, batchId) {
+  return withTx(identity, null, async (client) =>
+    ({ rows: (await client.query(
+        'SELECT * FROM api.intake_row WHERE batch_id = $1 ORDER BY row_number',
+        [batchId])).rows }));
+}
+
+// The verbatim payload for one row. This is the answer to "did the
+// spreadsheet say that, or did we mistranslate it?", so the reviewer
+// needs it at hand rather than in a database client.
+async function intakeRaw(identity, rowId) {
+  return withTx(identity, null, async (client) => {
+    const r = await client.query(
+      'SELECT raw FROM intake.row WHERE row_id = $1', [rowId]);
+    return r.rows.length ? { raw: r.rows[0].raw } : null;
+  });
+}
+
+async function intakeReview(identity, rowIds, decision, note) {
+  return withTx(identity, null, async (client) => {
+    const r = await client.query(
+      'SELECT api.review_intake_rows($1::uuid[], $2, $3) AS n', [rowIds, decision, note]);
+    return { changed: r.rows[0].n };
+  });
+}
+
+async function intakeApproveBatch(identity, batchId, note) {
+  return withTx(identity, null, async (client) => {
+    const r = await client.query('SELECT api.approve_batch($1, $2) AS n', [batchId, note]);
+    return { changed: r.rows[0].n };
+  });
+}
+
+async function intakeRelease(identity, { rowIds, batchId, publish }) {
+  return withTx(identity, null, async (client) => {
+    const q = rowIds
+      ? ['SELECT * FROM api.release_intake_rows($1::uuid[], $2, $3)',
+         [rowIds, 'BRAND_A', publish !== false]]
+      : ['SELECT * FROM api.release_batch($1, $2, $3)',
+         [batchId, 'BRAND_A', publish !== false]];
+    const r = await client.query(q[0], q[1]);
+
+    // Governance is advisory, so a release can succeed and still leave the
+    // listing uncovered. Reporting that back with the result is the only
+    // way the reviewer learns it without going looking.
+    let uncovered = [];
+    try {
+      uncovered = (await client.query(
+        'SELECT listing_ref, reason FROM gov.uncovered_publication')).rows;
+    } catch { /* not granted; not fatal */ }
+    return { released: r.rows, uncovered };
+  });
+}
+
 async function savedSearches(identity) {
   return withTx(identity, null, async (client) =>
     ({ rows: (await client.query('SELECT * FROM api.my_saved_search')).rows }));
@@ -618,6 +686,57 @@ const server = http.createServer(async (req, res) => {
       console.error('run saved search failed:', e.message);
       res.writeHead(404, { 'Content-Type': 'application/json' });
       return res.end(JSON.stringify({ error: 'not found' }));
+    }
+  }
+
+  // ---- intake review ----------------------------------------------------
+  if (url.pathname.startsWith('/api/intake/')) {
+    try {
+      const identity = await identityFor(req, url);
+      const what = url.pathname.slice('/api/intake/'.length);
+
+      if (what === 'batches' && req.method === 'GET') {
+        const d = await intakeBatches(identity);
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        return res.end(JSON.stringify(d));
+      }
+      if (what === 'rows' && req.method === 'GET') {
+        const d = await intakeRows(identity, url.searchParams.get('batch_id'));
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        return res.end(JSON.stringify(d));
+      }
+      if (what === 'raw' && req.method === 'GET') {
+        const d = await intakeRaw(identity, url.searchParams.get('row_id'));
+        res.writeHead(d ? 200 : 404, { 'Content-Type': 'application/json' });
+        return res.end(JSON.stringify(d || { error: 'not found' }));
+      }
+      if (what === 'review' && req.method === 'POST') {
+        const b = JSON.parse(await readBody(req) || '{}');
+        const d = await intakeReview(identity, b.row_ids || [], b.decision, b.note || null);
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        return res.end(JSON.stringify(d));
+      }
+      if (what === 'approve-batch' && req.method === 'POST') {
+        const b = JSON.parse(await readBody(req) || '{}');
+        const d = await intakeApproveBatch(identity, b.batch_id, b.note || null);
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        return res.end(JSON.stringify(d));
+      }
+      if (what === 'release' && req.method === 'POST') {
+        const b = JSON.parse(await readBody(req) || '{}');
+        const d = await intakeRelease(identity, {
+          rowIds: b.row_ids, batchId: b.batch_id, publish: b.publish });
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        return res.end(JSON.stringify(d));
+      }
+      res.writeHead(404, { 'Content-Type': 'application/json' });
+      return res.end(JSON.stringify({ error: 'not found' }));
+    } catch (e) {
+      // 'staff only' and 'permission denied' both arrive here. The caller
+      // is told it was refused, not which grant refused it.
+      console.error('intake failed:', e.message);
+      res.writeHead(403, { 'Content-Type': 'application/json' });
+      return res.end(JSON.stringify({ error: 'not permitted' }));
     }
   }
 

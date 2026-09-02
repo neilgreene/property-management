@@ -129,6 +129,15 @@ CREATE TABLE intake.zip_centroid (
     source text NOT NULL DEFAULT 'approximate'
 );
 
+-- Seeded for the ZIPs the current workbooks land in. This is not a
+-- geocoder and does not pretend to be: a ZIP with no row here produces a
+-- blocking validation error, which is the correct outcome -- far better
+-- than a listing quietly pinned to the middle of the wrong city.
+INSERT INTO intake.zip_centroid (zip, city, state, lat, lng) VALUES
+ ('64118','Kansas City','MO', 39.224700, -94.577200),
+ ('64063','Lees Summit','MO', 38.910800, -94.372200)
+ON CONFLICT (zip) DO NOTHING;
+
 COMMENT ON TABLE intake.zip_centroid IS
     'Approximate ZIP centroids. Replace with a real geocoder before the '
     'address gate opens on anything that matters: once unlocked, the pin '
@@ -388,6 +397,17 @@ BEGIN
     outcome := 'released';
     RETURN NEXT;
   END LOOP;
+
+  -- A batch with nothing left to release is finished, however it got
+  -- there. Closing it only in release_batch() left a batch released row
+  -- by row still reading "open" forever, which is the sort of small lie
+  -- that makes people stop trusting the status column.
+  UPDATE intake.batch b SET status = 'released'
+   WHERE b.status = 'open'
+     AND EXISTS (SELECT 1 FROM intake.row x
+                  WHERE x.batch_id = b.batch_id AND x.status = 'released')
+     AND NOT EXISTS (SELECT 1 FROM intake.row x
+                      WHERE x.batch_id = b.batch_id AND x.status IN ('approved','pending'));
 END $fn$;
 
 CREATE FUNCTION api.release_batch(p_batch_id uuid, p_brand text DEFAULT 'BRAND_A',
@@ -401,11 +421,8 @@ BEGIN
   SELECT array_agg(intake.row.row_id) INTO ids FROM intake.row
    WHERE batch_id = p_batch_id AND status = 'approved';
   IF ids IS NULL THEN RETURN; END IF;
+  -- release_intake_rows closes the batch itself when nothing is left.
   RETURN QUERY SELECT * FROM api.release_intake_rows(ids, p_brand, p_publish);
-  UPDATE intake.batch SET status = 'released'
-   WHERE batch_id = p_batch_id
-     AND NOT EXISTS (SELECT 1 FROM intake.row WHERE batch_id = p_batch_id
-                                                AND status = 'approved');
 END $fn$;
 
 -- ---------------------------------------------------------------------

@@ -1,0 +1,56 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>SDI — Intake Review</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="stylesheet" href="/app.css">
+<link rel="stylesheet" href="/admin.css">
+
+<header class="bar">
+  <div class="brand"><span class="mark">SDI</span> <span class="brandtxt">Intake Review</span></div>
+  <nav class="adminnav">
+    <a href="/">← Marketplace</a>
+  </nav>
+  <div class="who">
+    <span id="whoami" class="chip">…</span>
+    <button id="signout" class="ghost" hidden>Sign out</button>
+  </div>
+</header>
+
+<div id="denied" class="denied" hidden>
+  <h1>Staff only</h1>
+  <p>This page reviews property data before it is published. The database
+     refuses these queries for any role but staff, so signing in as an
+     investor will not help — you need a staff account.</p>
+  <p><a class="ghost" href="/login.html">Sign in</a></p>
+</div>
+
+<main id="app" hidden>
+  <section class="batches">
+    <h2>Batches</h2>
+    <div id="batchlist"></div>
+    <p class="hint">A batch is one upload. Load one with<br>
+      <code>python3 tools/workbook-to-json.py *.xlsm &gt; batch.json</code><br>
+      <code>node worker/tools/load-intake.js batch.json</code></p>
+  </section>
+
+  <section class="queue">
+    <div id="queuehead" class="queuehead"></div>
+    <div id="bulk" class="bulk" hidden>
+      <label class="sel"><input type="checkbox" id="selall"> Select all releasable</label>
+      <span id="selcount" class="muted">0 selected</span>
+      <span class="spacer"></span>
+      <button id="approve" class="ghost">Approve selected</button>
+      <button id="reject"  class="ghost">Reject selected</button>
+      <button id="release" class="primary">Release selected</button>
+    </div>
+    <div id="rows"></div>
+  </section>
+</main>
+
+<aside id="raw" class="detail" hidden>
+  <button id="closeraw" class="close" aria-label="Close">×</button>
+  <div id="rawbody"></div>
+</aside>
+<div id="scrim" class="scrim" hidden></div>
+
+<script src="/admin.js"></script>

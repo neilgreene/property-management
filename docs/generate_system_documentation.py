@@ -606,7 +606,7 @@ A(table([
 A(Spacer(1, 5))
 A(para("The marketplace runs on port 3000, the worker on 3001. The marketplace authenticates; "
        "the worker does not, and neither should be exposed to a network until the deployment "
-       "gaps in section 11 are addressed.", NOTE))
+       "gaps in section 12 are addressed.", NOTE))
 A(PageBreak())
 
 # ------------------------------------------------------------------ 6
@@ -1073,8 +1073,120 @@ A(table([
     ["Per property: what is held, and why it does or does not apply", mono("SELECT * FROM api.data_rights")],
 ], [2.2*inch, 3.7*inch]))
 
+
 # ------------------------------------------------------------------ 10
-A(para("10.  What Is Tested", H1))
+A(PageBreak())
+A(para("10.  Getting Properties In", H1))
+A(para("Staff build an analysis workbook per property \u2014 one .xlsm holding the offer, the "
+       "rents, the expenses and a twenty-year projection. Those numbers used to reach the "
+       "marketplace by being retyped. This is the path that replaces that: load the file "
+       "into staging, look at what arrived, then release the whole batch or the specific "
+       "rows that passed review.", BODY))
+
+A(para("10.1  Two steps, and why", H2))
+A(Preformatted("python3 tools/workbook-to-json.py *.xlsm > batch.json\n"
+               "node worker/tools/load-intake.js batch.json --note \"August sourcing\"", CODE))
+A(para("Reading .xlsm needs a spreadsheet library, and the worker image has no dependency "
+       "beyond the Postgres driver. Rather than drag one in, the conversion happens wherever "
+       "the file already is \u2014 a laptop, the host \u2014 and what crosses into the database is "
+       "plain JSON. The middle format is the point: it can be opened and read before "
+       "anything touches the database.", BODY))
+A(para("The reader takes the workbook's " + mono("Import") + " sheet, by label. It is the "
+       "only sheet carrying the address, and its 77 labels were identical across the "
+       "workbooks checked. The flatter " + mono("One Row") + " export has no address, so it "
+       "cannot stand alone.", BODY))
+
+A(para("10.2  Staging holds both the file and our reading of it", H2))
+A(table([
+    hdr(["Table", "Holds"]),
+    [mono("intake.batch"), "One file, one upload, one person, one moment"],
+    [mono("intake.row"), "One property. The verbatim payload and the parsed columns, side by side and never merged"],
+    [mono("intake.zip_centroid"), "The coordinate the workbook does not carry"],
+], [1.35*inch, 4.55*inch]))
+A(Spacer(1, 5))
+A(para("<b>Keeping the raw payload untouched matters more than it looks.</b> When a released "
+       "listing turns out to say something surprising, the only useful question is whether "
+       "the spreadsheet said that or whether we mistranslated it \u2014 and that question has no "
+       "answer if the import overwrote its own input. So it is written once, never edited, "
+       "and every parsed column beside it is a claim that can be checked against it. The "
+       "review screen shows it behind a link on every row.", GOOD))
+A(para("A workbook has no coordinates, and " + mono("core.property") + " requires a point. A "
+       "ZIP centroid is accurate to about a mile, which is exactly what an ungated viewer is "
+       "shown anyway. A ZIP with no centroid is a <b>blocking error</b> rather than a silent "
+       "(0,0): a listing quietly pinned to the middle of the wrong city is worse than one "
+       "that refuses to load.", NOTE))
+
+A(para("10.3  Two fields deliberately not mapped", H2))
+A(para("The workbook carries <i>Schools Rating (scale 3-30)</i> and a composite "
+       "FAVORABLE/INSUFFICIENT deal score partly derived from it. Both are already registered "
+       "in " + mono("gov.prohibited_dimension") + " as fair-housing proxies \u2014 see 9.4.", BODY))
+A(para("They stay in the raw payload, because the file is not silently edited and staff "
+       "underwriting may legitimately weigh schools. They never become a column. "
+       + mono("api.security_invariants()") + " fails if either name appears in " + mono("core") +
+       " or " + mono("api") + ", so this is enforced rather than intended.", GOOD))
+
+A(para("10.4  Validation blocks, or warns, and the difference is deliberate", H2))
+A(table([
+    hdr(["Level", "Examples", "Effect"]),
+    ["<b>error</b>", "No address, no usable price or rent, no coordinate, an address already listed, the same address twice in one file",
+     "The row cannot be approved and cannot be released"],
+    ["<b>warning</b>", "Unusual bedroom count or floor area, expenses meeting or exceeding gross rent, an expense total that does not reconcile with its own components",
+     "Shown to the reviewer. Does not block"],
+], [0.72*inch, 3.15*inch, 2.03*inch]))
+A(Spacer(1, 5))
+A(para("A reviewer forced to clear every oddity before releasing anything stops reading the "
+       "oddities, and the warnings are then worth nothing. That is the whole reason for the "
+       "split.", BODY))
+A(para("Both copies of a duplicated address are flagged, not just the second. The system "
+       "cannot know which one was intended, so it refuses them together and leaves the choice "
+       "to a person.", BODY))
+A(para("The reconciliation check applies the management fee and vacancy allowance to the rent "
+       "before comparing, rather than summing only tax, insurance and maintenance. An earlier "
+       "version did the latter and flagged every correctly built workbook \u2014 and a check that "
+       "fires on everything is one a reviewer learns to click past, which costs more than not "
+       "having it.", NOTE))
+
+A(para("10.5  The review screen", H2))
+A(para(mono("/admin.html") + ", staff only. Batches down the left, rows on the right, with "
+       "price, rent, NOI and a cap rate computed here rather than trusted from the file.", BODY))
+A(table([
+    hdr(["Action", "What it does"]),
+    ["Approve selected", "Marks rows reviewed. A row with a blocking error is refused, and the screen says how many of the selected rows actually changed"],
+    ["Reject selected", "With an optional reason, kept against the row"],
+    ["Release selected", "Creates the listings. Disabled unless something approved is selected, and it names the count"],
+    ["what the file said", "The verbatim payload for that row"],
+], [1.35*inch, 4.55*inch]))
+A(Spacer(1, 5))
+A(para("<b>Nothing reaches the marketplace without a person releasing it.</b> An invalid row "
+       "cannot be approved \u2014 approving past a blocking error is how validation stops meaning "
+       "anything \u2014 a pending row cannot be released, and \u201cselect all\u201d means \u201call the "
+       "releasable ones\u201d, leaving blocked rows exactly where they are. A staging table that "
+       "auto-promotes on a green validation is not a review queue; it is an import with extra "
+       "steps.", GOOD))
+A(para("The screen contains no permission logic. Every action is one of four " + mono("api") +
+       " functions granted to staff alone, so an investor who calls them is refused by the "
+       "database rather than by an if-statement in the page \u2014 which is also why the page "
+       "settles the question by asking the server for the queue rather than reading a role "
+       "name out of the session.", BODY))
+
+A(para("10.6  Release records provenance, and says when that is not enough", H2))
+A(para("Releasing writes a " + mono("gov.property_provenance") + " row against the batch's "
+       "data right. The workbooks are held under " + mono("SDI-WORKBOOK") + ", which is "
+       "recorded <b>unreviewed</b> on purpose:", BODY))
+A(table([
+    hdr(["What arrives in the file", "Whose it is"]),
+    ["The financial modelling \u2014 offer, rents, expenses, projections", "SDI's own work. Needs no external instrument"],
+    ["The property description", "Verbatim MLS listing copy, written by the listing agent. The right to republish it has not been established"],
+], [2.5*inch, 3.4*inch]))
+A(Spacer(1, 5))
+A(para("Because " + mono("gov.may_use()") + " honours only counsel-confirmed rights, releasing "
+       "under it publishes with an advisory warning and lists the property in "
+       + mono("gov.uncovered_publication") + ". <b>The review screen reports that back at the "
+       "moment of release</b> rather than leaving it to be found in a report later \u2014 the "
+       "register working on real data rather than demonstration data.", GOOD))
+
+# ------------------------------------------------------------------ 11
+A(para("11.  What Is Tested", H1))
 A(para("Not a coverage percentage. These are the specific claims that are checked, and the "
        "attacks that are run against them.", BODY))
 A(para("Read this alongside 6.4. The database suites exercise a real PostgreSQL and prove "
@@ -1087,8 +1199,10 @@ A(table([
     [mono("sql/10_review_tests.sql"), "7", "A payload smuggling an address and a cost basis alongside a legitimate status change; only the allowlist is applied"],
     [mono("sql/14_pipeline_tests.sql"), "9", "One agent cannot read another's deal by naming its id; one investor cannot read another's stage history"],
     [mono("sql/23_listing_sync_tests.sql"), "10", "The whole listing lifecycle: under contract, failed escrow back to market, a feed outage, a genuine delisting, an advisory source, and a status term nobody has mapped"],
+    [mono("sql/27_governance_tests.sql"), "10", "A data right built one failing condition at a time, and the same confirmed right refusing to cover a property one state away"],
+    [mono("sql/29_intake_tests.sql"), "9", "Spreadsheet to listing: an invalid row cannot be approved, a pending row cannot be released, and \u201crelease ALL\u201d releases only what was approved"],
     [mono("web/ (npm test)"), "34", "Password verification cost on the failure path, session revocation on password change, lockout after repeated failures, and that no application role can read a credential hash"],
-    [mono("worker/ (npm test)"), "69", "Signature forgery, replay, oversized bodies, rate-limit handling, ambiguous-create duplication, migration resumability, and the sweep's discipline \u2014 an error is never an absence, an advisory source cannot act. All against doubles, see 6.4"],
+    [mono("worker/ (npm test)"), "70", "Signature forgery, replay, oversized bodies, rate-limit handling, ambiguous-create duplication, migration resumability, and the sweep's discipline \u2014 an error is never an absence, an advisory source cannot act. All against doubles, see 6.4"],
 ], [1.95*inch, 0.62*inch, 3.33*inch]))
 A(Spacer(1, 5))
 A(para("Every suite that changes demo data restores it. That is not tidiness: a test that "
@@ -1102,7 +1216,7 @@ A(para(mono("api.security_invariants()") + " must always return zero rows. It ca
        "into CI and a nightly check.", GOOD))
 
 # ------------------------------------------------------------------ 8
-A(para("11.  What Is Not Built", H1))
+A(para("12.  What Is Not Built", H1))
 A(para("Stated plainly so nothing here is mistaken for finished.", BODY))
 A(table([
     hdr(["Missing", "Consequence"]),
@@ -1121,20 +1235,23 @@ A(table([
     ["Authorised delivery of gated media", "Real photographs are served as static files under " + mono("web/public/") + ", so the database controls who is TOLD a url, not who can fetch it. Fine for generated illustrations, not for a location-revealing photograph. Needs an authorising route or signed, expiring urls"],
     ["Consent capture for SMS and email", "TCPA consent is neither captured nor evidenced here, and GoHighLevel's suppression state is not mirrored. This system cannot currently prove an opt-out was honoured"],
     ["Privacy subject requests", "No access, deletion or correction mechanism. One implementation satisfies CCPA and most state statutes at once"],
+    ["Uploading a workbook through the browser", "The review screen reviews and releases; it does not accept a file. Loading is two commands at a shell \u2014 see 10.1"],
+    ["Geocoding", "Coordinates come from a small ZIP centroid table, accurate to about a mile. A new market needs a row added before its listings will validate"],
+    ["Editing a staged row before release", "A wrong figure means correcting the workbook and reloading. There is no in-place edit, deliberately: an edited row no longer matches the payload it is stored beside"],
 ], [1.7*inch, 4.2*inch]))
 
 
 # ---------------------------------------------------------------- 9. next
 A(PageBreak())
-A(para("12.  Next Steps", H1))
-A(para("Section 11 lists what is missing. This section says what each item needs, in "
+A(para("13.  Next Steps", H1))
+A(para("Section 12 lists what is missing. This section says what each item needs, in "
        "what order, what has to be true before a phase can start, and how each one is "
        "tested. Durations are working weeks for one experienced developer and are "
        "estimates, not commitments.", BODY))
 
-A(para("12.1  What each item needs, and how long", H2))
-A(para("Ordered as recommended in 12.2. Estimates are working weeks for one experienced "
-       "developer who already knows this codebase, and cover build plus the tests in 12.4. "
+A(para("13.1  What each item needs, and how long", H2))
+A(para("Ordered as recommended in 13.2. Estimates are working weeks for one experienced "
+       "developer who already knows this codebase, and cover build plus the tests in 13.4. "
        "They exclude design iteration, review latency, and waiting on a third party — the "
        "three things that actually move dates.", BODY))
 A(table([
@@ -1180,13 +1297,13 @@ A(table([
      "Everything above that is in scope for launch.", "2w"],
 ], [0.32*inch, 1.08*inch, 1.75*inch, 2.4*inch, 0.35*inch]))
 A(Spacer(1, 5))
-A(para("Total build effort is roughly <b>31 developer-weeks</b>. The calendar in 12.2 is "
+A(para("Total build effort is roughly <b>31 developer-weeks</b>. The calendar in 13.2 is "
        "20 weeks because P2, P7 and P9 run alongside other work rather than after it. With "
        "one developer and no parallelism the same scope is about 31 weeks; the difference is "
        "entirely whether the EspoCRM and operations tracks can proceed independently.", GOOD))
 
 A(PageBreak())
-A(para("12.2  Recommended sequence", H2))
+A(para("13.2  Recommended sequence", H2))
 A(para("Two things drive this order. <b>Authentication gates everything user-facing</b>, so "
        "it goes first and almost nothing can be demonstrated to a real user before it lands. "
        "And <b>the audit trail should precede real investor data</b>, not follow it — the "
@@ -1206,7 +1323,7 @@ A(para("The critical path is P1 &rarr; P4 &rarr; P5: authentication, then the br
        "date. If the schedule has to compress, P8, P9 and P10 are the ones to defer — none "
        "of them is required for an investor to find a property, pay, and see the address.", BODY))
 
-A(para("12.3  What must be true before a phase starts", H2))
+A(para("13.3  What must be true before a phase starts", H2))
 A(table([
     hdr(["Phase", "Entry condition", "Done when"]),
     ["P0", "A host with a public HTTPS address and a GoHighLevel account",
@@ -1223,14 +1340,14 @@ A(table([
      "An investor signs, pays, and the address unlocks — driven end to end against a GoHighLevel test sub-account"],
     ["P6", "A storage and retention decision", "The signed PDF is retrievable and its retention is enforced"],
     ["P7", "P1 complete", "An agent sees only their own assignments and conversations, proven by test, not by inspection"],
-    ["P8", "The ownership decision in 12.1", "A thread is readable against both the contact and the property"],
+    ["P8", "The ownership decision in 13.1", "A thread is readable against both the contact and the property"],
     ["P9", "A data source", "A status change reaches the review queue and no listing changes without a human"],
     ["P10", "Matching rules in writing", "Two vetted investors are matched and both are notified"],
     ["P11", "Everything above that is in scope for launch", "Cutover rehearsed on staging, with a tested rollback"],
 ], [0.52*inch, 2.3*inch, 3.08*inch]))
 
 A(PageBreak())
-A(para("12.4  How each phase is tested", H2))
+A(para("13.4  How each phase is tested", H2))
 A(para("Every phase adds its own tests and must leave the existing ones green. That second "
        "half is the part that usually erodes, so it is stated as a gate rather than a habit.", BODY))
 A(para("The standing regression suite", H2))
@@ -1274,8 +1391,8 @@ A(para("Two habits worth keeping, both learned building what already exists. Wri
        "found so far only appeared when suites ran together.", GOOD))
 
 A(PageBreak())
-A(para("12.5  Validation methods to consider", H2))
-A(para("Section 12.4 says what to test. This says <i>how</i>, and which technique earns its "
+A(para("13.5  Validation methods to consider", H2))
+A(para("Section 13.4 says what to test. This says <i>how</i>, and which technique earns its "
        "place where. Not all of these are worth adopting; they are listed with the judgement "
        "attached rather than as a checklist to complete.", BODY))
 A(table([
@@ -1349,7 +1466,7 @@ for b in buls([
 
 
 A(PageBreak())
-A(para("12.6  Deployment", H2))
+A(para("13.6  Deployment", H2))
 A(para("Both available options are suitable, for different jobs. The recommendation is to use "
        "both rather than choose.", BODY))
 A(table([
@@ -1395,11 +1512,11 @@ A(para("Backups are the one thing to set up before there is anything worth backi
        "backup is a belief, not a backup.", NOTE))
 
 A(PageBreak())
-A(para("13.  Where Things Are", H1))
+A(para("14.  Where Things Are", H1))
 A(table([
     hdr(["Path", "Contents"]),
     [mono("sql/01\u201304"), "Schema, RLS policies, masking views, demo data"],
-    [mono("sql/05, 07, 10, 14, 23, 27"), "The six walkthroughs. Each is readable top to bottom as an argument, and each restores what it changes"],
+    [mono("sql/05, 07, 10, 14, 23, 27, 29"), "The seven walkthroughs. Each is readable top to bottom as an argument, and each restores what it changes"],
     [mono("sql/06, 08, 09"), "GoHighLevel bridge, review queue, review actions"],
     [mono("sql/11\u201313"), "Deals, stage history, pipeline policies and seed"],
     [mono("sql/15_auth.sql"), "Credentials and sessions \u2014 see 3.1"],
@@ -1407,12 +1524,14 @@ A(table([
     [mono("sql/18\u201319"), "Property detail, market areas, photographs; saved searches"],
     [mono("sql/21\u201322"), "Listing sources, status vocabulary, reconciliation \u2014 see section 8"],
     [mono("sql/24\u201326"), "Data rights, territories, permitted uses, the compliance register, the fair-housing prohibited list \u2014 see section 9"],
+    [mono("sql/28"), "Spreadsheet intake: staging, validation, review and release \u2014 see section 10"],
+    [mono("tools/"), "The workbook reader. Python, because it needs a spreadsheet library the worker deliberately does not"],
     [mono("sql/99_local_logins.sql"), "Demo passwords. Local development only"],
-    [mono("web/"), "The marketplace. " + mono("server.js") + ", " + mono("auth.js") + ", " + mono("nlq.js") + " (the text parser), " + mono("media.js") + " (the illustrations), and " + mono("public/")],
+    [mono("web/"), "The marketplace. " + mono("server.js") + ", " + mono("auth.js") + ", " + mono("nlq.js") + " (the text parser), " + mono("media.js") + " (the illustrations), and " + mono("public/") + " (the marketplace and " + mono("admin.html") + ", the review screen)"],
     [mono("web/test/"), "34 tests"],
     [mono("worker/src/"), "The GoHighLevel worker and the listing sweep (" + mono("listings/") + ")"],
     [mono("worker/test/"), "69 tests"],
-    [mono("worker/tools/"), "Webhook capture, the nightly sweep, the listing importer, and the data-rights loader"],
+    [mono("worker/tools/"), "Webhook capture, the nightly sweep, the listing importer, the data-rights loader and the intake loader"],
     [mono("docs/data-rights-intake.md"), "The questionnaire that turns signed agreements into enforceable rows"],
     [mono("docs/"), "This document and the GoHighLevel interface specification, with their generators"],
     [mono("README.md"), "The same ground in more technical detail, including the reasoning behind each design decision"],

@@ -54,7 +54,7 @@ A(Spacer(1, 0.5*inch))
 A(table([
     ["Scope", "The marketplace, the address gate, and the controls behind them"],
     ["Audience", "Anyone with a browser. No development experience assumed"],
-    ["Duration", "About 45 minutes for the browser tests; 15 more for the database checks"],
+    ["Duration", "About an hour for the browser tests; 15 more for the database checks"],
     ["Prerequisite", "A deployed stack with the demo dataset loaded"],
 ], [1.1*inch, 4.3*inch], header=False, zebra=False))
 A(PageBreak())
@@ -82,7 +82,7 @@ A(table([
     ["The address", mono("http://&lt;host&gt;:3000/") + " &mdash; type " + mono("http://") +
      " explicitly. Browsers now upgrade bare hostnames to HTTPS, and the demo does not serve TLS, so omitting it produces " + mono("ERR_SSL_PROTOCOL_ERROR") + " and looks like a network fault"],
     ["A browser", "Anything current. Two windows, or one plus a private window, so two people can be signed in at once"],
-    ["Optional", "Shell access to the host, for section 12 onward"],
+    ["Optional", "Shell access to the host, for section 13 onward"],
 ], [1.0*inch, 4.9*inch]))
 
 A(para("1.2  The accounts", H2))
@@ -559,11 +559,94 @@ case("T11.6", "Internal figures stay internal",
 
 # ================================================================== 12
 A(PageBreak())
-A(para("12.  Checks From the Command Line", H1))
+
+# ================================================================== 12
+A(PageBreak())
+A(para("12.  The Intake Review Screen", H1))
+A(para("Staff only. Open " + mono("/admin.html") + " signed in as "
+       + mono("jpool2@yahoo.com") + " or " + mono("dan@example.com") + ".", BODY))
+A(para("Tests 12.4 onward need a batch loaded. If the queue is empty, ask whoever runs the "
+       "host for:", BODY))
+A(Preformatted("python3 tools/workbook-to-json.py *.xlsm > batch.json\n"
+               "node worker/tools/load-intake.js batch.json --note \"test run\"", CODE))
+
+case("T12.1", "It is refused when signed out",
+     ["Sign out. Open " + mono("/admin.html") + "."],
+     ["A <b>Staff only</b> panel. No batches, no rows."],
+     "The page settles this by asking the server for the queue rather than reading a role "
+     "name out of the session, so a tampered cookie changes nothing.")
+
+case("T12.2", "It is refused for an investor",
+     ["Sign in as " + mono("ruth@example.com") + ", who has the fee agreement on file.",
+      "Open " + mono("/admin.html") + "."],
+     ["The marketplace, with addresses.",
+      "<b>Staff only.</b> Still refused."],
+     "Being entitled to see addresses is not being entitled to decide what gets published. "
+     "The functions behind this screen are granted to staff alone.", warn=True)
+
+case("T12.3", "Staff get the queue",
+     ["Sign in as " + mono("jpool2@yahoo.com") + " and open " + mono("/admin.html") + "."],
+     ["Batches down the left, rows on the right."],
+     None)
+
+case("T12.4", "What the file said",
+     ["Click <b>what the file said</b> on any row.",
+      "Compare a figure in it with the row above it."],
+     ["The verbatim spreadsheet payload.",
+      "They agree."],
+     "The payload is stored unedited beside our reading of it. When a released listing later "
+     "says something surprising, this is what answers whether the file said it or whether we "
+     "mistranslated it \u2014 and that question has no answer if the import overwrote its own "
+     "input.")
+
+case("T12.5", "Release is refused before approval",
+     ["Tick <b>Select all releasable</b> without approving anything.",
+      "Look at the Release button."],
+     ["Rows are selected.",
+      "<b>Disabled.</b>"],
+     "Review is not advisory. Nothing reaches the marketplace without a person agreeing to "
+     "it.", warn=True)
+
+case("T12.6", "Approve, then release",
+     ["With rows selected, click <b>Approve selected</b>.",
+      "Tick <b>Select all releasable</b> again.",
+      "Click Release and confirm.",
+      "Open the marketplace and search for one of the addresses."],
+     ["The rows turn <i>approved</i>, and the count of changed rows is reported.",
+      "The button now reads <b>Release N approved</b>.",
+      "The rows turn <i>released</i> and are given listing references.",
+      "It is there, priced as the workbook said."],
+     None)
+
+case("T12.7", "The governance warning appears at the moment of release",
+     ["Read the banners immediately after releasing."],
+     ["One says how many were released. Another, in amber, says <b>published with no "
+      "confirmed data right</b> and names the reason."],
+     "The workbook right is recorded unreviewed because the property description is verbatim "
+     "MLS copy whose republication right is unestablished. The reviewer is told at the moment "
+     "it matters rather than finding it in a report weeks later.", warn=True)
+
+case("T12.8", "An invalid row cannot be approved",
+     ["Load a batch containing a row with no price, or ask staff to run "
+      + mono("sql/29_intake_tests.sql") + ".",
+      "Select it and click Approve."],
+     ["It shows as <i>invalid</i> with a red problem line naming the field.",
+      "The screen reports fewer rows changed than were selected, and says rows with a "
+      "blocking error cannot be approved."],
+     "Approving past a blocking error is how validation stops meaning anything.", warn=True)
+
+case("T12.9", "Select all means all the releasable ones",
+     ["In a batch mixing valid and invalid rows, tick <b>Select all releasable</b>.",
+      "Approve, then release."],
+     ["Only the rows that can move are ticked.",
+      "The blocked rows are exactly where they were."],
+     "\u201cRelease everything\u201d is a narrower promise than it sounds, deliberately.")
+
+A(para("13.  Checks From the Command Line", H1))
 A(para("These need shell access to the host. They take about fifteen minutes and cover the "
        "parts a browser cannot show.", BODY))
 
-A(para("12.1  The standing invariants", H2))
+A(para("13.1  The standing invariants", H2))
 A(Preformatted("docker compose exec db psql -U postgres -d sdi \\\n"
                "  -c \"SELECT * FROM api.security_invariants()\"", CODE))
 A(para("<b>Zero rows is the pass.</b> This is the single most valuable check in the "
@@ -573,7 +656,7 @@ A(para("<b>Zero rows is the pass.</b> This is the single most valuable check in 
        "dimension the fair-housing register forbids. Run it after every deployment, and "
        "wire it into whatever runs nightly.", GOOD))
 
-A(para("12.2  The fair-housing assertion", H2))
+A(para("13.2  The fair-housing assertion", H2))
 A(Preformatted("docker compose logs web | grep fair-housing", CODE))
 A(table([
     hdr(["What you see", "Means"]),
@@ -591,7 +674,7 @@ A(para("A protected characteristic, or a proxy for one, offered as a filter or a
        "its own filter list against the register in the database and refuses to start on a "
        "collision, because serving unchecked filters is worse than being down.", BODY))
 
-A(para("12.3  Where the data-rights register stands", H2))
+A(para("13.3  Where the data-rights register stands", H2))
 A(Preformatted("docker compose exec db psql -U postgres -d sdi \\\n"
                "  -c \"SELECT * FROM api.governance_status\" \\\n"
                "  -c \"SELECT * FROM gov.uncovered_publication\"", CODE))
@@ -610,7 +693,7 @@ A(para(mono("gov.uncovered_publication") + " should return no rows. Any row name
        "published listing and the reason no right covers it &mdash; missing, expired, "
        "unreviewed, or out of territory.", BODY))
 
-A(para("12.4  The listing-status walkthrough", H2))
+A(para("13.4  The listing-status walkthrough", H2))
 A(Preformatted("docker compose exec -T db psql -U postgres -d sdi \\\n"
                "  < sql/23_listing_sync_tests.sql", CODE))
 A(para("Ten steps, printing what happens at each: a listing goes under contract, escrow "
@@ -631,7 +714,7 @@ A(para("Step 7 prints an " + mono("ERROR") + " and that is the pass &mdash; it i
        "demonstrating that blocking mode refuses an uncovered publication. The file "
        "restores everything it changes.", NOTE))
 
-A(para("12.5  The governance walkthrough", H2))
+A(para("13.5  The governance walkthrough", H2))
 A(Preformatted("docker compose exec -T db psql -U postgres -d sdi \\\n"
                "  < sql/27_governance_tests.sql", CODE))
 A(para("Builds a data right one failing condition at a time &mdash; unreviewed, no "
@@ -642,8 +725,8 @@ A(para("Builds a data right one failing condition at a time &mdash; unreviewed, 
 
 # ================================================================== 13
 A(PageBreak())
-A(para("13.  Known Gaps", H1))
-A(para("Do not raise these as defects. They are recorded, and the reasons are in section 11 "
+A(para("14.  Known Gaps", H1))
+A(para("Do not raise these as defects. They are recorded, and the reasons are in section 12 "
        "of the System Documentation.", BODY))
 A(table([
     hdr(["You will notice", "Why"]),
@@ -653,10 +736,12 @@ A(table([
     ["No password reset", "Authentication works; recovery is not built. Staff set a new password"],
     ["The map has no non-visual equivalent", "An accessibility gap, recorded and unaddressed"],
     ["Gated photographs are ordinary files", "The database controls who is told an image's address, not who can fetch it. Adequate for generated illustrations, not for real location-revealing photography"],
+    ["A workbook cannot be uploaded through the browser", "The review screen reviews and releases; loading is two commands at a shell"],
+    ["A staged row cannot be edited before release", "Deliberate. An edited row would no longer match the payload it is stored beside. Correct the workbook and reload"],
 ], [1.85*inch, 4.05*inch]))
 
 # ================================================================== 14
-A(para("14.  Recording Results", H1))
+A(para("15.  Recording Results", H1))
 A(table([
     hdr(["Section", "Tests", "Pass", "Fail", "Blocked", "Notes"]),
     ["3. Anonymous visitor", "T3.1&ndash;T3.4", "", "", "", ""],
@@ -668,7 +753,8 @@ A(table([
     ["9. Favourites and saved searches", "T9.1&ndash;T9.5", "", "", "", ""],
     ["10. Plain-English search", "T10.1&ndash;T10.3", "", "", "", ""],
     ["11. Must be refused", "T11.1&ndash;T11.6", "", "", "", ""],
-    ["12. Command line", "12.1&ndash;12.5", "", "", "", ""],
+    ["12. Intake review", "T12.1&ndash;T12.9", "", "", "", ""],
+    ["13. Command line", "13.1&ndash;13.5", "", "", "", ""],
 ], [1.85*inch, 1.0*inch, 0.45*inch, 0.45*inch, 0.55*inch, 1.6*inch]))
 A(Spacer(1, 14))
 A(table([
