@@ -2748,5 +2748,704 @@
         "comment": ""
       }
     ]
+  },
+  {
+    "schema": "gov",
+    "name": "data_right",
+    "comment": "",
+    "rls": false,
+    "columns": [
+      {
+        "name": "right_id",
+        "type": "text",
+        "nullable": false,
+        "default": "",
+        "key": "PK",
+        "references": "",
+        "comment": ""
+      },
+      {
+        "name": "name",
+        "type": "text",
+        "nullable": false,
+        "default": "",
+        "key": "",
+        "references": "",
+        "comment": ""
+      },
+      {
+        "name": "grantor",
+        "type": "text",
+        "nullable": false,
+        "default": "",
+        "key": "",
+        "references": "",
+        "comment": ""
+      },
+      {
+        "name": "instrument",
+        "type": "text",
+        "nullable": false,
+        "default": "",
+        "key": "CK",
+        "references": "",
+        "comment": ""
+      },
+      {
+        "name": "source_code",
+        "type": "text",
+        "nullable": true,
+        "default": "",
+        "key": "FK",
+        "references": "feed.listing_source",
+        "comment": ""
+      },
+      {
+        "name": "reference",
+        "type": "text",
+        "nullable": true,
+        "default": "",
+        "key": "",
+        "references": "",
+        "comment": ""
+      },
+      {
+        "name": "counterparty_contact",
+        "type": "text",
+        "nullable": true,
+        "default": "",
+        "key": "",
+        "references": "",
+        "comment": ""
+      },
+      {
+        "name": "effective_from",
+        "type": "date",
+        "nullable": true,
+        "default": "",
+        "key": "",
+        "references": "",
+        "comment": ""
+      },
+      {
+        "name": "effective_to",
+        "type": "date",
+        "nullable": true,
+        "default": "",
+        "key": "",
+        "references": "",
+        "comment": ""
+      },
+      {
+        "name": "survives_termination",
+        "type": "boolean",
+        "nullable": false,
+        "default": "false",
+        "key": "",
+        "references": "",
+        "comment": ""
+      },
+      {
+        "name": "review_status",
+        "type": "text",
+        "nullable": false,
+        "default": "'unreviewed'::text",
+        "key": "CK",
+        "references": "",
+        "comment": ""
+      },
+      {
+        "name": "reviewed_by",
+        "type": "text",
+        "nullable": true,
+        "default": "",
+        "key": "",
+        "references": "",
+        "comment": ""
+      },
+      {
+        "name": "reviewed_on",
+        "type": "date",
+        "nullable": true,
+        "default": "",
+        "key": "",
+        "references": "",
+        "comment": ""
+      },
+      {
+        "name": "notes",
+        "type": "text",
+        "nullable": true,
+        "default": "",
+        "key": "",
+        "references": "",
+        "comment": ""
+      },
+      {
+        "name": "created_at",
+        "type": "timestamptz",
+        "nullable": false,
+        "default": "now()",
+        "key": "",
+        "references": "",
+        "comment": ""
+      }
+    ]
+  },
+  {
+    "schema": "gov",
+    "name": "data_right_territory",
+    "comment": "",
+    "rls": false,
+    "columns": [
+      {
+        "name": "right_id",
+        "type": "text",
+        "nullable": false,
+        "default": "",
+        "key": "FK PK",
+        "references": "gov.data_right",
+        "comment": ""
+      },
+      {
+        "name": "territory_id",
+        "type": "text",
+        "nullable": false,
+        "default": "",
+        "key": "FK PK",
+        "references": "gov.territory",
+        "comment": ""
+      }
+    ]
+  },
+  {
+    "schema": "gov",
+    "name": "data_right_use",
+    "comment": "",
+    "rls": false,
+    "columns": [
+      {
+        "name": "right_id",
+        "type": "text",
+        "nullable": false,
+        "default": "",
+        "key": "FK PK",
+        "references": "gov.data_right",
+        "comment": ""
+      },
+      {
+        "name": "use_code",
+        "type": "text",
+        "nullable": false,
+        "default": "",
+        "key": "FK PK",
+        "references": "gov.use_kind",
+        "comment": ""
+      },
+      {
+        "name": "posture",
+        "type": "text",
+        "nullable": false,
+        "default": "'unclear'::text",
+        "key": "CK",
+        "references": "",
+        "comment": ""
+      },
+      {
+        "name": "condition",
+        "type": "text",
+        "nullable": true,
+        "default": "",
+        "key": "",
+        "references": "",
+        "comment": ""
+      }
+    ]
+  },
+  {
+    "schema": "gov",
+    "name": "obligation",
+    "comment": "",
+    "rls": false,
+    "columns": [
+      {
+        "name": "obligation_id",
+        "type": "bigint",
+        "nullable": false,
+        "default": "nextval('gov.obligation_obligation_id_seq'::regclass)",
+        "key": "PK",
+        "references": "",
+        "comment": ""
+      },
+      {
+        "name": "right_id",
+        "type": "text",
+        "nullable": false,
+        "default": "",
+        "key": "FK",
+        "references": "gov.data_right",
+        "comment": ""
+      },
+      {
+        "name": "kind",
+        "type": "text",
+        "nullable": false,
+        "default": "",
+        "key": "CK",
+        "references": "",
+        "comment": ""
+      },
+      {
+        "name": "interval_hours",
+        "type": "integer",
+        "nullable": true,
+        "default": "",
+        "key": "",
+        "references": "",
+        "comment": ""
+      },
+      {
+        "name": "text_required",
+        "type": "text",
+        "nullable": true,
+        "default": "",
+        "key": "",
+        "references": "",
+        "comment": ""
+      },
+      {
+        "name": "detail",
+        "type": "text",
+        "nullable": false,
+        "default": "",
+        "key": "",
+        "references": "",
+        "comment": ""
+      },
+      {
+        "name": "enforcement",
+        "type": "text",
+        "nullable": false,
+        "default": "'unenforced'::text",
+        "key": "CK",
+        "references": "",
+        "comment": ""
+      }
+    ]
+  },
+  {
+    "schema": "gov",
+    "name": "policy",
+    "comment": "",
+    "rls": false,
+    "columns": [
+      {
+        "name": "id",
+        "type": "boolean",
+        "nullable": false,
+        "default": "true",
+        "key": "CK PK",
+        "references": "",
+        "comment": ""
+      },
+      {
+        "name": "enforcement_mode",
+        "type": "text",
+        "nullable": false,
+        "default": "'advisory'::text",
+        "key": "CK",
+        "references": "",
+        "comment": ""
+      },
+      {
+        "name": "changed_at",
+        "type": "timestamptz",
+        "nullable": false,
+        "default": "now()",
+        "key": "",
+        "references": "",
+        "comment": ""
+      },
+      {
+        "name": "changed_by",
+        "type": "text",
+        "nullable": true,
+        "default": "",
+        "key": "",
+        "references": "",
+        "comment": ""
+      },
+      {
+        "name": "note",
+        "type": "text",
+        "nullable": true,
+        "default": "",
+        "key": "",
+        "references": "",
+        "comment": ""
+      }
+    ]
+  },
+  {
+    "schema": "gov",
+    "name": "prohibited_dimension",
+    "comment": "",
+    "rls": false,
+    "columns": [
+      {
+        "name": "dimension",
+        "type": "text",
+        "nullable": false,
+        "default": "",
+        "key": "PK",
+        "references": "",
+        "comment": ""
+      },
+      {
+        "name": "basis",
+        "type": "text",
+        "nullable": false,
+        "default": "",
+        "key": "",
+        "references": "",
+        "comment": ""
+      },
+      {
+        "name": "kind",
+        "type": "text",
+        "nullable": false,
+        "default": "",
+        "key": "CK",
+        "references": "",
+        "comment": ""
+      },
+      {
+        "name": "rationale",
+        "type": "text",
+        "nullable": false,
+        "default": "",
+        "key": "",
+        "references": "",
+        "comment": ""
+      }
+    ]
+  },
+  {
+    "schema": "gov",
+    "name": "property_provenance",
+    "comment": "",
+    "rls": false,
+    "columns": [
+      {
+        "name": "property_id",
+        "type": "uuid",
+        "nullable": false,
+        "default": "",
+        "key": "FK PK",
+        "references": "core.property",
+        "comment": ""
+      },
+      {
+        "name": "right_id",
+        "type": "text",
+        "nullable": false,
+        "default": "",
+        "key": "FK PK",
+        "references": "gov.data_right",
+        "comment": ""
+      },
+      {
+        "name": "scope",
+        "type": "text",
+        "nullable": false,
+        "default": "'listing_facts'::text",
+        "key": "CK PK",
+        "references": "",
+        "comment": ""
+      },
+      {
+        "name": "acquired_at",
+        "type": "timestamptz",
+        "nullable": false,
+        "default": "now()",
+        "key": "",
+        "references": "",
+        "comment": ""
+      }
+    ]
+  },
+  {
+    "schema": "gov",
+    "name": "regulation",
+    "comment": "",
+    "rls": false,
+    "columns": [
+      {
+        "name": "reg_code",
+        "type": "text",
+        "nullable": false,
+        "default": "",
+        "key": "PK",
+        "references": "",
+        "comment": ""
+      },
+      {
+        "name": "name",
+        "type": "text",
+        "nullable": false,
+        "default": "",
+        "key": "",
+        "references": "",
+        "comment": ""
+      },
+      {
+        "name": "citation",
+        "type": "text",
+        "nullable": true,
+        "default": "",
+        "key": "",
+        "references": "",
+        "comment": ""
+      },
+      {
+        "name": "regime",
+        "type": "text",
+        "nullable": false,
+        "default": "",
+        "key": "CK",
+        "references": "",
+        "comment": ""
+      },
+      {
+        "name": "applies_when",
+        "type": "text",
+        "nullable": false,
+        "default": "",
+        "key": "",
+        "references": "",
+        "comment": ""
+      },
+      {
+        "name": "constrains",
+        "type": "text",
+        "nullable": false,
+        "default": "",
+        "key": "",
+        "references": "",
+        "comment": ""
+      },
+      {
+        "name": "our_posture",
+        "type": "text",
+        "nullable": false,
+        "default": "",
+        "key": "",
+        "references": "",
+        "comment": ""
+      },
+      {
+        "name": "status",
+        "type": "text",
+        "nullable": false,
+        "default": "'identified'::text",
+        "key": "CK",
+        "references": "",
+        "comment": ""
+      },
+      {
+        "name": "reviewed_on",
+        "type": "date",
+        "nullable": true,
+        "default": "",
+        "key": "",
+        "references": "",
+        "comment": ""
+      }
+    ]
+  },
+  {
+    "schema": "gov",
+    "name": "regulation_control",
+    "comment": "",
+    "rls": false,
+    "columns": [
+      {
+        "name": "reg_code",
+        "type": "text",
+        "nullable": false,
+        "default": "",
+        "key": "FK PK",
+        "references": "gov.regulation",
+        "comment": ""
+      },
+      {
+        "name": "control",
+        "type": "text",
+        "nullable": false,
+        "default": "",
+        "key": "PK",
+        "references": "",
+        "comment": ""
+      },
+      {
+        "name": "located_in",
+        "type": "text",
+        "nullable": false,
+        "default": "",
+        "key": "",
+        "references": "",
+        "comment": ""
+      },
+      {
+        "name": "kind",
+        "type": "text",
+        "nullable": false,
+        "default": "",
+        "key": "CK",
+        "references": "",
+        "comment": ""
+      }
+    ]
+  },
+  {
+    "schema": "gov",
+    "name": "territory",
+    "comment": "",
+    "rls": false,
+    "columns": [
+      {
+        "name": "territory_id",
+        "type": "text",
+        "nullable": false,
+        "default": "",
+        "key": "PK",
+        "references": "",
+        "comment": ""
+      },
+      {
+        "name": "kind",
+        "type": "text",
+        "nullable": false,
+        "default": "",
+        "key": "CK",
+        "references": "",
+        "comment": ""
+      },
+      {
+        "name": "name",
+        "type": "text",
+        "nullable": false,
+        "default": "",
+        "key": "",
+        "references": "",
+        "comment": ""
+      },
+      {
+        "name": "country",
+        "type": "char(2)",
+        "nullable": false,
+        "default": "'US'::bpchar",
+        "key": "",
+        "references": "",
+        "comment": ""
+      },
+      {
+        "name": "state",
+        "type": "char(2)",
+        "nullable": true,
+        "default": "",
+        "key": "CK",
+        "references": "",
+        "comment": ""
+      },
+      {
+        "name": "parent_id",
+        "type": "text",
+        "nullable": true,
+        "default": "",
+        "key": "FK",
+        "references": "gov.territory",
+        "comment": ""
+      },
+      {
+        "name": "notes",
+        "type": "text",
+        "nullable": true,
+        "default": "",
+        "key": "",
+        "references": "",
+        "comment": ""
+      }
+    ]
+  },
+  {
+    "schema": "gov",
+    "name": "territory_place",
+    "comment": "",
+    "rls": false,
+    "columns": [
+      {
+        "name": "territory_id",
+        "type": "text",
+        "nullable": false,
+        "default": "",
+        "key": "FK PK",
+        "references": "gov.territory",
+        "comment": ""
+      },
+      {
+        "name": "city",
+        "type": "text",
+        "nullable": false,
+        "default": "",
+        "key": "PK",
+        "references": "",
+        "comment": ""
+      },
+      {
+        "name": "state",
+        "type": "char(2)",
+        "nullable": false,
+        "default": "",
+        "key": "PK",
+        "references": "",
+        "comment": ""
+      }
+    ]
+  },
+  {
+    "schema": "gov",
+    "name": "use_kind",
+    "comment": "",
+    "rls": false,
+    "columns": [
+      {
+        "name": "use_code",
+        "type": "text",
+        "nullable": false,
+        "default": "",
+        "key": "PK",
+        "references": "",
+        "comment": ""
+      },
+      {
+        "name": "label",
+        "type": "text",
+        "nullable": false,
+        "default": "",
+        "key": "",
+        "references": "",
+        "comment": ""
+      },
+      {
+        "name": "detail",
+        "type": "text",
+        "nullable": false,
+        "default": "",
+        "key": "",
+        "references": "",
+        "comment": ""
+      }
+    ]
   }
 ]

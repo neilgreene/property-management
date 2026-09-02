@@ -27,6 +27,7 @@ for f in 01_schema 02_policies 03_views 04_seed \
          15_auth 16_demo_dataset 17_demo_passwords \
          18_property_detail 19_saved_search 20_demo_detail_seed \
          21_listing_sync 22_listing_sync_seed \
+         24_data_governance 25_governance_seed 26_fairgrove_media \
          99_local_logins; do
     printf '    %s\n' "$f"
     psql -d "$DB" -q -v ON_ERROR_STOP=1 -f "sql/$f.sql"

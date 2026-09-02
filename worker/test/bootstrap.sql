@@ -13,12 +13,13 @@ BEGIN
   END IF;
 END $$;
 
-GRANT USAGE ON SCHEMA core, ghl, api, sec, feed TO sdi_test_admin;
+GRANT USAGE ON SCHEMA core, ghl, api, sec, feed, gov TO sdi_test_admin;
 GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA core TO sdi_test_admin;
 GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA ghl  TO sdi_test_admin;
 GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA feed TO sdi_test_admin;
-GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA core, ghl, feed TO sdi_test_admin;
-GRANT EXECUTE ON ALL FUNCTIONS IN SCHEMA feed TO sdi_test_admin;
+GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA gov  TO sdi_test_admin;
+GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA core, ghl, feed, gov TO sdi_test_admin;
+GRANT EXECUTE ON ALL FUNCTIONS IN SCHEMA feed, gov TO sdi_test_admin;
 GRANT EXECUTE ON ALL FUNCTIONS IN SCHEMA api, sec TO sdi_test_admin;
 
 -- Re-run this after adding tables or functions: the grants above are a

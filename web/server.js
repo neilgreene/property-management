@@ -401,7 +401,17 @@ async function probeBaseTable(identity) {
   }
 }
 
-const MIME = { '.html': 'text/html', '.css': 'text/css', '.js': 'text/javascript' };
+const MIME = {
+  '.html': 'text/html', '.css': 'text/css', '.js': 'text/javascript',
+  // Real listing photography lives under public/assets/ and is served
+  // from here. Which images a caller is TOLD about is still decided by
+  // core.property_media's row policy -- but note that a file under
+  // public/ is reachable by anyone who guesses its path, so a genuinely
+  // gated photograph must not be served this way in production. See the
+  // note in 26_fairgrove_media.sql.
+  '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.png': 'image/png',
+  '.webp': 'image/webp', '.svg': 'image/svg+xml', '.avif': 'image/avif',
+};
 
 const ANON = { key: 'anon', label: 'Not signed in', role: 'sdi_public',
                actor: null, note: 'Anonymous visitor' };
@@ -676,5 +686,56 @@ const server = http.createServer(async (req, res) => {
   });
 });
 
+// ---------------------------------------------------------------------
+// Fair housing, asserted at startup
+//
+// gov.prohibited_dimension lists the protected characteristics and the
+// identified proxies for them. Nothing here may become a filter, a sort
+// key or an audience dimension: filtering on a proxy is steering whether
+// or not anyone intended it, and the Fair Housing Act does not require
+// intent.
+//
+// The check runs here, against the database, rather than being a comment
+// above the FILTERS array -- because the array is what a future feature
+// edits, and a rule that lives only in a comment is a rule that survives
+// exactly until someone is in a hurry. A violation stops the process:
+// serving a discriminatory filter is worse than being down.
+//
+// Note what this cannot catch: a dimension added under an innocent name.
+// That is what the register's `basis` column and code review are for. It
+// catches the careless case, which is the common one.
+async function assertNoProhibitedFilters() {
+  const names = new Set([
+    ...FILTERS.map(([n]) => n),
+    ...TEXT_FILTERS.map(([n]) => n),
+    ...Object.keys(SORTS),
+    ...Object.keys(ALIASES),
+    'q',
+  ].map((n) => n.toLowerCase()));
+
+  let banned;
+  try {
+    const r = await pool.query('SELECT dimension, basis FROM api.prohibited_dimensions');
+    banned = r.rows;
+  } catch (e) {
+    // Not fatal: an older database has no register. Loud, though --
+    // silently skipping a safety check is how it stops existing.
+    console.warn('WARNING: could not read the fair-housing register '
+      + `(${e.message}). Filter names are unchecked.`);
+    return;
+  }
+
+  const hits = banned.filter((b) => names.has(b.dimension.toLowerCase()));
+  if (hits.length) {
+    console.error('FATAL: a search filter names a prohibited dimension.');
+    for (const h of hits) console.error(`  ${h.dimension} — proxy for or directly ${h.basis}`);
+    console.error('See gov.prohibited_dimension. Refusing to start.');
+    process.exit(1);
+  }
+  console.log(`fair-housing register: ${banned.length} dimensions, none exposed as filters`);
+}
+
 const PORT = process.env.PORT || 3000;
-server.listen(PORT, () => console.log(`SDI demo on http://localhost:${PORT}`));
+assertNoProhibitedFilters().then(() => {
+  server.listen(PORT, () => console.log(`SDI marketplace on http://localhost:${PORT}`));
+});

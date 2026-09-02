@@ -27,7 +27,7 @@ OK = colors.HexColor("#1E6B33")
 ss = getSampleStyleSheet()
 def S(n, parent=None, **kw): return ParagraphStyle(n, parent=parent or ss["Normal"], **kw)
 
-BODY  = S("body", fontName="Helvetica", fontSize=11.5, leading=13.6, textColor=INK, spaceAfter=7)
+BODY  = S("body", fontName="Helvetica", fontSize=12.5, leading=13.6, textColor=INK, spaceAfter=7)
 H1    = S("h1", fontName="Helvetica-Bold", fontSize=15, leading=19, textColor=INK, spaceBefore=16, spaceAfter=8)
 H2    = S("h2", fontName="Helvetica-Bold", fontSize=11, leading=15, textColor=ACCENT, spaceBefore=12, spaceAfter=5)
 BUL   = S("bul", parent=BODY, leftIndent=13, bulletIndent=3, spaceAfter=3.5)
@@ -40,8 +40,8 @@ NOTE  = S("note", parent=BODY, leftIndent=9, textColor=WARN, fontName="Helvetica
 GOOD  = S("good", fontName="Helvetica", fontSize=9, leading=12.8, textColor=INK, backColor=OKBG,
           borderPadding=7, borderColor=OK, borderWidth=0.7, spaceAfter=9, spaceBefore=3)
 CT    = S("ct", fontName="Helvetica-Bold", fontSize=25, leading=30, textColor=INK, alignment=TA_CENTER, spaceAfter=10)
-SCELL = S("scell", fontName="Helvetica", fontSize=7.4, leading=11.4, textColor=INK)
-SCELB = S("scelb", parent=None, fontName="Helvetica-Bold", fontSize=7.4, leading=11.4, textColor=INK)
+SCELL = S("scell", fontName="Helvetica", fontSize=7.4, leading=12.4, textColor=INK)
+SCELB = S("scelb", parent=None, fontName="Helvetica-Bold", fontSize=7.4, leading=12.4, textColor=INK)
 TNAME = S("tname", fontName="Courier-Bold", fontSize=10, leading=13, textColor=INK,
           spaceBefore=13, spaceAfter=2)
 TDESC = S("tdesc", fontName="Helvetica-Oblique", fontSize=8, leading=11, textColor=MUTED, spaceAfter=4)
@@ -692,7 +692,7 @@ A(table([
 A(Spacer(1, 5))
 A(para("The marketplace runs on port 3000, the worker on 3001. The marketplace authenticates; "
        "the worker does not, and neither should be exposed to a network until the deployment "
-       "gaps in section 10 are addressed.", NOTE))
+       "gaps in section 11 are addressed.", NOTE))
 A(PageBreak())
 
 # ------------------------------------------------------------------ 6
@@ -1018,8 +1018,149 @@ A(para("The Irvine listing in the seed data (108 Fairgrove, 92618) shows the int
        "would produce exactly the confident wrong record this schema exists to prevent. It "
        "is tracked before it is trusted.", GOOD))
 
+
 # ------------------------------------------------------------------ 9
-A(para("9.  What Is Tested", H1))
+A(PageBreak())
+A(para("9.  Data Rights and Compliance", H1))
+A(para("Every listing here is somebody else's data, held under some instrument. Whether it "
+       "may be shown, to whom, and for how long is not a software question and cannot be "
+       "answered by looking at the code \u2014 but it decides whether a listing may be published, "
+       "so it is recorded where the publication decision is made: in the database, next to "
+       "the row.", BODY))
+A(para("A licence recorded in a spreadsheet is a licence that gets breached the week somebody "
+       "forgets the spreadsheet exists.", GOOD))
+A(para("<b>None of this is legal advice, and none of it claims to know what any particular "
+       "agreement says.</b> It is the shape that holds whatever the signed agreements say, "
+       "plus a register of the regimes identified as applying. Every row carries a review "
+       "status, and an unreviewed right is visibly unreviewed rather than quietly treated as "
+       "settled.", NOTE))
+
+A(para("9.1  Three questions per instrument", H2))
+A(table([
+    hdr(["Question", "Recorded as", "Why it decides anything"]),
+    ["<b>Where</b> does it apply?", mono("gov.data_right_territory"),
+     "A feed licensed for one market does not cover a property in another. Using it there is a breach even though the software works perfectly \u2014 which is exactly why it needs a mechanical check"],
+    ["<b>What</b> may be done with it?", mono("gov.data_right_use"),
+     "\u201cShow this to a registered user\u201d is not \u201cpublish this to the open web\u201d, and neither is \u201cexport it in bulk\u201d or \u201ctrain a model on it\u201d. Eight uses, each answered separately"],
+    ["<b>Until</b> when, and in return for what?", mono("gov.obligation"),
+     "Attribution wording, refresh cadence, removal within N hours of a delisting, deletion on termination. The ones with deadlines are computed rather than remembered"],
+], [1.45*inch, 1.5*inch, 2.95*inch]))
+A(Spacer(1, 5))
+A(para("Two details in that table are doing more work than they look. <b>Silence is not "
+       "permission</b>: a use with no row, or one marked <i>unclear</i>, is refused \u2014 and the "
+       "intake tool writes every one of the eight uses out explicitly, so a reader can tell "
+       "\u201cwe never asked\u201d from \u201cthey said no\u201d. And <b>rights are scoped</b>: a right over "
+       "listing facts says nothing about the photographs. Listing photography usually belongs "
+       "to the photographer or the listing broker rather than the seller, and conflating the "
+       "two is a well-worn way for a portal to get sued.", BODY))
+
+A(para("9.2  What makes a right actually apply", H2))
+A(para("Four conditions, and they are AND rather than a score. A right applies only if it is "
+       "counsel-confirmed, unexpired, covers the property's territory, and grants the "
+       "specific use being asked about.", BODY))
+A(para(mono("gov.may_use(property_id, use, scope)") + " is the single question the publication "
+       "path asks. Every clause in it is a reason the answer is <i>no</i>, stated positively, "
+       "so a future clause cannot accidentally widen it.", GOOD))
+A(para("A right cannot mark itself confirmed. " + mono("record-data-right.js") +
+       " only sets that status when a reviewer is named on the command line, because "
+       "\u201csomebody set a flag in a JSON file\u201d and \u201ca lawyer read the contract\u201d must not look "
+       "the same afterwards.", BODY))
+
+A(para("9.3  Advisory first, blocking later", H2))
+A(para("The business operates today. A control that refused to publish anything without a "
+       "confirmed right would take a working marketplace off the air over paperwork that has "
+       "simply not been transcribed yet \u2014 and a control like that gets reverted, not fixed.", BODY))
+A(table([
+    hdr(["Mode", "Behaviour"]),
+    [mono("advisory") + " (default)", "Publication proceeds and warns. Every uncovered listing appears in " + mono("gov.uncovered_publication") + " with the reason. The whole gap is visible on day one and nothing breaks"],
+    [mono("blocking"), "Publication requires a confirmed right, and the standing invariant fails on any remaining gap. This is the go-live gate, and the invariant is what keeps it shut once flipped"],
+], [1.3*inch, 4.6*inch]))
+A(Spacer(1, 5))
+A(para("Advisory is a recorded decision with a visible consequence, not the absence of one. "
+       "It sits in " + mono("gov.policy") + " with who changed it and why.", BODY))
+
+A(para("9.4  Fair housing, enforced structurally", H2))
+A(para("This is the one part of the register with teeth in the running application, and it "
+       "deserves the space.", BODY))
+A(para("A marketplace that lets a user filter, or an algorithm rank, on a protected "
+       "characteristic \u2014 or on a proxy for one \u2014 is steering, whether or not anyone intended "
+       "it. <b>The Fair Housing Act does not require intent.</b> A recommendation engine is "
+       "as capable of it as a dropdown, which is why the register exists before there is a "
+       "recommendation engine.", GOOD))
+A(para("The proxies are the hard part, and they are listed explicitly, because a system that "
+       "blocks " + mono("race") + " and permits " + mono("percent_white_by_tract") +
+       " has blocked nothing.", BODY))
+A(table([
+    hdr(["Registered proxy", "Proxy for", "Why"]),
+    ["School rating", "Race, national origin", "Ratings track catchment demographics. Offering one as a ranking axis is steering by another name"],
+    ["Crime index", "Race, national origin", "Reported-crime indices measure policing intensity as much as risk"],
+    ["Area median income as a ranking", "Race, national origin", "The marketplace holds it, and legitimately \u2014 it is how rent is estimated. Offering it as an axis a buyer sorts on is a different act"],
+    ["Neighbourhood desirability score", "Multiple", "A composite is a laundered version of whatever went into it"],
+], [1.5*inch, 1.25*inch, 3.15*inch]))
+A(Spacer(1, 5))
+A(para("Three controls, at three levels. The register is a table (" +
+       mono("gov.prohibited_dimension") + "). The standing invariant fails if any listed "
+       "dimension is ever exposed as a readable column. And <b>the web tier refuses to "
+       "start</b> if its own filter allowlist intersects the register \u2014 the check runs "
+       "against the database rather than living in a comment above the filter array, because "
+       "the array is what a future feature edits and a rule that exists only in a comment "
+       "survives exactly until somebody is in a hurry.", GOOD))
+A(para("What this does not catch is a dimension added under an innocent name. That is what "
+       "the register's " + mono("basis") + " column and code review are for. It catches the "
+       "careless case, which is the common one.", NOTE))
+
+A(para("9.5  The regimes on the register", H2))
+A(para("Identified, with the trigger condition that makes each one apply, and \u2014 the column "
+       "that makes this more than a wall poster \u2014 where the constraint is actually enforced. "
+       "A regime with no control is a gap that is visible rather than assumed.", BODY))
+A(table([
+    hdr(["Regime", "Applies when", "Status here"]),
+    ["Fair Housing Act, and state equivalents", "Always", "Enforced structurally, three ways \u2014 see 9.4"],
+    ["RESPA s.8 \u2014 referral fees", "If compensated in connection with a federally related mortgage loan, including by referring business", "<b>Unresolved and material.</b> See below"],
+    ["State real estate licensing", "Per state where property is marketed", "Unresolved. Turns on whether the platform's activity is brokerage"],
+    ["MLS participation, IDX and VOW rules", "From the moment any MLS feed is connected", "Machinery built and unused: attribution, refresh and removal SLAs are modelled and computed"],
+    ["Copyright in photographs and copy", "Any media not authored in-house", "Media provenance tracked separately from listing facts"],
+    ["CCPA/CPRA and state privacy statutes", "Per consumer residency and thresholds", "<b>Gap.</b> No subject-request mechanism exists"],
+    ["TCPA \u2014 SMS and calls", "Any marketing text or autodialled call, including via GoHighLevel", "<b>Gap.</b> Consent is not captured or evidenced here"],
+    ["CAN-SPAM", "Any commercial email", "Delegated to GoHighLevel; suppression state is not mirrored locally"],
+    ["ECOA / Regulation B", "If credit is applied for, referred or influenced", "Deferred. Applies the day lender matching is built"],
+    ["GLBA and the Safeguards Rule", "If the business is a \u201cfinancial institution\u201d", "Turns on the same facts as RESPA"],
+    ["PCI DSS", "Any handling of cardholder data", "Deferred. No payment integration exists; use a redirected processor when it does"],
+    ["ADA / web accessibility", "Public-facing web content", "Unaudited. The map has no non-visual equivalent"],
+    ["GDPR", "Only if EU or UK data subjects", "Not applicable today, registered so the trigger stays visible"],
+    ["Site terms and unauthorised access", "If any portal is read programmatically", "No scraper implemented \u2014 see 8.5"],
+], [1.5*inch, 1.85*inch, 2.55*inch]))
+A(Spacer(1, 6))
+A(para("<b>RESPA section 8 is the largest open legal question in this product, and it is not "
+       "a technical one.</b> The model is a $750 fee that unlocks property information and "
+       "connects investors to agents and lenders. Whether that is compensation for services "
+       "actually rendered or an unlawful referral fee turns on the fee's substance rather "
+       "than its label. It needs counsel before launch, not after \u2014 and it should go to "
+       "counsel together with the state licensing and GLBA questions, because all three turn "
+       "on the same facts about what the business actually does.", NOTE))
+A(para("<b>TCPA is the highest-frequency risk</b>, because it is the one an ordinary "
+       "marketing decision can breach, statutory damages are per violation, and consent has "
+       "to be provable. Nothing in this system currently captures or evidences it.", NOTE))
+
+A(para("9.6  Filling the register in", H2))
+A(para("The register currently holds the synthetic demonstration data, a deliberately empty "
+       "instrument for the externally-tracked Irvine address, and the operator-supplied "
+       "photograph of it. It does not yet hold the instruments the business actually "
+       "operates under, because those live in signed paper that has to be transcribed by a "
+       "person.", BODY))
+A(para(mono("docs/data-rights-intake.md") + " is the questionnaire for that \u2014 five questions "
+       "per instrument, a worked example, and the loader. " +
+       mono("SELECT * FROM api.governance_status") + " says where things stand at any moment.", BODY))
+A(table([
+    hdr(["To see", "Query"]),
+    ["The summary", mono("SELECT * FROM api.governance_status")],
+    ["Published with no confirmed right", mono("SELECT * FROM gov.uncovered_publication")],
+    ["The regimes, and which have no control", mono("SELECT * FROM api.compliance_register")],
+    ["Per property: what is held, and why it does or does not apply", mono("SELECT * FROM api.data_rights")],
+], [2.2*inch, 3.7*inch]))
+
+# ------------------------------------------------------------------ 10
+A(para("10.  What Is Tested", H1))
 A(para("Not a coverage percentage. These are the specific claims that are checked, and the "
        "attacks that are run against them.", BODY))
 A(para("Read this alongside 6.4. The database suites exercise a real PostgreSQL and prove "
@@ -1047,7 +1188,7 @@ A(para(mono("api.security_invariants()") + " must always return zero rows. It ca
        "into CI and a nightly check.", GOOD))
 
 # ------------------------------------------------------------------ 8
-A(para("10.  What Is Not Built", H1))
+A(para("11.  What Is Not Built", H1))
 A(para("Stated plainly so nothing here is mistaken for finished.", BODY))
 A(table([
     hdr(["Missing", "Consequence"]),
@@ -1062,20 +1203,24 @@ A(table([
     ["Password reset and email delivery", "Authentication works, but a person who forgets a password needs staff to set a new one"],
     ["EspoCRM field mapping", "The load ordering and resumability are built and tested. The field-level mapping needs the live EspoCRM schema"],
     ["A hardened deployment", "The stack runs under Docker Compose and has been deployed on a VM. Nothing is internet-facing, and nothing should be until TLS, a reverse proxy and secret management are in place"],
+    ["The data-rights register, filled in", "The machinery is built and the demo data is covered. The instruments the business actually operates under have not been transcribed \u2014 see 9.6 and " + mono("docs/data-rights-intake.md")],
+    ["Authorised delivery of gated media", "Real photographs are served as static files under " + mono("web/public/") + ", so the database controls who is TOLD a url, not who can fetch it. Fine for generated illustrations, not for a location-revealing photograph. Needs an authorising route or signed, expiring urls"],
+    ["Consent capture for SMS and email", "TCPA consent is neither captured nor evidenced here, and GoHighLevel's suppression state is not mirrored. This system cannot currently prove an opt-out was honoured"],
+    ["Privacy subject requests", "No access, deletion or correction mechanism. One implementation satisfies CCPA and most state statutes at once"],
 ], [1.7*inch, 4.2*inch]))
 
 
 # ---------------------------------------------------------------- 9. next
 A(PageBreak())
-A(para("11.  Next Steps", H1))
-A(para("Section 10 lists what is missing. This section says what each item needs, in "
+A(para("12.  Next Steps", H1))
+A(para("Section 11 lists what is missing. This section says what each item needs, in "
        "what order, what has to be true before a phase can start, and how each one is "
        "tested. Durations are working weeks for one experienced developer and are "
        "estimates, not commitments.", BODY))
 
-A(para("11.1  What each item needs, and how long", H2))
-A(para("Ordered as recommended in 11.2. Estimates are working weeks for one experienced "
-       "developer who already knows this codebase, and cover build plus the tests in 11.4. "
+A(para("12.1  What each item needs, and how long", H2))
+A(para("Ordered as recommended in 12.2. Estimates are working weeks for one experienced "
+       "developer who already knows this codebase, and cover build plus the tests in 12.4. "
        "They exclude design iteration, review latency, and waiting on a third party — the "
        "three things that actually move dates.", BODY))
 A(table([
@@ -1121,13 +1266,13 @@ A(table([
      "Everything above that is in scope for launch.", "2w"],
 ], [0.32*inch, 1.08*inch, 1.75*inch, 2.4*inch, 0.35*inch]))
 A(Spacer(1, 5))
-A(para("Total build effort is roughly <b>31 developer-weeks</b>. The calendar in 11.2 is "
+A(para("Total build effort is roughly <b>31 developer-weeks</b>. The calendar in 12.2 is "
        "20 weeks because P2, P7 and P9 run alongside other work rather than after it. With "
        "one developer and no parallelism the same scope is about 31 weeks; the difference is "
        "entirely whether the EspoCRM and operations tracks can proceed independently.", GOOD))
 
 A(PageBreak())
-A(para("11.2  Recommended sequence", H2))
+A(para("12.2  Recommended sequence", H2))
 A(para("Two things drive this order. <b>Authentication gates everything user-facing</b>, so "
        "it goes first and almost nothing can be demonstrated to a real user before it lands. "
        "And <b>the audit trail should precede real investor data</b>, not follow it — the "
@@ -1147,7 +1292,7 @@ A(para("The critical path is P1 &rarr; P4 &rarr; P5: authentication, then the br
        "date. If the schedule has to compress, P8, P9 and P10 are the ones to defer — none "
        "of them is required for an investor to find a property, pay, and see the address.", BODY))
 
-A(para("11.3  What must be true before a phase starts", H2))
+A(para("12.3  What must be true before a phase starts", H2))
 A(table([
     hdr(["Phase", "Entry condition", "Done when"]),
     ["P0", "A host with a public HTTPS address and a GoHighLevel account",
@@ -1164,14 +1309,14 @@ A(table([
      "An investor signs, pays, and the address unlocks — driven end to end against a GoHighLevel test sub-account"],
     ["P6", "A storage and retention decision", "The signed PDF is retrievable and its retention is enforced"],
     ["P7", "P1 complete", "An agent sees only their own assignments and conversations, proven by test, not by inspection"],
-    ["P8", "The ownership decision in 11.1", "A thread is readable against both the contact and the property"],
+    ["P8", "The ownership decision in 12.1", "A thread is readable against both the contact and the property"],
     ["P9", "A data source", "A status change reaches the review queue and no listing changes without a human"],
     ["P10", "Matching rules in writing", "Two vetted investors are matched and both are notified"],
     ["P11", "Everything above that is in scope for launch", "Cutover rehearsed on staging, with a tested rollback"],
 ], [0.52*inch, 2.3*inch, 3.08*inch]))
 
 A(PageBreak())
-A(para("11.4  How each phase is tested", H2))
+A(para("12.4  How each phase is tested", H2))
 A(para("Every phase adds its own tests and must leave the existing ones green. That second "
        "half is the part that usually erodes, so it is stated as a gate rather than a habit.", BODY))
 A(para("The standing regression suite", H2))
@@ -1215,8 +1360,8 @@ A(para("Two habits worth keeping, both learned building what already exists. Wri
        "found so far only appeared when suites ran together.", GOOD))
 
 A(PageBreak())
-A(para("11.5  Validation methods to consider", H2))
-A(para("Section 11.4 says what to test. This says <i>how</i>, and which technique earns its "
+A(para("12.5  Validation methods to consider", H2))
+A(para("Section 12.4 says what to test. This says <i>how</i>, and which technique earns its "
        "place where. Not all of these are worth adopting; they are listed with the judgement "
        "attached rather than as a checklist to complete.", BODY))
 A(table([
@@ -1290,7 +1435,7 @@ for b in buls([
 
 
 A(PageBreak())
-A(para("11.6  Deployment", H2))
+A(para("12.6  Deployment", H2))
 A(para("Both available options are suitable, for different jobs. The recommendation is to use "
        "both rather than choose.", BODY))
 A(table([
@@ -1336,23 +1481,25 @@ A(para("Backups are the one thing to set up before there is anything worth backi
        "backup is a belief, not a backup.", NOTE))
 
 A(PageBreak())
-A(para("12.  Where Things Are", H1))
+A(para("13.  Where Things Are", H1))
 A(table([
     hdr(["Path", "Contents"]),
     [mono("sql/01\u201304"), "Schema, RLS policies, masking views, demo data"],
-    [mono("sql/05, 07, 10, 14, 23"), "The five walkthroughs. Each is readable top to bottom as an argument, and each restores what it changes"],
+    [mono("sql/05, 07, 10, 14, 23, 27"), "The six walkthroughs. Each is readable top to bottom as an argument, and each restores what it changes"],
     [mono("sql/06, 08, 09"), "GoHighLevel bridge, review queue, review actions"],
     [mono("sql/11\u201313"), "Deals, stage history, pipeline policies and seed"],
     [mono("sql/15_auth.sql"), "Credentials and sessions \u2014 see 3.1"],
     [mono("sql/16\u201317, 20"), "The demo dataset: 24 listings, their passwords, and the generated detail and market data"],
     [mono("sql/18\u201319"), "Property detail, market areas, photographs; saved searches"],
     [mono("sql/21\u201322"), "Listing sources, status vocabulary, reconciliation \u2014 see section 8"],
+    [mono("sql/24\u201326"), "Data rights, territories, permitted uses, the compliance register, the fair-housing prohibited list \u2014 see section 9"],
     [mono("sql/99_local_logins.sql"), "Demo passwords. Local development only"],
     [mono("web/"), "The marketplace. " + mono("server.js") + ", " + mono("auth.js") + ", " + mono("nlq.js") + " (the text parser), " + mono("media.js") + " (the illustrations), and " + mono("public/")],
     [mono("web/test/"), "34 tests"],
     [mono("worker/src/"), "The GoHighLevel worker and the listing sweep (" + mono("listings/") + ")"],
     [mono("worker/test/"), "69 tests"],
-    [mono("worker/tools/"), "The webhook capture tool, the nightly sweep entry point, and the listing importer"],
+    [mono("worker/tools/"), "Webhook capture, the nightly sweep, the listing importer, and the data-rights loader"],
+    [mono("docs/data-rights-intake.md"), "The questionnaire that turns signed agreements into enforceable rows"],
     [mono("docs/"), "This document and the GoHighLevel interface specification, with their generators"],
     [mono("README.md"), "The same ground in more technical detail, including the reasoning behind each design decision"],
 ], [1.7*inch, 4.2*inch]))

@@ -42,7 +42,7 @@ FROM information_schema.columns c
 JOIN pg_class cl ON cl.relname = c.table_name
 JOIN pg_namespace ns ON ns.oid = cl.relnamespace AND ns.nspname = c.table_schema
 LEFT JOIN pg_description pgd ON pgd.objoid = cl.oid AND pgd.objsubid = c.ordinal_position
-WHERE c.table_schema IN ('core','ghl','feed')
+WHERE c.table_schema IN ('core','ghl','feed','gov')
   AND cl.relkind = 'r'
 ORDER BY c.table_schema, c.table_name, c.ordinal_position;
 """
@@ -60,7 +60,7 @@ JOIN pg_class cl      ON cl.oid = con.conrelid
 JOIN pg_namespace n   ON n.oid = cl.relnamespace
 JOIN unnest(con.conkey) AS k(attnum) ON true
 JOIN pg_attribute a   ON a.attrelid = cl.oid AND a.attnum = k.attnum
-WHERE n.nspname IN ('core','ghl','feed')
+WHERE n.nspname IN ('core','ghl','feed','gov')
 GROUP BY 1,2,3;
 """
 
@@ -69,7 +69,7 @@ TABLES = """
 SELECT n.nspname AS s, cl.relname AS t, COALESCE(obj_description(cl.oid), '') AS cmt,
        cl.relrowsecurity AS rls
 FROM pg_class cl JOIN pg_namespace n ON n.oid = cl.relnamespace
-WHERE n.nspname IN ('core','ghl','feed') AND cl.relkind = 'r'
+WHERE n.nspname IN ('core','ghl','feed','gov') AND cl.relkind = 'r'
 ORDER BY 1,2;
 """
 
@@ -83,7 +83,7 @@ JOIN pg_class fcl    ON fcl.oid = con.confrelid
 JOIN pg_namespace fn ON fn.oid = fcl.relnamespace
 JOIN unnest(con.conkey) AS k(attnum) ON true
 JOIN pg_attribute a  ON a.attrelid = cl.oid AND a.attnum = k.attnum
-WHERE con.contype = 'f' AND n.nspname IN ('core','ghl','feed');
+WHERE con.contype = 'f' AND n.nspname IN ('core','ghl','feed','gov');
 """
 
 

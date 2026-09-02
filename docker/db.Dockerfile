@@ -36,6 +36,9 @@ COPY sql/19_saved_search.sql     /docker-entrypoint-initdb.d/19_saved_search.sql
 COPY sql/20_demo_detail_seed.sql /docker-entrypoint-initdb.d/20_demo_detail_seed.sql
 COPY sql/21_listing_sync.sql     /docker-entrypoint-initdb.d/21_listing_sync.sql
 COPY sql/22_listing_sync_seed.sql /docker-entrypoint-initdb.d/22_listing_sync_seed.sql
+COPY sql/24_data_governance.sql  /docker-entrypoint-initdb.d/24_data_governance.sql
+COPY sql/25_governance_seed.sql  /docker-entrypoint-initdb.d/25_governance_seed.sql
+COPY sql/26_fairgrove_media.sql  /docker-entrypoint-initdb.d/26_fairgrove_media.sql
 
 # Application roles take their credentials from the environment at first
 # start, not from anything baked in. See the script for why a build-time flag
