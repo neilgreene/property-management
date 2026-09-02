@@ -183,6 +183,34 @@ test('transaction sync mirrors rows and advances the cursor', async (t) => {
   assert.ok(cur[0].cursor_at, 'cursor advanced for the next sweep');
 });
 
+// This suite's whole purpose is to prove the gate OPENS, which means it
+// ends with Marcus's gate open unless it puts it back. It did not, and
+// that quietly destroyed the demo's central contrast -- Marcus and Ruth
+// side by side, identical but for one timestamp -- every time the tests
+// ran. Restoring is not optional for a suite that mutates shared fixture
+// data.
+test('teardown: the demo fixture is exactly as seeded', async (t) => {
+  if (!available) return t.skip('no database');
+  const a = await admin();
+  await a.query('DELETE FROM ghl.fee_agreement');
+  await a.query("DELETE FROM ghl.id_map WHERE ghl_id = 'ghl_c_marcus'");
+  await a.query(
+    'UPDATE core.person SET fee_agreement_signed_at = NULL WHERE person_id = $1', [MARCUS]);
+
+  // Asserted, not assumed. A restore that silently fails is the same bug
+  // one layer down, and this is the fourth time this class of pollution
+  // has cost time on this project.
+  const { rows } = await a.query(
+    `SELECT email, fee_agreement_signed_at IS NOT NULL AS gated
+       FROM core.person WHERE email IN ('marcus@example.com','ruth@example.com')
+      ORDER BY email`);
+  const state = Object.fromEntries(rows.map((r) => [r.email, r.gated]));
+  assert.equal(state['marcus@example.com'], false,
+    'Marcus must end with his gate SHUT -- the demo compares him against Ruth');
+  assert.equal(state['ruth@example.com'], true,
+    'Ruth must end with her gate OPEN');
+});
+
 test.after(async () => {
   if (pool) await pool.end();
   if (webPool) await webPool.end();

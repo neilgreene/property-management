@@ -11,7 +11,8 @@ for f in sql/01_schema.sql sql/02_policies.sql sql/03_views.sql \
          sql/18_property_detail.sql sql/19_saved_search.sql \
          sql/20_demo_detail_seed.sql sql/21_listing_sync.sql \
          sql/22_listing_sync_seed.sql sql/24_data_governance.sql \
-         sql/25_governance_seed.sql sql/26_fairgrove_media.sql; do
+         sql/25_governance_seed.sql sql/26_fairgrove_media.sql \
+         sql/28_intake.sql; do
   echo "loading $f"; psql -d "$DB" -v ON_ERROR_STOP=1 -q -f "$f"
 done
 # Demo logins for both roles. Same file docker-compose loads, so the two
@@ -27,6 +28,7 @@ echo; echo "--- pipeline checks ---"
 psql -d "$DB" -f sql/14_pipeline_tests.sql
 psql -d "$DB" -f sql/23_listing_sync_tests.sql
 psql -d "$DB" -f sql/27_governance_tests.sql
+psql -d "$DB" -f sql/29_intake_tests.sql
 # --- GHL integration worker -------------------------------------------
 # Test-only fixture role; see worker/test/bootstrap.sql for why it exists.
 psql -d "$DB" -q -f worker/test/bootstrap.sql
