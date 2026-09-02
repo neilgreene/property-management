@@ -8,6 +8,10 @@ COPY package.json package-lock.json ./
 RUN npm ci --omit=dev
 
 COPY src ./src
+# The operator entry points. The nightly listing sweep is run as
+#   docker compose run --rm worker node tools/check-listings.js
+# so they have to be in the image, not just in the repository.
+COPY tools ./tools
 
 USER node
 

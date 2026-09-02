@@ -6,7 +6,10 @@ name: Build and publish images
 # build tooling off the production host.
 on:
   push:
-    branches: [main]
+    # This repository's default branch is a working branch, not main, so
+    # building only on main meant no image was ever published for the code
+    # people actually deploy.
+    branches: [main, 'claude/postgres-web-access-jznei0']
     tags: ['v*']
   workflow_dispatch:
 
@@ -47,13 +50,13 @@ jobs:
         uses: docker/metadata-action@v5
         with:
           images: ${{ env.REGISTRY }}/${{ github.repository }}/${{ matrix.name }}
-          # `latest` is pinned to main explicitly rather than via
-          # {{is_default_branch}}. This repository's default branch is a working
-          # branch, not main, so the template evaluated false and the first run
-          # published only an immutable sha- tag -- leaving nothing for a
-          # compose file referencing :latest to pull.
+          # `latest` is pinned by branch name rather than via
+          # {{is_default_branch}}, which evaluated false here and published
+          # only an immutable sha- tag -- leaving nothing for a compose file
+          # referencing :latest to pull. Both branches are listed so that
+          # moving the default later does not silently stop publishing.
           tags: |
-            type=raw,value=latest,enable=${{ github.ref == 'refs/heads/main' }}
+            type=raw,value=latest,enable=${{ github.ref == 'refs/heads/main' || github.ref == 'refs/heads/claude/postgres-web-access-jznei0' }}
             type=ref,event=branch
             type=semver,pattern={{version}}
             type=semver,pattern={{major}}.{{minor}}
