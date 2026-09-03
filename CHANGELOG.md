@@ -35,6 +35,16 @@ date the work was completed.
   variable first.
 
 ### Added
+- `docs/Design-Conflict-Register.pdf` — the KAVADOO design document (v1.0, April
+  2026) compared against the build. **12 conflicts** where the two specify
+  different things, kept separate from **16 gaps** (specified, not built) and
+  **8 unspecified** items (built, not mentioned). A gap needs scheduling; a
+  conflict needs a decision, and mixing them buries the decisions.
+
+  The two that matter most are upstream of the rest: whether the investor is
+  ever shown the address at all, and whether the fee is paid at sign-up or at
+  closing. The document and the build answer both differently, and the second
+  means the gate as built would never open under the document's model.
 - `ux_property_live_address` — a partial unique index on
   `core.property`, so no code path can list the same address twice while it is
   live. Scoped to `draft`, `active`, `coming_soon` and `pending`, because an
