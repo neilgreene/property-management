@@ -51,6 +51,13 @@ date the work was completed.
   leaving Marcus's gate open and silently destroying the demo's central contrast
   on every test run. Now restores the fixture and asserts the restore worked.
 
+- The startup fair-housing check retried for only ~25 seconds. A first boot
+  that loads the whole schema takes longer, so the web container hit its FATAL
+  path and recovered only because of the restart policy. `depends_on:
+  service_healthy` does not help: the postgres entrypoint runs init against a
+  unix socket, so the healthcheck passes while TCP is still refused. Budget is
+  now ~2 minutes.
+
 ### Security
 - The workbook's "Schools Rating" and its composite deal score are kept in the
   raw payload and never promoted to a column. Both are registered fair-housing

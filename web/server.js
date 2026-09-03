@@ -849,7 +849,17 @@ async function assertNoProhibitedFilters() {
     '3F000',   // invalid_schema_name
     '42501',   // insufficient_privilege
   ]);
-  const ATTEMPTS = 15;
+  // Budget deliberately generous. `depends_on: service_healthy` does NOT
+  // settle this: the postgres entrypoint runs its init scripts against a
+  // temporary server on a unix socket, so pg_isready reports healthy while
+  // TCP is still refused, and a first boot that loads the whole schema
+  // takes well over the ~25s an earlier 15-attempt budget allowed. The
+  // container then died on a FATAL and only came back because of the
+  // restart policy -- correct, but alarming and avoidable.
+  //
+  // ~2 minutes covers a cold start with a full schema load. It still
+  // refuses to serve rather than serve unchecked.
+  const ATTEMPTS = 45;
   let banned = null;
 
   for (let i = 1; i <= ATTEMPTS; i++) {
@@ -865,11 +875,11 @@ async function assertNoProhibitedFilters() {
       }
       if (i === ATTEMPTS) {
         console.error(`FATAL: could not reach the database to read the fair-housing `
-          + `register after ${ATTEMPTS} attempts (${e.message}).`);
+          + `register after ${ATTEMPTS} attempts over ~2 minutes (${e.message}).`);
         console.error('Refusing to start: serving unchecked filters is worse than being down.');
         process.exit(1);
       }
-      await new Promise((r) => setTimeout(r, Math.min(250 * i, 2000)));
+      await new Promise((r) => setTimeout(r, Math.min(250 * i, 3000)));
     }
   }
 
