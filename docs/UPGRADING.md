@@ -13,6 +13,28 @@ whether the data in that volume matters.
 
 ---
 
+## Before you run anything: role passwords are set once
+
+`98_role_logins.sh` gives the application roles their passwords **at first
+start only**, from the environment. A role with no password supplied stays
+`NOLOGIN` — which fails loudly at connect time rather than quietly granting
+access, but also means you cannot add it later without re-initialising.
+
+If the first deploy's log said:
+
+```
+98_role_logins: no password for sdi_integration; leaving it NOLOGIN
+```
+
+…then the worker cannot connect, and **workbook loading will not work**. Since
+the upgrade below destroys the volume anyway, this is the moment to fix it: set
+`SDI_INTEGRATION_PASSWORD` in the environment *before* `up -d`.
+
+```bash
+# in /opt/sdi/.env, alongside POSTGRES_PASSWORD and SDI_APP_PASSWORD
+SDI_INTEGRATION_PASSWORD=<pick something>
+```
+
 ## Path A — demo data, nothing to keep (what you want today)
 
 Everything in the deployment is seeded. Destroy the volume and let it
@@ -74,6 +96,54 @@ docker compose -f docker-compose.release.yml exec db psql -U postgres -d sdi \
 ```
 
 `api.security_invariants()` returning **zero rows** is the pass.
+
+## Adding the worker service
+
+A compose file with only `db` and `web` runs the marketplace and the intake
+review screen, but has nowhere to run the nightly listing sweep or the workbook
+loader. Paste this into your compose file alongside the other services:
+
+```yaml
+  worker:
+    image: ghcr.io/neilgreene/property-management/worker:latest
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      PGHOST: db
+      PGDATABASE: ${POSTGRES_DB:-sdi}
+      PGUSER: sdi_integration
+      PGPASSWORD: ${SDI_INTEGRATION_PASSWORD}
+      PORT: "3001"
+    volumes:
+      # So the loader can reach a batch.json written on the host.
+      - ./intake:/intake
+    restart: unless-stopped
+```
+
+`docker-compose.release.yml` in the repository already has it, behind a profile
+so it does not start with the rest of the stack.
+
+## Loading a workbook
+
+Two steps, because reading .xlsm needs a spreadsheet library the worker image
+deliberately does not carry. The conversion happens on the host:
+
+```bash
+# once, on the host
+apt-get install -y python3-openpyxl     # or: pip install openpyxl
+
+mkdir -p /opt/sdi/intake
+python3 tools/workbook-to-json.py /path/to/*.xlsm > /opt/sdi/intake/batch.json
+docker compose run --rm worker node tools/load-intake.js /intake/batch.json \
+  --note "August sourcing"
+```
+
+Then review and release at `/admin.html`, signed in as staff. Nothing reaches
+the marketplace until somebody releases it.
+
+The middle JSON file is the point: open it and read it before anything touches
+the database.
 
 ## The nightly listing sweep
 
