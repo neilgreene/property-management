@@ -31,9 +31,11 @@ date the work was completed.
   `api.release_batch()`; views `api.intake_batch` and `api.intake_row`.
 - `docs/Feature-Test-Plan.pdf` — 23 pages of acceptance tests, including a
   section whose every test is expected to be refused.
-- `docs/DEPLOY-RUNBOOK.md` — the numbered deployment procedure, with the
-  expected output at each step, verified against the live host rather than
-  written from the compose file.
+- `docs/Deployment-Runbook.pdf` and `docs/DEPLOY-RUNBOOK.md` — the numbered
+  deployment procedure, with the expected output at each step, verified against
+  the live host rather than written from the compose file. Includes a
+  troubleshooting table mapping each symptom seen during deployment to its
+  actual cause.
 - `VERSION`, `CHANGELOG.md`, and System Documentation section 15,
   *Build and Release*. Both PDFs read the version and change log at generation
   time, so they cannot describe a release history the repository does not have.
