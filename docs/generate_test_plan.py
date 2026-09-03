@@ -22,6 +22,10 @@ from reportlab.platypus.tableofcontents import TableOfContents
 
 OUT = "docs/Feature-Test-Plan.pdf"
 
+with open(os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+                       "VERSION")) as _fh:
+    VERSION = _fh.read().strip()
+
 TID  = S("tid", fontName="Helvetica-Bold", fontSize=9.5, leading=13, textColor=ACCENT,
          spaceBefore=11, spaceAfter=3)
 PROV = S("prov", fontName="Helvetica-Oblique", fontSize=8.5, leading=11.5,
@@ -52,6 +56,7 @@ A(para("Feature Test Plan", CS))
 A(para("What to click, what should happen, and what each result proves", CS))
 A(Spacer(1, 0.5*inch))
 A(table([
+    ["Release", mono("v" + VERSION) + " \u2014 record this on the results sheet"],
     ["Scope", "The marketplace, the address gate, and the controls behind them"],
     ["Audience", "Anyone with a browser. No development experience assumed"],
     ["Duration", "About an hour for the browser tests; 15 more for the database checks"],

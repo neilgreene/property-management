@@ -17,6 +17,7 @@ from reportlab.platypus import (Flowable, PageBreak, Paragraph, Preformatted, Sp
                                 Table, TableStyle)
 from reportlab.platypus.tableofcontents import TableOfContents
 import json
+import re
 
 # The shared look, so this document and the test plan cannot drift apart.
 from _style import (BODY, H1, H2, BUL, CODE, CELL, CELLB, CAP, NOTE, GOOD, CT, CS,
@@ -25,6 +26,13 @@ from _style import (BODY, H1, H2, BUL, CODE, CELL, CELLB, CAP, NOTE, GOOD, CT, C
                     para, mono, hdr, buls, table, build_doc)
 
 OUT = "docs/System-Documentation.pdf"
+
+_here = os.path.dirname(os.path.abspath(__file__))
+_root = os.path.dirname(_here)
+with open(os.path.join(_root, "VERSION")) as _fh:
+    VERSION = _fh.read().strip()
+with open(os.path.join(_root, "CHANGELOG.md")) as _fh:
+    CHANGELOG = _fh.read()
 
 class CoverMark(Flowable):
     """A drawn cover illustration, not a stock photograph.
@@ -271,6 +279,7 @@ A(para("System Documentation", CS))
 A(para("What has been built, how to run it, and who can see what", CS))
 A(Spacer(1, 0.28*inch))
 A(table([
+    ["Release", mono("v" + VERSION)],
     ["Repository", mono("github.com/neilgreene/property-management")],
     ["Branch", mono("main")],
     ["Commits", "13"],
@@ -1546,6 +1555,105 @@ A(para("There is no INSTALL file; section 2 of this document and the README's op
 # the second lays out the contents page with those numbers. A single pass
 # would print a contents page with every entry on page 0.
 
+
+# ----------------------------------------------------------------- 15
+A(PageBreak())
+A(para("15.  Build and Release", H1))
+A(para("How the three container images are produced, how a release is cut, and "
+       "what a deployment actually pulls. The short version: nothing is built on "
+       "a host. Every image is built by CI from a tagged commit and pulled by "
+       "tag \u2014 which is what makes the stack deployable to Swarm, which cannot "
+       "build at all, and keeps build tooling off the machine serving traffic.", BODY))
+
+A(para("15.1  What gets built", H2))
+A(table([
+    hdr(["Image", "Base", "Built from", "Contains"]),
+    [mono("db"), mono("postgres:16"), mono("docker/db.Dockerfile"),
+     "Every schema file, copied into " + mono("/docker-entrypoint-initdb.d/") + ", plus the role-login script. The test walkthroughs are deliberately NOT copied"],
+    [mono("web"), mono("node:22-alpine"), mono("web/Dockerfile"),
+     mono("server.js") + ", " + mono("auth.js") + ", " + mono("media.js") + ", " + mono("nlq.js") + " and " + mono("public/")],
+    [mono("worker"), mono("node:22-alpine"), mono("worker/Dockerfile"),
+     mono("src/") + " and " + mono("tools/") + " \u2014 the operator entry points have to be inside the image, not merely in the repository"],
+], [0.6*inch, 1.15*inch, 1.55*inch, 2.6*inch]))
+A(Spacer(1, 5))
+A(para("One runtime dependency across both Node images: " + mono("pg") + ". "
+       "Installed with " + mono("npm ci") + " rather than " + mono("npm install") +
+       ", so the build is reproducible and fails loudly if the lockfile and the "
+       "manifest disagree. Both run as the unprivileged " + mono("node") + " user.", BODY))
+A(para("The " + mono("web") + " image names each module it copies rather than "
+       "globbing. That is not fussiness: an earlier version listed only two of "
+       "the four, which produced an image that passed every test and crashed on "
+       "its first require \u2014 a break invisible outside a container build.", NOTE))
+
+A(para("15.2  Cutting a release", H2))
+A(Preformatted("# 1. update the release level and its entry\n"
+               "echo 0.10.0 > VERSION\n"
+               "$EDITOR CHANGELOG.md\n"
+               "python3 docs/extract_schema.py            # if the schema changed\n"
+               "python3 docs/generate_system_documentation.py\n"
+               "python3 docs/generate_test_plan.py\n\n"
+               "# 2. commit, tag, push\n"
+               "git commit -am \"Release 0.10.0\"\n"
+               "git tag -a v0.10.0 -m \"0.10.0\"\n"
+               "git push && git push --tags", CODE))
+A(para("The push builds three images; the tag builds them again carrying the "
+       "version. " + mono("VERSION") + " and " + mono("CHANGELOG.md") + " are read "
+       "by this document at generation time, so the release level on the cover and "
+       "the change log in Appendix B cannot disagree with the repository.", GOOD))
+
+A(para("15.3  What CI produces", H2))
+A(table([
+    hdr(["Tag", "When", "Use it for"]),
+    [mono("latest"), "Every push to " + mono("main") + " or the working branch", "The demo. It moves"],
+    [mono("v0.10.0") + ", " + mono("0.10"), "A " + mono("v*") + " tag", "Anything real. Pin it"],
+    [mono("sha-&lt;full sha&gt;"), "Every build", "Reproducing an exact deployment"],
+    ["Branch name", "Every branch build", "Testing a branch before it merges"],
+], [1.35*inch, 2.05*inch, 2.5*inch]))
+A(Spacer(1, 5))
+A(para(mono("docker-compose.release.yml") + " reads " + mono("SDI_VERSION") +
+       " and defaults to " + mono("latest") + ". Set it to a release tag for "
+       "anything that matters:", BODY))
+A(Preformatted("SDI_VERSION=v" + VERSION + " docker compose -f docker-compose.release.yml up -d", CODE))
+A(para("The workflow pins " + mono("latest") + " to two named branches rather than "
+       "using the " + mono("is_default_branch") + " template. This repository's "
+       "default branch is a working branch, so that template evaluated false and the "
+       "first release published only an immutable " + mono("sha-") + " tag \u2014 leaving "
+       "nothing for a compose file referencing " + mono("latest") + " to pull, which "
+       "looked exactly like a permissions problem and was not.", NOTE))
+
+A(para("15.4  Building locally", H2))
+A(para("Only needed to test a Dockerfile change; the deployment never does this.", BODY))
+A(Preformatted("docker compose build                    # all three, from source\n"
+               "docker compose up -d\n\n"
+               "./db-rebuild.sh                         # database only, no Docker\n"
+               "(cd web && npm test) && (cd worker && npm test)", CODE))
+A(table([
+    hdr(["Script", "Does"]),
+    [mono("run.sh"), "Loads every schema file into a local PostgreSQL, then runs all seven walkthroughs"],
+    [mono("db-rebuild.sh"), "Drops and reloads the database, including the test fixture role that is easy to forget"],
+    [mono("docs/extract_schema.py"), "Snapshots the live schema to " + mono("docs/schema-snapshot.json") + " for Appendix A"],
+], [1.55*inch, 4.35*inch]))
+A(Spacer(1, 5))
+A(para("<b>Adding a schema file means editing three lists</b>, and missing one "
+       "produces a failure far from its cause: " + mono("run.sh") + " for local "
+       "development, " + mono("db-rebuild.sh") + " for a fast rebuild, and " +
+       mono("docker/db.Dockerfile") + " for the image. Test walkthroughs go in the "
+       "first two only.", NOTE))
+
+A(para("15.5  Release checklist", H2))
+A(table([
+    hdr(["#", "Check", "How"]),
+    ["1", "Every test passes", mono("npm test") + " in " + mono("web/") + " and " + mono("worker/") + "; the seven SQL walkthroughs"],
+    ["2", "No standing invariant is violated", mono("SELECT * FROM api.security_invariants()") + " returns zero rows"],
+    ["3", "A clean rebuild works", mono("./db-rebuild.sh") + " from nothing, not an incremental patch"],
+    ["4", "The demo fixture is intact", "Marcus's gate shut, Ruth's open. A test suite that leaves it otherwise has broken the demo"],
+    ["5", "New schema files are in all three lists", "See 15.4"],
+    ["6", "The schema snapshot is current", mono("python3 docs/extract_schema.py")],
+    ["7", "Both PDFs regenerated", "They read " + mono("VERSION") + " and " + mono("CHANGELOG.md") + " at generation time"],
+    ["8", "The change log entry is written", mono("CHANGELOG.md") + ", before the tag"],
+], [0.3*inch, 1.9*inch, 3.7*inch]))
+
+
 # ------------------------------------------------------------- Appendix A
 A(PageBreak())
 A(para("Appendix A.  Table Definitions", H1))
@@ -1605,6 +1713,68 @@ for tbl in SCHEMA:
             Paragraph(extra, SCELL),
         ])
     A(table(rows, [1.55*inch, 1.1*inch, 0.55*inch, 0.5*inch, 2.2*inch]))
+
+# ------------------------------------------------------------- Appendix B
+A(PageBreak())
+A(para("Appendix B.  Change Log", H1))
+A(para("Read from " + mono("CHANGELOG.md") + " at generation time, so this document "
+       "cannot describe a release history the repository does not have. The current "
+       "release level is " + mono("v" + VERSION) + ", from " + mono("VERSION") + ".", BODY))
+A(para("Versions are 0.x deliberately: nothing here has run against a production "
+       "GoHighLevel account or a live MLS feed, so the interfaces are not stable "
+       "enough to promise compatibility. The first release that has is 1.0.0.", NOTE))
+
+_CL_H2  = S("clh2", fontName="Helvetica-Bold", fontSize=12, leading=16, textColor=INK,
+            spaceBefore=15, spaceAfter=2)
+_CL_SUB = S("clsub", fontName="Helvetica-Oblique", fontSize=9.5, leading=13,
+            textColor=MUTED, spaceAfter=6)
+_CL_H3  = S("clh3", fontName="Helvetica-Bold", fontSize=9, leading=12, textColor=ACCENT,
+            spaceBefore=8, spaceAfter=3)
+_CL_LI  = S("clli", parent=BODY, fontSize=9, leading=12.4, leftIndent=13,
+            bulletIndent=3, spaceAfter=3)
+
+def _inline(t):
+    """Markdown emphasis and code spans -> reportlab markup.
+
+    Escapes first, then substitutes, so a literal < in the change log
+    cannot become markup and a markdown link cannot smuggle one.
+    """
+    t = t.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+    t = re.sub(r"\[([^\]]+)\]\([^)]*\)", r"\1", t)      # [text](url) -> text
+    t = re.sub(r"`([^`]+)`", r"<font face='Courier'>\1</font>", t)
+    t = re.sub(r"\*\*([^*]+)\*\*", r"<b>\1</b>", t)
+    t = re.sub(r"(?<!\*)\*([^*]+)\*(?!\*)", r"<i>\1</i>", t)
+    return t
+
+_started = False
+_buf = []
+def _flush():
+    global _buf
+    if _buf:
+        A(para(" ".join(_buf), _CL_LI))
+        _buf = []
+
+for _line in CHANGELOG.splitlines():
+    _t = _line.rstrip()
+    if _t.startswith("## "):
+        _flush(); _started = True
+        _bits = _t[3:].split(" \u2014 ")
+        A(para(_bits[0].strip(), _CL_H2))
+        if len(_bits) > 1:
+            A(para(_bits[1].strip(), _CL_SUB))
+    elif not _started:
+        continue
+    elif _t.startswith("### "):
+        _flush(); A(para(_t[4:].strip(), _CL_H3))
+    elif _t.startswith("**") and _t.endswith("**"):
+        _flush(); A(para(_inline(_t), BODY))
+    elif _t.startswith("- "):
+        _flush(); _buf = ["&bull;&nbsp;&nbsp;" + _inline(_t[2:])]
+    elif _t.startswith("  ") and _t.strip() and _buf:
+        _buf.append(_inline(_t.strip()))
+    elif not _t.strip():
+        _flush()
+_flush()
 
 doc.multiBuild(E)
 print("wrote", OUT)
