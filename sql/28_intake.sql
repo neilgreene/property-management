@@ -144,6 +144,23 @@ COMMENT ON TABLE intake.zip_centroid IS
     'is only as accurate as this table.';
 
 -- ---------------------------------------------------------------------
+-- The structural guard
+--
+-- Re-validating at release closes the path this file owns. It does not
+-- close the others -- a manual INSERT, the importer, a future feature --
+-- and "the same house listed twice" is a mistake the marketplace should
+-- be incapable of rather than merely careful about.
+--
+-- Scoped to live statuses on purpose. The same address genuinely recurs
+-- across years as it sells and is listed again, so sold and withdrawn
+-- rows are excluded; only one LIVE listing per address per brand-agnostic
+-- address string is allowed.
+-- ---------------------------------------------------------------------
+CREATE UNIQUE INDEX ux_property_live_address ON core.property
+    (lower(btrim(street_address)), lower(btrim(city)), state, coalesce(unit,''))
+    WHERE status IN ('draft','active','coming_soon','pending');
+
+-- ---------------------------------------------------------------------
 -- Validation
 --
 -- Runs over the parsed columns, never over `raw`. Errors block release;
@@ -306,6 +323,12 @@ SET search_path = intake, sec, pg_temp
 AS $fn$
 DECLARE ids uuid[];
 BEGIN
+  -- Re-validate before approving, not just before releasing. A row that
+  -- was clean when the file was loaded may not be clean now -- most often
+  -- because the same address was released from another batch since -- and
+  -- refusing it at approval is more honest than approving it and refusing
+  -- it one click later.
+  PERFORM intake.validate_batch(p_batch_id);
   SELECT array_agg(row_id) INTO ids FROM intake.row
    WHERE batch_id = p_batch_id AND status = 'pending';
   IF ids IS NULL THEN RETURN 0; END IF;
@@ -336,7 +359,7 @@ AS $fn$
 -- listing_ref silently shadows core.property.listing_ref inside every
 -- query in this body.
 DECLARE v_actor uuid := sec.actor_id(); r intake.row%ROWTYPE; v_pid uuid; v_ref text;
-        v_right text;
+        v_right text; v_row_id uuid;
 BEGIN
   IF v_actor IS NULL OR NOT sec.is_internal() THEN
     RAISE EXCEPTION 'staff only' USING ERRCODE = '42501';
@@ -344,6 +367,31 @@ BEGIN
 
   FOR r IN SELECT * FROM intake.row WHERE intake.row.row_id = ANY(p_row_ids) LOOP
     SELECT b.right_id INTO v_right FROM intake.batch b WHERE b.batch_id = r.batch_id;
+
+    -- Re-validate NOW, not only at load time. Approval and release are
+    -- separate acts and the world moves in the gap between them; the most
+    -- likely change is that this exact address was released from another
+    -- batch in the meantime. Validating only at load let two loads of the
+    -- same workbook produce four listings for two addresses.
+    --
+    -- The row id goes into its own variable first. Writing
+    --   SELECT * INTO r FROM intake.row WHERE row_id = r.row_id
+    -- self-references the record being overwritten: r is cleared as the
+    -- assignment begins, the WHERE matches nothing, r comes back NULL, and
+    -- every test on it is NULL rather than false -- so the guard below
+    -- would silently never fire.
+    v_row_id := r.row_id;
+    PERFORM intake.validate(v_row_id);
+    SELECT * INTO r FROM intake.row t WHERE t.row_id = v_row_id;
+
+    IF r.status = 'invalid' THEN
+      out_row_id := v_row_id; out_listing_ref := NULL; out_property_id := NULL;
+      outcome := 'skipped: ' || coalesce(
+        (SELECT string_agg(e->>'message', '; ') FROM jsonb_array_elements(r.problems) e
+          WHERE e->>'level' = 'error'), 'blocking validation error');
+      RETURN NEXT; CONTINUE;
+    END IF;
+
     IF r.status <> 'approved' THEN
       out_row_id := r.row_id; out_listing_ref := NULL; out_property_id := NULL;
       outcome := format('skipped: status is %s, not approved', r.status);

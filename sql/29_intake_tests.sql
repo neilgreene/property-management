@@ -125,6 +125,37 @@ SELECT row_number, status, (SELECT string_agg(p->>'message','; ')
 FROM intake.row WHERE batch_id='bbbbbbb1-0000-0000-0000-000000000001' AND row_number=1;
 
 \echo ''
+\echo '=== 7b. THE REGRESSION. Loading the same workbook twice and approving'
+\echo '===     both batches before releasing either must not create the'
+\echo '===     address twice. Validation runs at LOAD; approval and release'
+\echo '===     are separate acts and the world moves in between.'
+COMMIT;
+-- Back to the owner: staff hold SELECT on intake, not INSERT. Loading is
+-- the worker's job, and this fixture stands in for it.
+RESET ROLE;
+BEGIN;
+INSERT INTO intake.batch (batch_id, source_file, note, right_id)
+VALUES ('bbbbbbb1-0000-0000-0000-000000000002','test-again.xlsm','second load','SDI-WORKBOOK');
+INSERT INTO intake.row
+ (batch_id, row_number, raw, street_address, city, state, zip, property_type,
+  beds, baths, sqft, year_built, lat, lng, list_price, gross_rent_annual,
+  opex_annual, hoa_annual, market_rent_monthly, status)
+VALUES ('bbbbbbb1-0000-0000-0000-000000000002',1,'{"note":"dup load"}'::jsonb,
+  '1 Clean St','Testville','WA','99001','Single Family',3,2,1500,2001,
+  47.5,-117.6, 200000, 24000, 8000, 0, 2000, 'approved');
+COMMIT;
+RESET ROLE; SET ROLE sdi_admin;
+BEGIN;
+SELECT set_config('app.actor_id','77777777-7777-7777-7777-777777777777',true),
+       set_config('app.brand','BRAND_A',true) \g /dev/null
+SELECT coalesce(out_listing_ref,'-') AS ref, outcome
+  FROM api.release_batch('bbbbbbb1-0000-0000-0000-000000000002');
+\echo '===     ...and only ONE live listing exists for that address.'
+SELECT count(*) AS live_listings_at_that_address FROM api.property_detail
+ WHERE street_address = '1 Clean St';
+COMMIT;
+
+\echo ''
 \echo '=== 8. An investor sees it like any other listing -- gated.'
 COMMIT;
 RESET ROLE; SET ROLE sdi_investor;
@@ -142,7 +173,8 @@ BEGIN;
 -- Order matters: intake.row holds a foreign key to the property it
 -- released, so the batch goes first. Deleting the property first fails,
 -- aborts the transaction, and leaves BOTH behind.
-DELETE FROM intake.batch WHERE batch_id='bbbbbbb1-0000-0000-0000-000000000001';
+DELETE FROM intake.batch WHERE batch_id IN
+  ('bbbbbbb1-0000-0000-0000-000000000001','bbbbbbb1-0000-0000-0000-000000000002');
 DELETE FROM gov.property_provenance WHERE property_id IN
   (SELECT property_id FROM core.property WHERE street_address='1 Clean St');
 DELETE FROM core.property_brand WHERE property_id IN

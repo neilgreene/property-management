@@ -12,6 +12,40 @@ date the work was completed.
 
 ---
 
+## 0.9.2 — 2026-09-03
+
+**A duplicate-listing bug, found by loading the same workbook twice.**
+
+### Fixed
+- Loading a workbook twice and releasing both batches created **four listings
+  for two addresses**. Validation ran at load time only, so a row that was
+  clean when the file arrived stayed "clean" through approval and release even
+  after the same address had been released from another batch.
+
+  `api.release_intake_rows()` and `api.approve_batch()` now re-validate
+  immediately before acting. Approval of a stale duplicate is refused up
+  front, and a row approved before the conflict appeared is skipped at release
+  with the reason rather than raising.
+- The first attempt at that fix silently did nothing. `SELECT * INTO r FROM
+  intake.row WHERE row_id = r.row_id` self-references the record being
+  overwritten: `r` is cleared as the assignment begins, the `WHERE` matches
+  nothing, `r` comes back NULL, and every test on it is NULL rather than
+  false — so the guard never fired and the insert proceeded into a constraint
+  violation instead of a clean skip. The row id now goes into its own
+  variable first.
+
+### Added
+- `ux_property_live_address` — a partial unique index on
+  `core.property`, so no code path can list the same address twice while it is
+  live. Scoped to `draft`, `active`, `coming_soon` and `pending`, because an
+  address genuinely recurs across years as it sells and is relisted.
+  Re-validating closes the path the intake code owns; the index closes the
+  others.
+- A regression walkthrough in `29_intake_tests.sql` covering exactly the
+  sequence that produced the duplicates.
+
+---
+
 ## 0.9.1 — 2026-09-03
 
 **Fixes found deploying 0.9.0.**
