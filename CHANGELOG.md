@@ -12,6 +12,34 @@ date the work was completed.
 
 ---
 
+## 0.9.1 — 2026-09-03
+
+**Fixes found deploying 0.9.0.**
+
+### Fixed
+- The intake loader failed with `permission denied for schema api`. The role
+  it runs as, `sdi_integration`, was granted SELECT on the two views it reads
+  but never `USAGE` on the schema holding them, which is a no-op that fails at
+  run time. Same for `gov`, one error later.
+
+  It passed every local test because every local test loaded as the test
+  fixture role, which already had both. **A grant is only real when the role
+  that uses it is the role that was tested** — so the loader is now exercised
+  as `sdi_integration` against a freshly rebuilt database.
+- The start-up fair-housing check retried for only ~25 seconds. A first boot
+  that loads the whole schema takes longer, so the web container hit its FATAL
+  path and recovered only because of the restart policy. `depends_on:
+  service_healthy` does not help: the postgres entrypoint runs init against a
+  unix socket, so the healthcheck passes while TCP is still refused. Budget is
+  now ~2 minutes.
+
+### Added
+- `docs/Deployment-Runbook.pdf` — the numbered procedure, with the expected
+  output at each step and a troubleshooting table built from what actually went
+  wrong on the host.
+
+---
+
 ## 0.9.0 — 2026-09-02
 
 **Spreadsheet intake, the review queue, and a test plan.**
@@ -58,13 +86,6 @@ date the work was completed.
 - Worker integration tests proved the fee gate *opens* and never shut it again,
   leaving Marcus's gate open and silently destroying the demo's central contrast
   on every test run. Now restores the fixture and asserts the restore worked.
-
-- The startup fair-housing check retried for only ~25 seconds. A first boot
-  that loads the whole schema takes longer, so the web container hit its FATAL
-  path and recovered only because of the restart policy. `depends_on:
-  service_healthy` does not help: the postgres entrypoint runs init against a
-  unix socket, so the healthcheck passes while TCP is still refused. Budget is
-  now ~2 minutes.
 
 ### Security
 - The workbook's "Schools Rating" and its composite deal score are kept in the

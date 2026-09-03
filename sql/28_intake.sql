@@ -461,7 +461,21 @@ ORDER BY batch_id, row_number;
 GRANT SELECT ON ALL TABLES IN SCHEMA intake TO sdi_admin;
 GRANT SELECT, INSERT, UPDATE ON ALL TABLES IN SCHEMA intake TO sdi_integration;
 GRANT USAGE ON SCHEMA intake TO sdi_integration;
+-- The loader runs as sdi_integration and reports through these views, so it
+-- needs USAGE on the schema as well as SELECT on the views. Granting the
+-- table without the schema is a no-op that fails at run time with
+-- "permission denied for schema api" -- which is what shipped in 0.9.0,
+-- because every local test loaded as the test fixture role, which already
+-- had it. A grant is only real when the role that uses it is the role that
+-- was tested.
+GRANT USAGE  ON SCHEMA api TO sdi_integration;
 GRANT SELECT ON api.intake_batch, api.intake_row TO sdi_admin, sdi_integration;
+
+-- The loader also reads the batch's data right, to say up front that
+-- releasing under an unreviewed instrument will publish with a warning.
+-- Read-only, and only that table.
+GRANT USAGE  ON SCHEMA gov TO sdi_integration;
+GRANT SELECT ON gov.data_right TO sdi_integration;
 
 REVOKE ALL ON FUNCTION api.review_intake_rows(uuid[], text, text) FROM PUBLIC;
 REVOKE ALL ON FUNCTION api.approve_batch(uuid, text) FROM PUBLIC;
