@@ -12,6 +12,37 @@ date the work was completed.
 
 ---
 
+## 0.9.7 — 2026-09-04
+
+**The media lifecycle, written down before it is built.**
+
+### Added
+- `docs/Property-Media-Lifecycle.pdf` (13pp) — the operational requirements for
+  listing photography: how a file arrives, how it acquires meaning, how it is
+  maintained, and when it is destroyed. Section 9 states plainly which parts
+  exist today, so a requirements document is not mistaken for a status report.
+
+  The parts worth reading first:
+
+  - **§2.2** — the file's name on disk *is* its `media_id`, so anyone holding a
+    file can identify it with one query. That is the answer to "which files do I
+    find when I have to do maintenance."
+  - **§3.2** — a phone photograph carries GPS coordinates in EXIF. Re-encoding
+    on ingest is what stops the exact address sitting inside a file the platform
+    exists to gate. It has to be on the share path, not only the browser path.
+  - **§6.3** — a purge is not complete when the file is gone: thumbnails, caches
+    and backups all outlive it. The policy has to say what it does about backups,
+    because "we deleted it" and "it is gone" are different claims.
+  - **§6.4** — legal hold beats retention, or a well-behaved cleanup job destroys
+    exactly the evidence somebody later needs.
+
+### Fixed
+- The document list in `README.md` was stale: it named two of the six documents,
+  gave the wrong page count for one, pointed at a renamed runbook, and said 63
+  worker tests when there are 70.
+
+---
+
 ## 0.9.6 — 2026-09-04
 
 **A hovered map pin you can read.**

@@ -177,11 +177,15 @@ web/public/index.html        demo UI
 worker/src/                  GoHighLevel integration worker
 worker/src/migrate/          EspoCRM -> GHL load passes
 worker/src/index.js          the worker daemon: HTTP surface + loops
-worker/test/                 63 tests (unit + end-to-end against the database)
+worker/test/                 70 tests (unit + end-to-end against the database)
+docs/System-Documentation.pdf          what was built, and why, 73pp
+docs/Feature-Test-Plan.pdf             numbered walkthrough of every feature, 23pp
 docs/GHL-Interface-Specification.pdf   the GHL API contract, 17pp
-docs/System-Documentation.pdf          what was built + next steps, 27pp
+docs/Property-Media-Lifecycle.pdf      photography: ingest to purge, 13pp
+docs/Design-Conflict-Register.pdf      where the design doc and the build differ, 10pp
+docs/Deployment-Runbook.pdf            deploy, upgrade, load a batch, 9pp
 docs/schema-snapshot.json              the schema, read from a live database
-docs/DEPLOYMENT.md                     Portainer and Docker deployment runbook
+docs/DEPLOY-RUNBOOK.md                 the runbook in markdown
 ```
 
 ## The model
