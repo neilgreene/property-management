@@ -784,6 +784,169 @@ test('the running build says which build it is', async (t) => {
     + 'chasing the wrong bug');
 });
 
+// ---- sharing ---------------------------------------------------------
+//
+// READING THE PDF PROPERLY MATTERS HERE. pdfkit compresses its content
+// streams, so searching the raw bytes for an address finds nothing whether
+// the address is on the page or not -- which would make the central
+// assertion of this whole feature pass by accident. So the streams are
+// inflated and the text operators read, and there is a test below that
+// checks this extractor can see an address when one IS present. A masking
+// test that cannot detect the unmasked case proves nothing.
+function pdfText(buf) {
+  const zlib = require('zlib');
+  let out = '';
+  let i = 0;
+  while ((i = buf.indexOf('stream', i)) !== -1) {
+    if (buf.slice(i - 3, i).toString() === 'end') { i += 6; continue; }
+    let start = i + 6;
+    if (buf[start] === 0x0d) start++;
+    if (buf[start] === 0x0a) start++;
+    const end = buf.indexOf('endstream', start);
+    if (end === -1) break;
+    let text = null;
+    try { text = zlib.inflateSync(buf.slice(start, end)).toString('latin1'); }
+    catch { text = ''; }
+    // pdfkit writes its glyphs as HEX strings inside TJ arrays --
+    // [<534449> 0] TJ is "SDI". Reading for parenthesised literals instead
+    // silently returned nothing, which made the masking assertion pass
+    // whether or not the address was on the page.
+    for (const m of text.matchAll(/<([0-9A-Fa-f]+)>/g)) {
+      const h = m[1];
+      if (h.length % 2) continue;
+      out += Buffer.from(h, 'hex').toString('latin1');
+    }
+    // and literal strings, for anything not written that way
+    for (const m of text.matchAll(/\(((?:\\.|[^\\()])*)\)\s*T[jJ]/g)) {
+      out += m[1].replace(/\\([()\\])/g, '$1') + ' ';
+    }
+    i = end + 9;
+  }
+  return out;
+}
+
+
+test('a shared document is masked by default, for everybody', async (t) => {
+  if (!available) return t.skip('no server');
+  const cookie = await staffCookie();
+  const list = await (await fetch(`${base}/api/admin/properties?q=SDI-1013`,
+    { headers: { cookie } })).json();
+  const id = list.rows[0].property_id;
+  const addr = list.rows[0].street_address;
+  assert.ok(addr, 'the fixture has an address to withhold');
+
+  // Staff CAN see the address, and still get a masked document unless they
+  // ask. The default is not "masked for people who cannot see it" -- it is
+  // masked for everyone, because the common case is sending it onward.
+  const r = await fetch(`${base}/api/share/${id}.pdf?to=A%20prospect`,
+    { headers: { cookie } });
+  assert.equal(r.status, 200);
+  assert.equal(r.headers.get('content-type'), 'application/pdf');
+  assert.match(r.headers.get('cache-control'), /no-store/);
+  const raw = Buffer.from(await r.arrayBuffer());
+  assert.equal(raw.slice(0, 5).toString(), '%PDF-');
+  const masked = pdfText(raw);
+  assert.ok(masked.length > 200, 'the extractor read the document');
+  assert.ok(!masked.includes(addr),
+    'A DEFAULT SHARE CARRIED THE STREET ADDRESS — masked is the default for '
+    + 'every caller including staff, or the first use on a prospect leaks');
+  assert.ok(masked.includes('WITHHELD'), 'and it says so on its face');
+  // The numbers are never the thing withheld -- an investor decides on the
+  // cash flow and only then signs for the identity of the house.
+  assert.ok(/NET OPERATING INCOME|Net operating income/i.test(masked),
+    'a masked document still carries the full financial detail');
+});
+
+test('an unmask request is answered by the database, not honoured', async (t) => {
+  if (!available) return t.skip('no server');
+  const staff = await staffCookie();
+  const list = await (await fetch(`${base}/api/admin/properties?q=SDI-1013`,
+    { headers: { cookie: staff } })).json();
+  const id = list.rows[0].property_id;
+  const addr = list.rows[0].street_address;
+
+  // Staff asked, and may, so they get it -- with the document saying plainly
+  // what it contains.
+  const yes = await fetch(`${base}/api/share/${id}.pdf?unmask=1&to=Ruth%20Okonkwo`,
+    { headers: { cookie: staff } });
+  assert.equal(yes.status, 200);
+  const full = pdfText(Buffer.from(await yes.arrayBuffer()));
+  assert.ok(full.includes(addr),
+    'a permitted unmask releases the address -- and this assertion passing is '
+    + 'what proves the masked test above is not passing vacuously');
+  assert.ok(full.includes('RELEASED'), 'and the document is marked as carrying it');
+
+  // An anonymous caller asks for exactly the same thing. The query string is
+  // identical; the answer is not, because the answer is not the query
+  // string's to give.
+  const no = await fetch(`${base}/api/share/${id}.pdf?unmask=1&to=Anyone`);
+  assert.equal(no.status, 200, 'the masked document is still produced');
+  const denied = pdfText(Buffer.from(await no.arrayBuffer()));
+  assert.ok(!denied.includes(addr),
+    'UNMASK=1 OPENED THE GATE FOR AN UNAUTHORISED CALLER — the parameter is a '
+    + 'request and sec.can_see_address() is the answer; a checkbox must never '
+    + 'be the thing that decides');
+  assert.ok(denied.includes('WITHHELD'));
+});
+
+test('every generated document is logged, with who and to whom', async (t) => {
+  if (!available) return t.skip('no server');
+  const cookie = await staffCookie();
+  const list = await (await fetch(`${base}/api/admin/properties?q=SDI-1020`,
+    { headers: { cookie } })).json();
+  const id = list.rows[0].property_id;
+  const d = await db();
+  const before = Number((await d.query(
+    'SELECT count(*) n FROM core.share_event WHERE property_id = $1', [id])).rows[0].n);
+
+  await fetch(`${base}/api/share/${id}.pdf?to=Marcus%20Pell%20at%20Northgate`,
+    { headers: { cookie } });
+  await fetch(`${base}/api/share/${id}.pdf?unmask=1&to=Ines%20Duarte`,
+    { headers: { cookie } });
+
+  const rows = (await d.query(
+    `SELECT unmasked, recipient, shared_by FROM core.share_event
+      WHERE property_id = $1 ORDER BY created_at`, [id])).rows.slice(before);
+  assert.equal(rows.length, 2, 'one row per document, not one per property');
+  assert.equal(rows[0].unmasked, false);
+  assert.match(rows[0].recipient, /Northgate/, 'who it went to, as given');
+  assert.equal(rows[1].unmasked, true, 'and whether it carried the address');
+  assert.ok(rows[0].shared_by, 'and who made it');
+
+  await d.query('DELETE FROM core.share_event WHERE property_id = $1', [id]);
+});
+
+test('a share without a recipient is refused', async (t) => {
+  if (!available) return t.skip('no server');
+  const cookie = await staffCookie();
+  const list = await (await fetch(`${base}/api/admin/properties?q=SDI-1013`,
+    { headers: { cookie } })).json();
+  const id = list.rows[0].property_id;
+  // "Who was it sent to" is the question the log exists to answer, so a
+  // document that cannot answer it is not generated at all.
+  const r = await fetch(`${base}/api/share/${id}.pdf?to=`, { headers: { cookie } });
+  assert.equal(r.status, 400);
+  assert.match((await r.json()).error, /say who this is going to/);
+  const r2 = await fetch(`${base}/api/share/${id}.pdf?to=..`, { headers: { cookie } });
+  assert.equal(r2.status, 400, 'and a placeholder is not a recipient');
+});
+
+test('the unmask control is offered only where it would be honoured', async (t) => {
+  if (!available) return t.skip('no server');
+  const cookie = await staffCookie();
+  const list = await (await fetch(`${base}/api/admin/properties?q=SDI-1013`,
+    { headers: { cookie } })).json();
+  const id = list.rows[0].property_id;
+
+  const asStaff = await (await fetch(`${base}/api/share-context/${id}`,
+    { headers: { cookie } })).json();
+  assert.equal(asStaff.may_unmask, true);
+
+  const asAnon = await (await fetch(`${base}/api/share-context/${id}`)).json();
+  assert.equal(asAnon.may_unmask, false,
+    'hiding the control is a courtesy; the refusal above is the boundary');
+});
+
 test('the login page is served', async (t) => {
   if (!available) return t.skip('no server');
   const r = await fetch(`${base}/login.html`);

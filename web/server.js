@@ -15,6 +15,7 @@ const auth  = require('./auth');
 const media = require('./media');
 const nlq   = require('./nlq');
 const images = require('./images');
+const share  = require('./share');
 
 const pool = new Pool({
   host:     process.env.PGHOST     || 'localhost',
@@ -489,7 +490,13 @@ async function adminProperty(identity, brand, id) {
       'SELECT * FROM api.property_note WHERE property_id = $1', [id])).rows;
     const flag = (await client.query(
       'SELECT * FROM api.property_flag WHERE property_id = $1', [id])).rows[0] || null;
-    return { property: r.rows[0], history, metros, fees, notes, flag };
+    // Who this listing has been sent to, and whether the document carried
+    // the address. Beside the property rather than in a separate audit
+    // screen: the question is always "who has had THIS one", and an audit
+    // log nobody passes is an audit log nobody reads.
+    const shares = (await client.query(
+      'SELECT * FROM api.share_log WHERE property_id = $1 LIMIT 40', [id])).rows;
+    return { property: r.rows[0], history, metros, fees, notes, flag, shares };
   });
 }
 
@@ -773,6 +780,128 @@ const server = http.createServer(async (req, res) => {
       'Set-Cookie': auth.clearCookie({ secure: secureCookie }),
     });
     return res.end(JSON.stringify({ ok: true }));
+  }
+
+  // ---- share a listing as a document ------------------------------------
+  //
+  // A GET, because the browser has to be able to navigate to it and receive
+  // a file. It has a side effect -- the log row -- which a GET is not
+  // supposed to have, and that is a deliberate trade: the alternative is a
+  // POST that returns bytes the page then has to turn into a download
+  // itself, and a share that is not logged is worse than a GET that is not
+  // pure. Nothing here is cacheable and the headers say so.
+  if (url.pathname.startsWith('/api/share/') && req.method === 'GET') {
+    const m = /^\/api\/share\/([0-9a-f-]{36})\.pdf$/i.exec(url.pathname);
+    if (!m) { res.writeHead(404); return res.end('Not found'); }
+    const id = m[1];
+    const wantUnmask = url.searchParams.get('unmask') === '1';
+    const recipient = (url.searchParams.get('to') || '').trim();
+    let identity = null;
+    try {
+      identity = await identityFor(req, url);
+      const brand = url.searchParams.get('brand');
+      const out = await withTx(identity, brand, async (client) => {
+        const prop = (await client.query(
+          'SELECT * FROM api.property WHERE property_id = $1', [id])).rows[0];
+        if (!prop) return null;
+
+        // THE ONE PLACE THE DECISION IS MADE. `wantUnmask` is a request off
+        // a query string; api.share_context answers it against
+        // sec.can_see_address(). Everything downstream reads ctx.unmasked
+        // and never the parameter, so there is no path where the checkbox
+        // is consulted on its own.
+        const ctx = (await client.query(
+          'SELECT * FROM api.share_context($1, $2)', [id, wantUnmask])).rows[0];
+        if (!ctx) return null;
+
+        // Which image, decided by the same answer. When masked, the mask
+        // is a static file under public/; when unmasked, the real one comes
+        // out of the media store through the view that governs it.
+        let imagePath = null;
+        if (ctx.unmasked) {
+          const mrow = (await client.query(
+            `SELECT b.storage_path, b.thumb_path
+               FROM api.property_media m
+               JOIN api.media_bytes b ON b.media_id = m.media_id
+              WHERE m.property_id = $1
+              ORDER BY m.is_primary DESC, m.position LIMIT 1`, [id])).rows[0];
+          if (mrow) {
+            const rel = mrow.storage_path;
+            const full = path.resolve(MEDIA_ROOT, rel);
+            if (full === MEDIA_ROOT || full.startsWith(MEDIA_ROOT + path.sep)) {
+              imagePath = full;
+            }
+          }
+        } else if (ctx.mask_url) {
+          // The mask is served from public/, so it is resolved against that
+          // root and checked the same way a stored path is.
+          const rel = String(ctx.mask_url).replace(/^\//, '');
+          const root = path.join(__dirname, 'public');
+          const full = path.resolve(root, rel);
+          if (full.startsWith(root + path.sep)) imagePath = full;
+        }
+
+        // Recorded before the bytes are produced. If writing the log fails,
+        // no document is generated -- an unlogged share is the thing this
+        // whole feature exists to prevent.
+        await client.query('SELECT api.record_share($1, $2, $3)',
+          [id, ctx.unmasked, recipient]);
+
+        return { prop, ctx, imagePath };
+      });
+
+      if (!out) { res.writeHead(404); return res.end('Not found'); }
+      let image = null;
+      if (out.imagePath) {
+        try { image = await fs.promises.readFile(out.imagePath); } catch { image = null; }
+      }
+      // Who prepared it, by the name the system knows them by rather than
+      // anything typed in. A document that names its author wrongly is
+      // worse than one that does not name them.
+      const who = identity.key === 'session' ? identity.label : 'SDI';
+      res.writeHead(200, {
+        'Content-Type': 'application/pdf',
+        'Content-Disposition': `attachment; filename="${out.prop.listing_ref}`
+          + `${out.ctx.unmasked ? '' : '-summary'}.pdf"`,
+        // Never cached, anywhere. A masked and an unmasked document share a
+        // url that differs only by a query parameter, and a cache that
+        // conflated them would hand somebody the wrong one.
+        'Cache-Control': 'no-store, private',
+      });
+      return share.render({
+        property: out.prop, unmasked: out.ctx.unmasked, image,
+        sharedBy: who, recipient, build: BUILD.version,
+      }).pipe(res);
+    } catch (e) {
+      console.error('share failed:', e.message);
+      const plain = /say who this is going to|no such property/.test(e.message);
+      res.writeHead(plain ? 400 : 403, { 'Content-Type': 'application/json' });
+      return res.end(JSON.stringify({ error: plain ? e.message : 'not permitted' }));
+    }
+  }
+
+  // Whether the unmask option may even be offered. Asked of the database
+  // rather than inferred in the browser from whether an address happens to
+  // be present: a listing whose address is null for some other reason must
+  // not read as "you may not unmask", and vice versa.
+  if (url.pathname.startsWith('/api/share-context/') && req.method === 'GET') {
+    const id = url.pathname.slice('/api/share-context/'.length);
+    if (!/^[0-9a-f-]{36}$/i.test(id)) { res.writeHead(404); return res.end('Not found'); }
+    try {
+      const identity = await identityFor(req, url);
+      const row = (await withTx(identity, url.searchParams.get('brand'), (c) =>
+        c.query('SELECT may_unmask FROM api.share_context($1, false)', [id])
+      )).rows[0];
+      res.writeHead(row ? 200 : 404, { 'Content-Type': 'application/json' });
+      return res.end(JSON.stringify(row || { error: 'not found' }));
+    } catch (e) {
+      // Falling back to "no" is the safe direction, but it must not be a
+      // silent one: a broken query here looks exactly like a refusal, and
+      // the control would quietly disappear for everybody.
+      console.error('share-context failed:', e.message);
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      return res.end(JSON.stringify({ may_unmask: false }));
+    }
   }
 
   if (url.pathname === '/api/whoami') {

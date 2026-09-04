@@ -308,6 +308,100 @@ function card(r) {
   </article>`;
 }
 
+// ---------------------------------------------------------------------
+// sharing
+//
+// The dialog exists to make one decision deliberate. A share button that
+// silently produced the full document would leak an address the first time
+// somebody used it on a prospect, and a share button that silently produced
+// the masked one would have people emailing "here is the house" documents
+// that do not say which house.
+//
+// So: masked is preselected, always, for everybody including staff. The
+// unmask control is only OFFERED to a caller the database says may use it,
+// and offering it is not the same as granting it -- the server asks again
+// and ignores the answer it is sent if it disagrees. Hiding the control is
+// a courtesy; the refusal is the boundary.
+// ---------------------------------------------------------------------
+async function openShare(p) {
+  let mayUnmask = false;
+  try {
+    const r = await fetch(`/api/share-context/${p.property_id}`);
+    if (r.ok) mayUnmask = !!(await r.json()).may_unmask;
+  } catch { /* offered as masked-only, which is the safe direction */ }
+
+  const el = document.createElement('div');
+  el.className = 'sharewrap';
+  el.innerHTML = `
+    <div class="sharebox" role="dialog" aria-modal="true" aria-label="Share this listing">
+      <h2>Share ${esc(p.listing_ref)}</h2>
+      <p class="smut">A PDF with the full financial detail. The address, exact
+        location and photographs are withheld unless you release them below.</p>
+
+      <label class="sfield"><span>Who is this going to?</span>
+        <input id="sto" type="text" maxlength="120" autocomplete="off"
+               placeholder="Name, company, or email — recorded in the log"></label>
+
+      <div class="schoice">
+        <label class="sopt on"><input type="radio" name="smask" value="0" checked>
+          <span><b>Masked</b><i>Numbers only. A stand-in image, city and state.
+            Safe to send to anyone.</i></span></label>
+        <label class="sopt${mayUnmask ? '' : ' off'}">
+          <input type="radio" name="smask" value="1"${mayUnmask ? '' : ' disabled'}>
+          <span><b>Release the details</b><i>${mayUnmask
+            ? 'Real photograph, full address and parcel number. A PDF cannot be '
+              + 'recalled once sent.'
+            : 'Not available to you for this property — the address is gated.'}</i></span></label>
+      </div>
+
+      <p id="swarn" class="swarn" hidden>This document will identify the property.
+        Once it leaves here it can be forwarded, printed and kept, and nothing in
+        this system can take it back.</p>
+
+      <div class="sact">
+        <span id="smsg" class="smsg"></span>
+        <button id="scancel" class="ghost">Cancel</button>
+        <button id="sgo" class="primary" disabled>Create PDF</button>
+      </div>
+    </div>`;
+  document.body.appendChild(el);
+  const close = () => el.remove();
+
+  const to = el.querySelector('#sto');
+  const go = el.querySelector('#sgo');
+  // Three characters, matching what the database will accept, so the button
+  // does not offer to do something the server is about to refuse.
+  const ok = () => { go.disabled = to.value.trim().length < 3; };
+  to.addEventListener('input', ok);
+  to.focus();
+
+  el.querySelectorAll('input[name=smask]').forEach((r) =>
+    r.addEventListener('change', () => {
+      const un = el.querySelector('input[name=smask]:checked').value === '1';
+      el.querySelector('#swarn').hidden = !un;
+      el.querySelectorAll('.sopt').forEach((o) =>
+        o.classList.toggle('on', o.contains(el.querySelector('input[name=smask]:checked'))));
+    }));
+
+  el.querySelector('#scancel').addEventListener('click', close);
+  el.addEventListener('click', (e) => { if (e.target === el) close(); });
+  document.addEventListener('keydown', function esc2(e) {
+    if (e.key === 'Escape') { close(); document.removeEventListener('keydown', esc2); }
+  });
+
+  go.addEventListener('click', () => {
+    const un = el.querySelector('input[name=smask]:checked').value === '1';
+    const q = new URLSearchParams({ to: to.value.trim() });
+    if (un) q.set('unmask', '1');
+    // Navigated to rather than fetched, so the browser handles the download
+    // with its own filename and progress. A blob built in script would work
+    // and would also be one more place for the bytes to sit.
+    location.href = `/api/share/${p.property_id}.pdf?${q}`;
+    el.querySelector('#smsg').textContent = 'Preparing…';
+    setTimeout(close, 1200);
+  });
+}
+
 // A map is drawn only for a caller the database gives coordinates to --
 // internal staff, the assigned agent, and an investor past the fee gate.
 // The browser is told, not left to infer it from whether lat happens to be
@@ -543,10 +637,12 @@ async function openDetail(id) {
     ${feats.length ? `<h2 class="sec">Features</h2>
       <div class="tags">${feats.map((f) => `<span class="tag">${esc(f)}</span>`).join('')}</div>` : ''}
 
-    ${state.identity && state.identity.canFavorite ? `<div class="dact">
+    <div class="dact">
+      ${state.identity && state.identity.canFavorite ? `
       <button id="dfav" class="${is_favorite ? 'ghost' : 'primary'}" data-fav="${p.property_id}"
-        aria-pressed="${!!is_favorite}">${is_favorite ? '♥ Saved to favourites' : '♡ Save to favourites'}</button>
-    </div>` : ''}
+        aria-pressed="${!!is_favorite}">${is_favorite ? '♥ Saved to favourites' : '♡ Save to favourites'}</button>` : ''}
+      <button id="dshare" class="ghost" data-share="${p.property_id}">⇪ Share as PDF</button>
+    </div>
   </div>`;
 
   state.detail = { property: p, media };
@@ -554,6 +650,8 @@ async function openDetail(id) {
   $('detail').scrollTop = 0;
   const b = $('dfav');
   if (b) b.addEventListener('click', () => toggleFavorite(b.dataset.fav, b));
+  const sh = $('dshare');
+  if (sh) sh.addEventListener('click', () => openShare(p));
   const sa = $('seeall');
   if (sa) sa.addEventListener('click', openPhotos);
   // A clicked thumbnail opens that photograph, not the first one.

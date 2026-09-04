@@ -12,6 +12,72 @@ date the work was completed.
 
 ---
 
+## 0.9.25 — 2026-09-04
+
+**Share a listing as a PDF — masked by default, for everybody, and logged.**
+
+### Added — the document
+A **Share as PDF** button on every listing produces a one-page summary: the
+full financial detail, the property's specifications, and a provenance line
+naming who prepared it, for whom, and when.
+
+**Masked is the default for every caller, including staff.** Not "masked for
+people who cannot see the address" — masked for everyone unless the person
+generating it deliberately says otherwise for that one document. The common
+case is sending a property to a prospect who has signed nothing, and a default
+that leaks on the common case is not a default, it is a trap.
+
+**The numbers are never withheld.** Price, rent, expenses, NOI and cap rate go
+on every document, masked or not. An investor decides on the cash flow and only
+then signs for the identity of the house; a masked document that also hid the
+yield would be a brochure for nothing.
+
+What masking removes: street address, unit, parcel number, coordinates, and
+the photograph — replaced by a branded stand-in of a *different* house, not a
+watermark over the real one. The parcel number travels with the address or not
+at all: it is one search away from an owner name and a plat map.
+
+Each document states its own kind at the top — *ADDRESS AND PHOTOGRAPH
+WITHHELD* or *CONTAINS RELEASED PROPERTY DETAILS* — because the person who
+receives it has no idea this system has two modes.
+
+### Added — the gate, in the database
+`unmask=1` is a **request**. `api.share_context()` answers it against
+`sec.can_see_address()`, and where the two disagree the database wins and the
+document is masked. Written as `requested AND permitted` in one expression, so
+no path consults only one of them. The browser hides the control from anyone
+who may not use it, but hiding it is a courtesy — the refusal is the boundary,
+and there is a test that asks for `unmask=1` anonymously and gets a masked
+document back.
+
+### Added — the log
+Every generated document writes a row: which property, who made it, **who they
+said it was going to**, whether it carried the address, and when. The recipient
+is required and must be more than a placeholder — the question the log exists
+to answer is "who has this", so a document that cannot answer it is not
+generated at all. It is self-reported, and honestly so: this system hands a
+file to a browser and has no idea what happens next.
+
+The log is recorded *before* the bytes are produced. If the write fails, no
+document is made — an unlogged share is the thing the feature exists to
+prevent. Staff see it as a **Shared with** section on the property panel, with
+released rows tinted; an audit screen nobody passes is an audit log nobody
+reads.
+
+### Fixed
+- The masking test was passing vacuously. pdfkit compresses its content
+  streams, so searching the raw bytes for an address finds nothing whether the
+  address is on the page or not. The test now inflates the streams and decodes
+  pdfkit's hex-encoded text, and the companion assertion — that a *permitted*
+  unmask does put the address on the page — is what proves the masked case
+  isn't passing by accident.
+- A policy is not a grant. `core.share_event` had its row policy but no
+  `GRANT SELECT`, and `api.share_log` is `security_invoker`, so the privilege
+  is checked as the caller. The panel failed with *permission denied* while
+  having every policy it needed.
+
+---
+
 ## 0.9.24 — 2026-09-04
 
 **The build says which build it is, and static files stop going stale.**

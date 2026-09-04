@@ -342,6 +342,7 @@ async function openProperty(id) {
   renderFields();
   renderMetro();
   renderNotes(d.notes || [], d.flag);
+  renderShares(d.shares || []);
   renderHistory(d.history);
   redraw();
   document.querySelectorAll('.prow').forEach((el) =>
@@ -451,6 +452,21 @@ function renderNotes(rows, flag) {
       const body = prompt('Edit the note', n2.body);
       if (body != null && body.trim()) noteAction({ note_id: n2.note_id, body });
     }));
+}
+
+// Every document that has left, with the released ones marked. The marking
+// is the point: a list where a masked summary and a full disclosure look
+// alike answers "was it shared" but not "what did they get", and only the
+// second question ever actually gets asked.
+function renderShares(rows) {
+  $('shares').innerHTML = rows.length ? rows.map((r2) => `
+    <div class="share${r2.unmasked ? ' un' : ''}">
+      <span class="stag">${r2.unmasked ? 'Released' : 'Masked'}</span>
+      <span class="sto">${esc(r2.recipient)}</span>
+      <span class="sby">${esc(r2.shared_by)}</span>
+      <span class="swhen">${esc(when(r2.created_at))}</span>
+    </div>`).join('')
+    : '<div class="muted">Not shared yet.</div>';
 }
 
 async function noteAction(payload) {

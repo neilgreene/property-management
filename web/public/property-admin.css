@@ -236,3 +236,16 @@
    and a chip that vanishes takes its own answer with it. */
 .fbtn.empty{opacity:.45}
 .fbtn.empty.on{opacity:1}
+
+/* The share log. Released rows are tinted, because "who has the address"
+   is the only question this list is ever consulted for. */
+.shares{display:grid;gap:4px}
+.share{display:grid;grid-template-columns:78px 1fr auto auto;gap:12px;align-items:baseline;
+  font-size:12.5px;padding:7px 10px;border:1px solid var(--line);border-radius:7px;
+  background:var(--bg)}
+.share.un{border-color:var(--critline);background:var(--critbg)}
+.stag{font-size:10px;font-weight:700;letter-spacing:.4px;text-transform:uppercase;
+  color:var(--ok)}
+.share.un .stag{color:var(--crit)}
+.sto{font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.sby,.swhen{font-size:11.5px;color:var(--ink2)}
