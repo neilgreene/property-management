@@ -20,8 +20,11 @@
       id: 'railfav', signedInOnly: true },
     { href: '/property-admin.html', label: 'Properties',    icon: '⌂', group: 'admin' },
     { href: '/admin.html',          label: 'Intake review', icon: '⇥', group: 'admin' },
-    { href: '/profile.html',        label: 'Profile',       icon: '☺', group: 'you' },
   ];
+  // No Profile entry. The footer already carries the signed-in person's
+  // photograph and name and links to the same page, and a second door to
+  // one room makes the rail longer without making anything reachable.
+  const PROFILE = '/profile.html';
 
   const esc = (s) => String(s == null ? '' : s)
     .replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;',
@@ -62,12 +65,10 @@
       ${staff ? `<div class="rsec">Admin</div>
         <div class="rgroup">${show('admin').map(link).join('')}</div>` : ''}
 
-      ${who.signedIn ? `<div class="rsec">You</div>
-        <div class="rgroup">${show('you').map(link).join('')}</div>` : ''}
-
       <div class="rfoot">
         ${who.signedIn ? `
-          <a class="rme" href="/profile.html" title="${esc(who.label || '')}">
+          <a class="rme${here === PROFILE ? ' on' : ''}" href="${PROFILE}"
+             title="${esc(who.label || '')}">
             <span class="ravatar" id="ravatar">${esc(initials(who.label))}</span>
             <span class="rmeta">
               <b>${esc(who.label || '')}</b>

@@ -12,6 +12,31 @@ date the work was completed.
 
 ---
 
+## 0.9.23 — 2026-09-04
+
+**Removed: the Profile entry in the rail.**
+
+### Changed
+The footer already carries the signed-in person's photograph, name and role
+and links to the same page. A second door to one room made the rail longer
+without making anything reachable, so the **You → Profile** group is gone.
+
+The footer now shows an active state when you are on the profile page. It is
+the only way in, so it has to be able to say when that is where you are —
+otherwise the rail goes blank on arrival, which reads as having navigated out
+of the application. The initials circle inverts on the active row, since it
+was otherwise the same accent colour as the row highlight and disappeared
+into it.
+
+### Fixed
+`run.sh` — the local, no-Docker path — was still loading schema files up to
+`45_note_summary.sql` and stopped there, so a local install had no note
+severity, no flags and no filter. The Docker image and `db-rebuild.sh` were
+both current; this third hand-maintained list of the same files had fallen
+behind. The three lists now agree on every schema file.
+
+---
+
 ## 0.9.22 — 2026-09-04
 
 **Filter the properties panel by flag.**

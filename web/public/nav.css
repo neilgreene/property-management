@@ -47,6 +47,14 @@ body.hasrail .photos,body.hasrail .lightbox{left:196px}
 .rme{display:flex;align-items:center;gap:9px;padding:7px 8px;border-radius:8px;
   text-decoration:none;color:inherit}
 .rme:hover{background:#1e2f40}
+/* The footer is now the only way to the profile page, so it has to be able
+   to say when that is where you are. Without it the rail goes blank the
+   moment you arrive, which reads as having navigated out of the app. */
+.rme.on{background:var(--accent)}
+.rme.on .rmeta i{color:rgba(255,255,255,.8)}
+/* The initials circle is the same accent as the active row, so on the
+   profile page it would disappear into it. Inverted, it stays a face. */
+.rme.on .ravatar{background:#fff;color:var(--accent)}
 .ravatar{width:30px;height:30px;border-radius:50%;background:var(--accent);color:#fff;
   display:grid;place-items:center;font-size:11.5px;font-weight:700;flex:0 0 auto;
   overflow:hidden}
