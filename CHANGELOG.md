@@ -12,6 +12,51 @@ date the work was completed.
 
 ---
 
+## 0.9.24 — 2026-09-04
+
+**The build says which build it is, and static files stop going stale.**
+
+### Added — the build number, in the rail
+`v0.9.24 · 0ac71a4` sits under Sign out on every screen, signed in or not. A
+deployed change that is not visible looks exactly like a change that was never
+deployed, and telling those two apart used to mean going and reading a
+registry.
+
+The commit is shown as well as the version, because two builds can carry the
+same version — a fix pushed without a bump is the normal case — and the
+version alone would say they are the same when they are not.
+
+**Single source.** The version lives in the repository's `VERSION` file and
+nowhere else; CI reads it at build time and bakes it in with the commit SHA.
+An image built any other way honestly reports `dev` rather than inventing a
+number: a wrong version is worse than no version, being the thing somebody
+trusts while chasing the wrong bug. There is a test asserting the reported
+version equals the file on disk.
+
+### Fixed — static files were served with no freshness information at all
+No `Cache-Control`, no `ETag`, no `Last-Modified`. That does **not** mean "do
+not cache" — with nothing to go on, a browser falls back to heuristic caching
+and reuses a `.js` or `.css` for as long as it likes without asking. A
+deployed change to the rail, a stylesheet or a page script could sit there
+invisible behind a stale copy, and the only cure anybody knew was a hard
+refresh.
+
+Static responses now carry `Cache-Control: no-cache` with an ETag and
+Last-Modified. `no-cache` is the confusing name for the right behaviour:
+**store it, and ask before every use.** The ask is conditional, so an
+unchanged file costs a 304 with no body rather than a re-download, and a
+changed one arrives immediately without anybody being told to clear anything.
+
+The ETag combines size and mtime — mtime alone has one-second resolution, and
+two edits inside the same second during a deploy would look identical.
+
+### Fixed
+`buildLine()` was originally called `build()`, which is already the name of the
+function that constructs the rail. The template called the rail builder
+instead, which returns a Promise and re-entered the whole thing.
+
+---
+
 ## 0.9.23 — 2026-09-04
 
 **Removed: the Profile entry in the rail.**

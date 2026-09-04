@@ -71,8 +71,14 @@ body.hasrail .photos,body.hasrail .lightbox{left:196px}
   body.hasrail .bar,body.hasrail .scrim,body.hasrail .photos,
   body.hasrail .lightbox{left:54px}
   body.hasrail .detail.full{left:54px;width:calc(100% - 54px)}
-  .rit,.rmeta,.rsec{display:none}
+  .rit,.rmeta,.rsec,.rbuild{display:none}
   .rbrand .mark{padding:4px 6px;font-size:11px}
   .ri{justify-content:center;padding:9px 0}
   .rme{justify-content:center;padding:7px 0}
 }
+
+/* The build, quietly. It has to be readable when somebody goes looking and
+   invisible the rest of the time -- a version number competing with the
+   navigation is a version number people learn to stop seeing. */
+.rbuild{font-size:10px;color:#8298ac;letter-spacing:.3px;padding:6px 8px 2px;
+  font-variant-numeric:tabular-nums;cursor:default}

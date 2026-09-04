@@ -665,6 +665,31 @@ async function probeBaseTable(identity) {
   }
 }
 
+// Which build is this?
+//
+// Asked constantly and previously unanswerable from the running system: a
+// deployed change that is not visible looks identical to a change that was
+// never deployed, and the only way to tell them apart was to go and read a
+// registry. So the build says its own name, in the corner of every screen.
+//
+// SINGLE SOURCE. The version lives in the repository's VERSION file and
+// nowhere else. CI reads it at build time and bakes it in along with the
+// commit; a container built any other way honestly says "dev" rather than
+// inventing a number, because a wrong version is worse than no version --
+// it is the thing somebody trusts while chasing the wrong bug.
+const BUILD = (() => {
+  let version = process.env.SDI_VERSION || null;
+  if (!version) {
+    // Running from a clone rather than the image: read it from the file it
+    // lives in, so local development is never mislabelled either.
+    try {
+      version = fs.readFileSync(path.join(__dirname, '..', 'VERSION'), 'utf8').trim();
+    } catch { /* not a clone */ }
+  }
+  const commit = (process.env.SDI_COMMIT || '').trim().slice(0, 7);
+  return { version: version || 'dev', commit: commit || null };
+})();
+
 const MIME = {
   '.html': 'text/html', '.css': 'text/css', '.js': 'text/javascript',
   // Real listing photography lives under public/assets/ and is served
@@ -756,6 +781,9 @@ const server = http.createServer(async (req, res) => {
     return res.end(JSON.stringify({
       label: who.label, role: who.role, note: who.note,
       signedIn: who.key === 'session',
+      // Not gated. Which build is running is not a secret, and an anonymous
+      // visitor reporting a bug needs to be able to say which one they saw.
+      build: BUILD,
       demoPersonas: DEMO_PERSONAS,
       personas: DEMO_PERSONAS
         ? Object.entries(PERSONAS).map(([k, v]) => ({ key: k, label: v.label, note: v.note }))
@@ -1241,12 +1269,46 @@ const server = http.createServer(async (req, res) => {
     return res.end(JSON.stringify(data));
   }
 
+  // Static files, with revalidation.
+  //
+  // These went out with NO caching headers at all -- no Cache-Control, no
+  // ETag, no Last-Modified -- which does not mean "do not cache". With
+  // nothing to go on a browser falls back to HEURISTIC caching and reuses a
+  // .js or .css file for as long as it likes without asking. So a deployed
+  // change to the rail, a stylesheet or a page script could sit there
+  // invisible behind a stale copy, and the only cure anybody knew was a hard
+  // refresh. That is not a browser quirk to work around; it is this server
+  // failing to say anything about freshness.
+  //
+  // `no-cache` is the confusing name for the right behaviour: STORE IT, and
+  // ASK BEFORE EVERY USE. The ask is conditional, so an unchanged file costs
+  // a 304 with no body rather than a re-download, and a changed one arrives
+  // immediately without anybody being told to clear anything.
   const file = url.pathname === '/' ? '/index.html' : url.pathname;
   const full = path.join(__dirname, 'public', path.normalize(file).replace(/^(\.\.[/\\])+/, ''));
-  fs.readFile(full, (err, buf) => {
-    if (err) { res.writeHead(404); return res.end('Not found'); }
-    res.writeHead(200, { 'Content-Type': MIME[path.extname(full)] || 'text/plain' });
-    res.end(buf);
+  fs.stat(full, (serr, st) => {
+    if (serr || !st.isFile()) { res.writeHead(404); return res.end('Not found'); }
+    // Size and mtime together. mtime alone has one-second resolution, and two
+    // edits inside the same second during a deploy would look identical.
+    const tag = `W/"${st.size.toString(16)}-${st.mtimeMs.toString(16)}"`;
+    const lastMod = st.mtime.toUTCString();
+    const headers = {
+      'Content-Type': MIME[path.extname(full)] || 'text/plain',
+      'Cache-Control': 'no-cache',
+      'ETag': tag,
+      'Last-Modified': lastMod,
+    };
+    const inm = req.headers['if-none-match'];
+    const ims = req.headers['if-modified-since'];
+    if (inm === tag || (!inm && ims && Date.parse(ims) >= Math.floor(st.mtimeMs / 1000) * 1000)) {
+      res.writeHead(304, headers);
+      return res.end();
+    }
+    fs.readFile(full, (err, buf) => {
+      if (err) { res.writeHead(404); return res.end('Not found'); }
+      res.writeHead(200, headers);
+      res.end(buf);
+    });
   });
 });
 

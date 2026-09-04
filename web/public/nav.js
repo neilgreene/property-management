@@ -30,6 +30,21 @@
     .replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;',
                                    '"': '&quot;', "'": '&#39;' }[c]));
 
+  // Which build is running, in the corner of every screen. A deployed change
+  // that is not visible looks exactly like a change that was never deployed,
+  // and telling those apart used to mean going and reading a registry.
+  //
+  // The commit is shown as well as the version, because two builds can carry
+  // the same version -- a fix pushed without a bump is the normal case -- and
+  // the version alone would say they are the same when they are not.
+  // Title-attribute, not on the face of it: seven characters of hex in the
+  // menu is noise for everyone who is not currently chasing something.
+  function buildLine(b) {
+    if (!b || !b.version) return '';
+    return `<div class="rbuild" title="${esc(b.commit ? 'commit ' + b.commit : 'not a published build')}"
+            >v${esc(b.version)}${b.commit ? ` · ${esc(b.commit)}` : ''}</div>`;
+  }
+
   function initials(name) {
     return String(name || '?').trim().split(/\s+/).slice(0, 2)
       .map((w) => w[0]).join('').toUpperCase();
@@ -79,6 +94,7 @@
             <span class="rit">Sign out</span></button>`
         : `<a class="ri" href="/login.html"><span class="ric">→</span>
              <span class="rit">Sign in</span></a>`}
+        ${buildLine(who.build)}
       </div>`;
     document.body.insertBefore(rail, document.body.firstChild);
     document.body.classList.add('hasrail');

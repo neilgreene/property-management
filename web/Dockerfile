@@ -26,6 +26,16 @@ RUN node -e "const s=require('sharp'); s({create:{width:8,height:8,channels:3,ba
 COPY server.js auth.js media.js nlq.js images.js ./
 COPY public ./public
 
+# Stamped at build time so the running container can say which build it is.
+# The build context is ./web, so the repository's VERSION file cannot simply
+# be copied in -- CI reads it and passes it here. Anything built without
+# these says "dev", which is honest: a wrong version number is worse than
+# none, being the thing somebody trusts while chasing the wrong bug.
+ARG SDI_VERSION=dev
+ARG SDI_COMMIT=
+ENV SDI_VERSION=$SDI_VERSION
+ENV SDI_COMMIT=$SDI_COMMIT
+
 # Runs unprivileged. node:alpine ships a `node` user for exactly this.
 USER node
 

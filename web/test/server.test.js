@@ -742,6 +742,48 @@ test('an oversized body is answered, not dropped', async (t) => {
   assert.match((await r.json()).error, /too large/);
 });
 
+// A deployed change to the rail sitting invisible behind a browser's cached
+// copy of nav.js is not a browser quirk. It is this server sending no
+// freshness information at all, which leaves a browser free to guess.
+test('static files can be revalidated rather than guessed at', async (t) => {
+  if (!available) return t.skip('no server');
+  const r = await fetch(`${base}/nav.js`);
+  assert.equal(r.status, 200);
+  const tag = r.headers.get('etag');
+  assert.ok(tag, 'a static file must carry an ETag');
+  assert.ok(r.headers.get('last-modified'), 'and a Last-Modified');
+  assert.equal(r.headers.get('cache-control'), 'no-cache',
+    'store it, but ask before every use -- not "do not store"');
+
+  // Unchanged: a 304 and no body, so revalidating is cheap.
+  const again = await fetch(`${base}/nav.js`, { headers: { 'If-None-Match': tag } });
+  assert.equal(again.status, 304);
+  assert.equal(await again.text(), '');
+
+  // A different tag means the file moved on and must be sent in full.
+  const stale = await fetch(`${base}/nav.js`, { headers: { 'If-None-Match': 'W/"0-0"' } });
+  assert.equal(stale.status, 200);
+  assert.ok((await stale.text()).length > 0);
+});
+
+test('the running build says which build it is', async (t) => {
+  if (!available) return t.skip('no server');
+  // Not gated: an anonymous visitor reporting a bug has to be able to say
+  // which build they saw.
+  const who = await (await fetch(`${base}/api/whoami`)).json();
+  assert.ok(who.build, 'whoami carries the build');
+  assert.match(who.build.version, /^\d+\.\d+\.\d+$|^dev$/,
+    'a version read from the VERSION file, or an honest "dev"');
+  // Run from a clone, so it must have found the real file rather than
+  // falling back -- a fallback here would hide a broken stamp in the image.
+  const onDisk = require('fs')
+    .readFileSync(require('path').join(__dirname, '..', '..', 'VERSION'), 'utf8').trim();
+  assert.equal(who.build.version, onDisk,
+    'THE REPORTED VERSION MUST BE THE ONE IN THE FILE — a version that is '
+    + 'wrong is worse than absent, being the thing somebody trusts while '
+    + 'chasing the wrong bug');
+});
+
 test('the login page is served', async (t) => {
   if (!available) return t.skip('no server');
   const r = await fetch(`${base}/login.html`);
