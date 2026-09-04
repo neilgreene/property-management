@@ -457,6 +457,188 @@ test('a later fee schedule does not restate an earlier agreement', async (t) => 
   }
 });
 
+// ---- notes -----------------------------------------------------------
+test('notes are attributed, dated, and public or internal', async (t) => {
+  if (!available) return t.skip('no server');
+  const cookie = await staffCookie();
+  const list = await (await fetch(`${base}/api/admin/properties?q=SDI-1011`,
+    { headers: { cookie } })).json();
+  const id = list.rows[0].property_id;
+
+  const pub = await (await jsonPost('/api/admin/note',
+    { property_id: id, body: 'Roof replaced 2024, receipts on file.',
+      visibility: 'public' }, cookie)).json();
+  await jsonPost('/api/admin/note',
+    { property_id: id, body: 'Seller motivated; will not go below 152.',
+      visibility: 'internal' }, cookie);
+
+  const mine = pub.notes.find((n2) => /Roof replaced/.test(n2.body));
+  assert.equal(mine.author, 'Jessica Pool', 'a note carries who wrote it');
+  assert.ok(mine.created_at, 'and when');
+  assert.equal(mine.is_mine, true);
+
+  const staffSees = await (await fetch(`${base}/api/admin/property?id=${id}`,
+    { headers: { cookie } })).json();
+  assert.equal(staffSees.notes.length, 2, 'staff see both');
+
+  // The public one reaches the listing; the internal one does not, and an
+  // internal note is where somebody writes what the seller will accept.
+  const anon = await (await fetch(`${base}/api/property?id=${id}`)).json();
+  assert.equal(anon.notes.length, 1);
+  assert.match(anon.notes[0].body, /Roof replaced/);
+  assert.ok(!JSON.stringify(anon).includes('will not go below'),
+    'AN INTERNAL NOTE REACHED AN ANONYMOUS CALLER');
+
+  // Removing is soft, so the note leaves the listing and the record of it
+  // having been written does not.
+  const gone = await (await jsonPost('/api/admin/note',
+    { property_id: id, note_id: mine.note_id, remove: true }, cookie)).json();
+  assert.ok(!gone.notes.some((n2) => n2.note_id === mine.note_id));
+  const d = await db();
+  const row = (await d.query(
+    'SELECT deleted_at, deleted_by FROM core.property_note WHERE note_id = $1',
+    [mine.note_id])).rows[0];
+  assert.ok(row.deleted_at && row.deleted_by, 'the row survives, marked deleted');
+
+  // Clean up the internal one too.
+  const left = gone.notes.find((n2) => /will not go below/.test(n2.body));
+  if (left) await jsonPost('/api/admin/note',
+    { property_id: id, note_id: left.note_id, remove: true }, cookie);
+});
+
+// ---- severity --------------------------------------------------------
+test('a flagged note raises the property flag until somebody resolves it', async (t) => {
+  if (!available) return t.skip('no server');
+  const cookie = await staffCookie();
+  const list = await (await fetch(`${base}/api/admin/properties?q=SDI-1012`,
+    { headers: { cookie } })).json();
+  const id = list.rows[0].property_id;
+  assert.equal(list.rows[0].flag, 'ok', 'a property with no open notes is clear');
+
+  const a = await (await jsonPost('/api/admin/note',
+    { property_id: id, body: 'Chase the agent for the rental restrictions.',
+      visibility: 'internal', severity: 'attention' }, cookie)).json();
+  assert.equal(a.flag.flag, 'attention');
+  assert.equal(a.flag.open_attention, 1);
+
+  // Critical outranks attention: a property with both flies the red one.
+  const c = await (await jsonPost('/api/admin/note',
+    { property_id: id, body: 'Failed inspection — falling out of escrow.',
+      visibility: 'internal', severity: 'critical' }, cookie)).json();
+  assert.equal(c.flag.flag, 'critical', 'the worst open note decides the flag');
+  assert.equal(c.flag.open_critical, 1);
+  assert.equal(c.flag.open_attention, 1);
+
+  const crit = c.notes.find((n2) => /Failed inspection/.test(n2.body));
+  const attn = c.notes.find((n2) => /rental restrictions/.test(n2.body));
+  assert.equal(crit.is_open, true);
+
+  // Resolving is the whole reason severity is not a ratchet: without it a
+  // critical note written in March still stops somebody's morning in June.
+  const r = await (await jsonPost('/api/admin/note',
+    { property_id: id, note_id: crit.note_id, resolve: true,
+      resolution: 'Re-inspected clean; seller credit agreed.' }, cookie)).json();
+  assert.equal(r.flag.flag, 'attention', 'closing the critical one drops the flag back');
+  const closed = r.notes.find((n2) => n2.note_id === crit.note_id);
+  assert.equal(closed.is_open, false);
+  assert.equal(closed.resolved_by_name, 'Jessica Pool', 'and who said so');
+  assert.match(closed.resolution, /seller credit/);
+
+  const reopened = await (await jsonPost('/api/admin/note',
+    { property_id: id, note_id: crit.note_id, reopen: true }, cookie)).json();
+  assert.equal(reopened.flag.flag, 'critical', 'and it can be put back');
+
+  for (const n2 of [crit, attn]) {
+    await jsonPost('/api/admin/note',
+      { property_id: id, note_id: n2.note_id, remove: true }, cookie);
+  }
+  const end = await (await fetch(`${base}/api/admin/property?id=${id}`,
+    { headers: { cookie } })).json();
+  assert.equal(end.flag.flag, 'ok', 'a deleted note stops flying its flag');
+});
+
+test('an ordinary note has nothing to resolve', async (t) => {
+  if (!available) return t.skip('no server');
+  const cookie = await staffCookie();
+  const list = await (await fetch(`${base}/api/admin/properties?q=SDI-1012`,
+    { headers: { cookie } })).json();
+  const id = list.rows[0].property_id;
+  const a = await (await jsonPost('/api/admin/note',
+    { property_id: id, body: 'Spoke to the agent, nothing to report.',
+      visibility: 'internal' }, cookie)).json();
+  const n2 = a.notes.find((x) => /nothing to report/.test(x.body));
+  assert.equal(n2.severity, 'note', 'unflagged by default — the level is opt-in');
+  const bad = await jsonPost('/api/admin/note',
+    { property_id: id, note_id: n2.note_id, resolve: true }, cookie);
+  assert.equal(bad.status, 400);
+  assert.match((await bad.json()).error, /nothing to resolve/);
+  await jsonPost('/api/admin/note',
+    { property_id: id, note_id: n2.note_id, remove: true }, cookie);
+});
+
+test("a buyer's flag is computed over the notes a buyer can see", async (t) => {
+  if (!available) return t.skip('no server');
+  const cookie = await staffCookie();
+  const list = await (await fetch(`${base}/api/admin/properties?q=SDI-1013`,
+    { headers: { cookie } })).json();
+  const id = list.rows[0].property_id;
+  const c = await (await jsonPost('/api/admin/note',
+    { property_id: id, body: 'Title problem — do not proceed.',
+      visibility: 'internal', severity: 'critical' }, cookie)).json();
+  const note = c.notes.find((n2) => /Title problem/.test(n2.body));
+  try {
+    const anon = await (await fetch(`${base}/api/listings`)).json();
+    const row = anon.rows.find((r2) => r2.property_id === id);
+    assert.equal(row.flag, 'ok',
+      'AN INTERNAL FLAG LEAKED TO AN ANONYMOUS CALLER — the flag is derived '
+      + 'from notes the row policy lets the caller see, and a buyer must not '
+      + 'be able to infer an internal note from a red pennant');
+    assert.ok(!JSON.stringify(anon).includes('Title problem'));
+  } finally {
+    await jsonPost('/api/admin/note',
+      { property_id: id, note_id: note.note_id, remove: true }, cookie);
+  }
+});
+
+test('an empty note is refused', async (t) => {
+  if (!available) return t.skip('no server');
+  const cookie = await staffCookie();
+  const list = await (await fetch(`${base}/api/admin/properties?q=SDI-1011`,
+    { headers: { cookie } })).json();
+  const r = await jsonPost('/api/admin/note',
+    { property_id: list.rows[0].property_id, body: '   ', visibility: 'internal' }, cookie);
+  assert.equal(r.status, 400);
+  assert.match((await r.json()).error, /not a note/);
+});
+
+// ---- profile ---------------------------------------------------------
+test('a profile is your own, and the photograph is stripped on the way in', async (t) => {
+  if (!available) return t.skip('no server');
+  assert.equal((await fetch(`${base}/api/profile`)).status, 403,
+    'a profile belongs to somebody');
+
+  const cookie = await staffCookie();
+  const me = await (await fetch(`${base}/api/profile`, { headers: { cookie } })).json();
+  assert.equal(me.email, 'jpool2@yahoo.com');
+  assert.equal(me.role, 'admin');
+
+  // The name is editable.
+  const renamed = await (await jsonPost('/api/profile',
+    { full_name: 'Jessica  Pool ' }, cookie)).json();
+  assert.equal(renamed.full_name, 'Jessica  Pool', 'trimmed at the ends, not inside');
+  await jsonPost('/api/profile', { full_name: 'Jessica Pool' }, cookie);
+
+  // A one-character name is refused rather than stored.
+  const bad = await jsonPost('/api/profile', { full_name: 'J' }, cookie);
+  assert.equal(bad.status, 400);
+
+  // Anything that is not an image is refused.
+  const notImage = await jsonPost('/api/profile/photo',
+    { image: 'data:text/plain;base64,aGVsbG8=' }, cookie);
+  assert.equal(notImage.status, 400);
+  assert.match((await notImage.json()).error, /not an image/);
+});
+
 test('the login page is served', async (t) => {
   if (!available) return t.skip('no server');
   const r = await fetch(`${base}/login.html`);

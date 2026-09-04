@@ -14,6 +14,7 @@ const { Pool } = require('pg');
 const auth  = require('./auth');
 const media = require('./media');
 const nlq   = require('./nlq');
+const images = require('./images');
 
 const pool = new Pool({
   host:     process.env.PGHOST     || 'localhost',
@@ -326,7 +327,16 @@ function buildListingQuery(criteria) {
             -- meant the favourites list -- reading a different view -- had
             -- no card image and silently fell back to a generated drawing.
             -- One definition, two consumers, and they cannot drift.
-            p.primary_image
+            p.primary_image,
+            -- Whose note, and when. Which note is "last" is decided by the
+            -- row policy, not here: staff see internal notes so theirs may
+            -- be an internal one, everyone else gets the latest public.
+            p.last_note_author, p.last_note_author_id, p.last_note_at,
+            p.last_note_visibility, p.last_note_body,
+            -- The flag is computed from notes the caller can see, so a
+            -- buyer's is almost always green. The browser shows it to
+            -- staff only: green on a listing page reads as an assurance.
+            p.flag, p.open_critical, p.open_attention
        FROM api.property_card p
       ${where.length ? 'WHERE ' + where.join(' AND ') : ''}
       ORDER BY ${sort}`;
@@ -390,13 +400,19 @@ async function adminPropertyList(identity, brand, q) {
     const args = [];
     let where = '';
     if (q) { args.push('%' + q + '%');
-      where = `WHERE listing_ref ILIKE $1 OR city ILIKE $1 OR street_address ILIKE $1`; }
+      where = `WHERE a.listing_ref ILIKE $1 OR a.city ILIKE $1 OR a.street_address ILIKE $1`; }
     const rows = (await client.query(
-      `SELECT property_id, listing_ref, status, street_address, city, state,
-              metro_label, property_type, beds, baths, sqft, list_price,
-              cap_rate, primary_image, published_photos, pending_photos,
-              underwriting_updated_at
-         FROM api.property_admin ${where} ORDER BY listing_ref`, args)).rows;
+      `SELECT a.property_id, a.listing_ref, a.status, a.street_address, a.city, a.state,
+              a.metro_label, a.property_type, a.beds, a.baths, a.sqft, a.list_price,
+              a.cap_rate, a.primary_image, a.published_photos, a.pending_photos,
+              a.underwriting_updated_at,
+              n.last_note_author, n.last_note_author_id, n.last_note_at,
+              n.last_note_visibility, n.last_note_body,
+              f.flag, f.open_critical, f.open_attention
+         FROM api.property_admin a
+         LEFT JOIN api.property_last_note n ON n.property_id = a.property_id
+         LEFT JOIN api.property_flag       f ON f.property_id = a.property_id
+         ${where} ORDER BY a.listing_ref`, args)).rows;
     const metros = (await client.query(
       `SELECT metro_code, label, kind FROM api.metro WHERE active ORDER BY sort_order`)).rows;
     return { rows, metros, count: rows.length };
@@ -416,7 +432,11 @@ async function adminProperty(identity, brand, id) {
          FROM api.metro WHERE active ORDER BY sort_order`)).rows;
     const fees = (await client.query(
       'SELECT * FROM api.property_fee_status WHERE property_id = $1', [id])).rows[0] || null;
-    return { property: r.rows[0], history, metros, fees };
+    const notes = (await client.query(
+      'SELECT * FROM api.property_note WHERE property_id = $1', [id])).rows;
+    const flag = (await client.query(
+      'SELECT * FROM api.property_flag WHERE property_id = $1', [id])).rows[0] || null;
+    return { property: r.rows[0], history, metros, fees, notes, flag };
   });
 }
 
@@ -443,13 +463,19 @@ async function propertyDetail(identity, id, brand) {
     const m = await client.query(
       'SELECT media_id, url, thumb_url, caption, position, is_primary, reveals_location '
       + 'FROM api.property_media WHERE property_id = $1', [id]);
+    // Public notes travel with the listing. They are band 1, like the
+    // description -- the row policy has already decided which the caller
+    // may see, so nothing is filtered again here.
+    const notes = (await client.query(
+      'SELECT note_id, body, author, created_at FROM api.property_note'
+      + " WHERE property_id = $1 AND visibility = 'public'", [id])).rows;
     let is_favorite = false;
     try {
       const f = await client.query(
         'SELECT 1 FROM core.saved_property WHERE property_id = $1', [id]);
       is_favorite = f.rows.length > 0;
     } catch { /* role cannot hold favourites */ }
-    return { property: r.rows[0], media: m.rows, is_favorite };
+    return { property: r.rows[0], media: m.rows, notes, is_favorite };
   });
 }
 
@@ -857,6 +883,93 @@ const server = http.createServer(async (req, res) => {
     }
   }
 
+  // ---- your own profile --------------------------------------------------
+  if (url.pathname.startsWith('/api/profile')) {
+    try {
+      const identity = await identityFor(req, url);
+      const brand = url.searchParams.get('brand');
+
+      if (req.method === 'GET') {
+        const d = await withTx(identity, brand, (c) =>
+          c.query('SELECT * FROM api.my_profile()'));
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        return res.end(JSON.stringify(d.rows[0] || null));
+      }
+
+      const b = JSON.parse(await readBody(req) || '{}');
+
+      if (url.pathname === '/api/profile/photo' && req.method === 'POST') {
+        // Removing a photograph clears the row and leaves the file: the
+        // next upload overwrites it, and a delete that races an in-flight
+        // read is a broken image for no benefit.
+        if (b.remove) {
+          await withTx(identity, brand, (c) => c.query('SELECT api.set_avatar(NULL)'));
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          return res.end(JSON.stringify({ ok: true, avatar: null }));
+        }
+        const raw = images.decodeDataUrl(b.image);
+        if (!raw) {
+          res.writeHead(400, { 'Content-Type': 'application/json' });
+          return res.end(JSON.stringify({ error: 'that is not an image, or it is too large' }));
+        }
+        const me = (await withTx(identity, brand, (c) =>
+          c.query('SELECT person_id FROM api.my_profile()'))).rows[0];
+        if (!me) {
+          res.writeHead(403, { 'Content-Type': 'application/json' });
+          return res.end(JSON.stringify({ error: 'not signed in' }));
+        }
+        // Re-encode first, write second, record third. A row must never
+        // point at a file that was not written.
+        const jpeg = await images.toSquareJpeg(raw);
+        const rel = `avatars/${me.person_id}.jpg`;
+        await fs.promises.mkdir(path.join(MEDIA_ROOT, 'avatars'), { recursive: true });
+        await fs.promises.writeFile(path.join(MEDIA_ROOT, rel), jpeg);
+        await withTx(identity, brand, (c) => c.query('SELECT api.set_avatar($1)', [rel]));
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        return res.end(JSON.stringify({ ok: true, avatar: rel, bytes: jpeg.length }));
+      }
+
+      if (req.method === 'POST') {
+        await withTx(identity, brand, (c) =>
+          c.query('SELECT api.update_profile($1)', [b.full_name || '']));
+        const d = await withTx(identity, brand, (c) =>
+          c.query('SELECT * FROM api.my_profile()'));
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        return res.end(JSON.stringify(d.rows[0]));
+      }
+      res.writeHead(404, { 'Content-Type': 'application/json' });
+      return res.end(JSON.stringify({ error: 'not found' }));
+    } catch (e) {
+      const plain = /not signed in|at least two characters|not an image|avatar path/
+        .test(e.message);
+      console.error('profile failed:', e.message);
+      res.writeHead(plain ? 400 : 403, { 'Content-Type': 'application/json' });
+      return res.end(JSON.stringify({ error: plain ? e.message : 'not permitted' }));
+    }
+  }
+
+  // A colleague's photograph, served under the same rule as every other
+  // stored file: the database decides, the filesystem does not.
+  if (url.pathname.startsWith('/media/avatar/')) {
+    const id = url.pathname.slice('/media/avatar/'.length);
+    if (!/^[0-9a-f-]{36}$/i.test(id)) { res.writeHead(404); return res.end('Not found'); }
+    let rel = null;
+    try {
+      const identity = await identityFor(req, url);
+      rel = (await withTx(identity, null, (c) =>
+        c.query('SELECT api.avatar_path($1) AS p', [id]))).rows[0].p;
+    } catch { rel = null; }
+    if (!rel) { res.writeHead(404); return res.end('Not found'); }
+    const full = path.resolve(MEDIA_ROOT, rel);
+    if (!full.startsWith(MEDIA_ROOT + path.sep)) { res.writeHead(404); return res.end('Not found'); }
+    return fs.readFile(full, (err, buf) => {
+      if (err) { res.writeHead(404); return res.end('Not found'); }
+      res.writeHead(200, { 'Content-Type': 'image/jpeg',
+                           'Cache-Control': 'private, max-age=300' });
+      res.end(buf);
+    });
+  }
+
   // ---- the properties panel ---------------------------------------------
   if (url.pathname.startsWith('/api/admin/')) {
     try {
@@ -873,6 +986,37 @@ const server = http.createServer(async (req, res) => {
         const d = await adminProperty(identity, brand, url.searchParams.get('id'));
         res.writeHead(d ? 200 : 404, { 'Content-Type': 'application/json' });
         return res.end(JSON.stringify(d || { error: 'not found' }));
+      }
+      if (what === 'note' && req.method === 'POST') {
+        const b = JSON.parse(await readBody(req) || '{}');
+        const d = await withTx(identity, brand, async (client) => {
+          if (b.note_id && b.remove) {
+            await client.query('SELECT api.delete_note($1)', [b.note_id]);
+          } else if (b.note_id && b.resolve) {
+            await client.query('SELECT api.resolve_note($1, $2)',
+              [b.note_id, b.resolution || null]);
+          } else if (b.note_id && b.reopen) {
+            await client.query('SELECT api.reopen_note($1)', [b.note_id]);
+          } else if (b.note_id) {
+            await client.query('SELECT api.edit_note($1, $2)', [b.note_id, b.body]);
+          } else {
+            await client.query('SELECT api.add_note($1, $2, $3, $4)',
+              [b.property_id, b.body, b.visibility || 'internal', b.severity || 'note']);
+          }
+          // The flag travels back with the notes. It is derived from them,
+          // so returning one without the other lets the header disagree
+          // with the list it was computed from.
+          return {
+            notes: (await client.query(
+              'SELECT * FROM api.property_note WHERE property_id = $1',
+              [b.property_id])).rows,
+            flag: (await client.query(
+              'SELECT * FROM api.property_flag WHERE property_id = $1',
+              [b.property_id])).rows[0] || null,
+          };
+        });
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        return res.end(JSON.stringify(d));
       }
       if (what === 'apply-fees' && req.method === 'POST') {
         const b = JSON.parse(await readBody(req) || '{}');
@@ -906,7 +1050,10 @@ const server = http.createServer(async (req, res) => {
       // from api.property_save is safe to pass on -- "field x is not
       // editable here" tells the caller what to fix and reveals nothing --
       // but a permission failure is reported without saying which grant.
-      const editable = /is not editable here|no fee schedule|no programme|no such programme/
+      // Messages safe to pass back: each names something the caller can fix
+      // and reveals nothing. Anything else is reported as a plain refusal.
+      // (No /x flag in JavaScript, so this stays on one line.)
+      const editable = /is not editable here|no fee schedule|no programme|no such programme|not a note|public or internal|only the author|nothing to resolve|attention or critical/
         .test(e.message);
       console.error('admin failed:', e.message);
       res.writeHead(editable ? 400 : 403, { 'Content-Type': 'application/json' });

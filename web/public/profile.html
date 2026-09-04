@@ -1,0 +1,52 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>SDI — Profile</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="stylesheet" href="/app.css">
+<link rel="stylesheet" href="/nav.css">
+<link rel="stylesheet" href="/admin.css">
+<link rel="stylesheet" href="/profile.css">
+
+<header class="bar">
+  <div class="brand"><span class="mark">SDI</span> <span class="brandtxt">Profile</span></div>
+</header>
+
+<div id="denied" class="denied" hidden>
+  <h1>Not signed in</h1>
+  <p>A profile belongs to somebody.</p>
+  <p><a class="ghost" href="/login.html">Sign in</a></p>
+</div>
+
+<main id="app" class="pwrap" hidden>
+  <section class="pcard">
+    <h2>Your photograph</h2>
+    <div class="avrow">
+      <span id="av" class="av"></span>
+      <div class="avact">
+        <label class="ghost file">Choose a photograph
+          <input id="file" type="file" accept="image/*" hidden>
+        </label>
+        <button id="rmphoto" class="ghost" hidden>Remove</button>
+        <p class="muted small">Re-encoded on upload, which removes the metadata a
+          camera adds — including where the photograph was taken.</p>
+      </div>
+    </div>
+  </section>
+
+  <section class="pcard">
+    <h2>Your details</h2>
+    <label class="pf"><span>Name</span><input id="full_name" type="text"></label>
+    <label class="pf"><span>Email</span><input id="email" type="text" disabled></label>
+    <label class="pf"><span>Role</span><input id="role" type="text" disabled></label>
+    <p class="muted small">Your email is how you sign in and where a password reset
+      would go, so changing it needs a confirmation round trip rather than a text
+      box. Your role is set by an administrator.</p>
+    <div class="pact">
+      <span id="pmsg" class="msg" hidden></span>
+      <button id="psave" class="primary" disabled>Save</button>
+    </div>
+  </section>
+</main>
+
+<script src="/nav.js"></script>
+<script src="/profile.js"></script>

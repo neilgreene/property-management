@@ -118,3 +118,96 @@
   #app{grid-template-columns:1fr;height:auto}
   .picker{border-right:0;border-bottom:1px solid var(--line);max-height:260px}
 }
+
+/* ---------- notes ---------- */
+.composer{display:grid;gap:8px;margin-bottom:14px}
+.composer textarea{width:100%;font:inherit;font-size:13px;padding:9px 11px;
+  border:1px solid var(--line);border-radius:8px;background:var(--bg);resize:vertical}
+.comprow{display:flex;align-items:center;gap:16px;flex-wrap:wrap}
+.vis{display:flex;align-items:center;gap:6px;font-size:12.5px;cursor:pointer}
+.vis i{color:var(--ink2);font-style:normal}
+.vis input{accent-color:var(--accent)}
+.comprow .primary{margin-left:auto}
+.viswarn{margin:0;font-size:12px;color:#7a3410;background:#FBEDE6;border-radius:7px;
+  padding:8px 11px}
+
+.notes{display:grid;gap:8px}
+.note{border:1px solid var(--line);border-left:3px solid var(--line);
+  border-radius:8px;padding:9px 12px;background:var(--bg)}
+/* A public note is coloured like the gate notice, because it is one: it is
+   as visible as the listing, and the colour is the reminder. */
+.note.public{border-left-color:var(--accent);background:var(--accent2)}
+.note header{display:flex;align-items:baseline;gap:10px;margin-bottom:5px;flex-wrap:wrap}
+.ntag{font-size:10.5px;font-weight:700;letter-spacing:.5px;text-transform:uppercase;
+  border-radius:4px;padding:1px 6px;background:var(--line);color:var(--ink2)}
+.note.public .ntag{background:var(--accent);color:#fff}
+.nwho{font-size:12.5px;font-weight:600}
+.nwhen{font-size:11.5px;color:var(--ink2)}
+.nact{margin-left:auto;display:flex;gap:10px}
+.link{border:0;background:none;padding:0;font:inherit;font-size:11.5px;
+  color:var(--accent);cursor:pointer;text-decoration:underline}
+.nbody{font-size:13px;line-height:1.45;white-space:pre-wrap}
+
+.nav2{width:22px;height:22px;border-radius:50%;background:var(--accent);color:#fff;
+  display:inline-grid;place-items:center;font-size:9.5px;font-weight:700;
+  overflow:hidden;flex:0 0 auto}
+.nav2 img{width:100%;height:100%;object-fit:cover;display:block}
+.pnote{font-size:11px;color:var(--gate)}
+.prow.on .pnote{color:rgba(255,255,255,.85)}
+
+/* ---------------------------------------------------------------------
+   severity
+   --------------------------------------------------------------------- */
+/* Three options sharing the width, so the level is chosen by picking one
+   of three rather than by reading a list. Each carries its own colour --
+   the green on "Note" is the only green in the composer and it is doing
+   the same job the flag does: saying nothing is outstanding. */
+.comprow.sev{gap:8px;margin-top:6px;align-items:stretch}
+.sevlab{font-size:11px;font-weight:700;letter-spacing:.4px;text-transform:uppercase;
+  color:var(--mut);align-self:center}
+.sv{flex:1 1 0;display:flex;align-items:center;gap:7px;font-size:12.5px;cursor:pointer;
+  border:1px solid var(--line);border-radius:7px;padding:6px 10px;background:var(--card)}
+.sv:has(input:checked){border-color:currentColor;box-shadow:inset 0 0 0 1px currentColor}
+.sv span{display:flex;align-items:center;gap:5px;flex-wrap:wrap}
+.sv em{font-style:normal;color:var(--ink2);font-size:11.5px}
+.sv input{accent-color:currentColor;margin:0}
+.sv.note{color:var(--ok)}
+.sv.attention{color:var(--attn)}
+.sv.critical{color:var(--crit)}
+
+/* The header chip is the answer to "is anything wrong with this one" and
+   sits where that question gets asked -- next to the address, not at the
+   bottom of a list of notes somebody has to scroll to. */
+.shflag{margin-top:5px}
+.fchip{display:inline-flex;align-items:center;gap:6px;font-size:11.5px;font-weight:700;
+  border-radius:6px;padding:3px 9px;border:1px solid transparent}
+.fchip.ok{color:var(--ok);background:var(--okbg);border-color:#bfe0d6}
+.fchip.attention{color:var(--attn);background:var(--attnbg);border-color:var(--attnline)}
+.fchip.critical{color:var(--crit);background:var(--critbg);border-color:var(--critline)}
+
+/* One dot on the reference line. Green is left out on purpose: twenty-five
+   green dots hide the two that are not. */
+.fdot{display:inline-block;width:9px;height:10px;background:currentColor;margin-left:6px;
+  vertical-align:0;clip-path:polygon(0 0,100% 0,64% 38%,100% 76%,22% 76%,22% 100%,0 100%)}
+.fdot.critical{color:var(--crit)}
+.fdot.attention{color:var(--attn)}
+.prow.on .fdot.critical,.prow.on .fdot.attention{color:#fff}
+
+.sevtag{display:inline-flex;align-items:center;gap:5px;font-size:10.5px;font-weight:700;
+  letter-spacing:.4px;text-transform:uppercase;border-radius:4px;padding:1px 6px}
+.sevtag.attention{color:var(--attn);background:var(--attnbg)}
+.sevtag.critical{color:var(--crit);background:var(--critbg)}
+/* Resolved keeps its colour but loses its weight: the record of what was
+   wrong stays legible without still shouting. */
+.sevtag.done{color:var(--ink2);background:var(--line)}
+/* `unresolved`, not `open`: app.css already has a .note.open meaning a
+   gate notice that has been opened, and the two would have shared a
+   colour by accident. The panel's note is a different animal that happens
+   to share a class name. */
+.note.sev-attention.unresolved{border-left-color:var(--attn)}
+.note.sev-critical.unresolved{border-left-color:var(--crit);background:var(--critbg);
+  border-color:var(--critline)}
+.note.sev-critical.unresolved .nbody{color:var(--ink)}
+.link.ok{color:var(--ok)}
+.nres{margin-top:6px;font-size:11.5px;color:var(--ok);background:var(--okbg);
+  border-radius:6px;padding:5px 9px}

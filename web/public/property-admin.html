@@ -3,15 +3,12 @@
 <title>SDI — Property</title>
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <link rel="stylesheet" href="/app.css">
+<link rel="stylesheet" href="/nav.css">
 <link rel="stylesheet" href="/admin.css">
 <link rel="stylesheet" href="/property-admin.css">
 
 <header class="bar">
   <div class="brand"><span class="mark">SDI</span> <span class="brandtxt">Property</span></div>
-  <nav class="adminnav">
-    <a href="/">← Marketplace</a>
-    <a href="/admin.html">Intake review</a>
-  </nav>
   <div class="who">
     <span id="whoami" class="chip">…</span>
     <button id="signout" class="ghost" hidden>Sign out</button>
@@ -44,6 +41,7 @@
         <div>
           <div id="addr" class="shaddr"></div>
           <div id="sub" class="muted"></div>
+          <div id="shflag" class="shflag" hidden></div>
         </div>
       </div>
       <div class="sheetact">
@@ -86,6 +84,40 @@
     </div>
 
     <div class="block wide">
+      <h2>Notes</h2>
+      <div class="composer">
+        <textarea id="notebody" rows="3"
+          placeholder="What happened, what was agreed, what still needs checking…"></textarea>
+        <div class="comprow">
+          <label class="vis"><input type="radio" name="vis" value="internal" checked>
+            <span>Internal <i>— staff only</i></span></label>
+          <label class="vis"><input type="radio" name="vis" value="public">
+            <span>Public <i>— shown on the listing to everyone</i></span></label>
+          <button id="addnote" class="primary" disabled>Add note</button>
+        </div>
+        <div class="comprow sev">
+          <span class="sevlab">How urgent</span>
+          <label class="sv note"><input type="radio" name="sev" value="note" checked>
+            <span><i class="flag"></i> Note <em>— a record of what happened</em></span></label>
+          <label class="sv attention"><input type="radio" name="sev" value="attention">
+            <span><i class="flag"></i> Attention <em>— somebody has to do something</em></span></label>
+          <label class="sv critical"><input type="radio" name="sev" value="critical">
+            <span><i class="flag"></i> Critical <em>— the deal is in trouble</em></span></label>
+        </div>
+        <p id="sevwarn" class="viswarn" hidden>
+          A flagged note keeps the property flagged until somebody marks it resolved.
+          That is the point — but it means the flag is a job for a person, not a mood.
+        </p>
+        <p id="viswarn" class="viswarn" hidden>
+          A public note is as visible as the listing itself, to visitors who have
+          signed nothing. The gate protects the address field, not prose that
+          mentions it.
+        </p>
+      </div>
+      <div id="notes" class="notes"></div>
+    </div>
+
+    <div class="block wide">
       <h2>History</h2>
       <div id="history" class="history"></div>
     </div>
@@ -93,3 +125,4 @@
 </main>
 
 <script src="/property-admin.js"></script>
+<script src="/nav.js"></script>

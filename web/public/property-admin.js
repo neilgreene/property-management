@@ -16,7 +16,7 @@
 const $ = (id) => document.getElementById(id);
 
 const state = { list: [], metros: [], property: null, original: null,
-                fees: null, patch: {} };
+                fees: null, notes: [], flag: null, isAdmin: false, patch: {} };
 
 const usd  = (n) => n == null || n === '' ? '—'
   : '$' + Math.round(Number(n)).toLocaleString();
@@ -340,10 +340,158 @@ async function openProperty(id) {
     + `${d.property.published_photos} published photo(s), ${d.property.pending_photos} pending`;
   renderFields();
   renderMetro();
+  renderNotes(d.notes || [], d.flag);
   renderHistory(d.history);
   redraw();
   document.querySelectorAll('.prow').forEach((el) =>
     el.classList.toggle('on', el.dataset.id === id));
+}
+
+// ---------------------------------------------------------------------
+// notes
+//
+// Rows, not a field. The description above is one piece of prose somebody
+// edits until it reads well; a note is an observation made at a moment by
+// a person, and the second person to write one must not destroy the first.
+// ---------------------------------------------------------------------
+// A face beside a name. The initials stand in until the photograph loads
+// and if it never does -- an author with no photograph is the normal case,
+// not a failure.
+function avatar(personId, name) {
+  const ini = String(name || '?').trim().split(/\s+/).slice(0, 2)
+    .map((w) => w[0]).join('').toUpperCase();
+  return personId
+    ? `<span class="nav2"><img alt="" src="/media/avatar/${esc(personId)}"
+         onerror="this.replaceWith(document.createTextNode('${esc(ini)}'))">
+       </span>`
+    : `<span class="nav2">${esc(ini)}</span>`;
+}
+
+function when(ts) {
+  const d = new Date(ts);
+  return d.toLocaleString(undefined, { year: 'numeric', month: 'short', day: 'numeric',
+                                       hour: '2-digit', minute: '2-digit' });
+}
+
+// A flag is a claim about the property right now, and it is computed from
+// the notes that are still open -- so it can only ever say what somebody
+// has written down and not since closed. Green is "nothing outstanding",
+// which is why it is worth showing at all.
+const FLAGS = {
+  critical:  { word: 'Critical',  said: 'the deal is in trouble' },
+  attention: { word: 'Attention', said: 'something needs doing' },
+  ok:        { word: 'Clear',     said: 'nothing outstanding' },
+};
+
+function flagChip(flag, counts) {
+  const f = FLAGS[flag] || FLAGS.ok;
+  const n = [];
+  if (counts && counts.open_critical) n.push(`${counts.open_critical} critical`);
+  if (counts && counts.open_attention) n.push(`${counts.open_attention} to chase`);
+  return `<span class="fchip ${esc(flag || 'ok')}" title="${esc(f.said)}">
+    <i class="flag"></i>${esc(f.word)}${n.length ? ' · ' + esc(n.join(', ')) : ''}</span>`;
+}
+
+function renderFlag(flag) {
+  state.flag = flag || null;
+  const el = $('shflag');
+  el.hidden = false;
+  el.innerHTML = flagChip(flag ? flag.flag : 'ok', flag);
+}
+
+function renderNotes(rows, flag) {
+  state.notes = rows;
+  if (flag !== undefined) renderFlag(flag);
+  $('notes').innerHTML = rows.length ? rows.map((n2) => `
+    <article class="note ${n2.visibility} sev-${esc(n2.severity || 'note')}${
+      n2.is_open ? ' unresolved' : ''}" data-id="${esc(n2.note_id)}">
+      <header>
+        ${avatar(n2.author_id, n2.author)}
+        <span class="ntag">${n2.visibility === 'public' ? 'Public' : 'Internal'}</span>
+        ${n2.severity && n2.severity !== 'note'
+          ? `<span class="sevtag ${esc(n2.severity)}${n2.is_open ? '' : ' done'}">
+               <i class="flag"></i>${esc(FLAGS[n2.severity].word)}${
+                 n2.is_open ? '' : ' · resolved'}</span>` : ''}
+        <span class="nwho">${esc(n2.author)}</span>
+        <span class="nwhen">${esc(when(n2.created_at))}${
+          n2.edited_at ? ' · edited ' + esc(when(n2.edited_at)) : ''}</span>
+        <span class="nact">
+          ${n2.severity !== 'note' && n2.is_open
+            ? `<button class="link ok" data-resolve="${esc(n2.note_id)}">Resolve</button>` : ''}
+          ${n2.severity !== 'note' && !n2.is_open
+            ? `<button class="link" data-reopen="${esc(n2.note_id)}">Reopen</button>` : ''}
+          ${n2.is_mine || state.isAdmin ? `
+          <button class="link" data-edit="${esc(n2.note_id)}">Edit</button>
+          <button class="link" data-del="${esc(n2.note_id)}">Remove</button>` : ''}
+        </span>
+      </header>
+      <div class="nbody">${esc(n2.body)}</div>
+      ${n2.resolved_at ? `<div class="nres">Resolved by
+        ${esc(n2.resolved_by_name || 'someone')} · ${esc(when(n2.resolved_at))}${
+          n2.resolution ? ' — ' + esc(n2.resolution) : ''}</div>` : ''}
+    </article>`).join('')
+    : '<div class="muted">No notes yet.</div>';
+
+  $('notes').querySelectorAll('[data-del]').forEach((b) =>
+    b.addEventListener('click', () => noteAction({ note_id: b.dataset.del, remove: true })));
+  // Why it was resolved matters more than that it was: "roof re-quoted at
+  // 4k, seller credit agreed" is the whole reason the flag came down.
+  $('notes').querySelectorAll('[data-resolve]').forEach((b) =>
+    b.addEventListener('click', () => {
+      const r = prompt('What settled it? (optional)');
+      if (r === null) return;
+      noteAction({ note_id: b.dataset.resolve, resolve: true, resolution: r.trim() });
+    }));
+  $('notes').querySelectorAll('[data-reopen]').forEach((b) =>
+    b.addEventListener('click', () => noteAction({ note_id: b.dataset.reopen, reopen: true })));
+  $('notes').querySelectorAll('[data-edit]').forEach((b) =>
+    b.addEventListener('click', () => {
+      const n2 = state.notes.find((x) => x.note_id === b.dataset.edit);
+      const body = prompt('Edit the note', n2.body);
+      if (body != null && body.trim()) noteAction({ note_id: n2.note_id, body });
+    }));
+}
+
+async function noteAction(payload) {
+  const r = await fetch('/api/admin/note', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ property_id: state.property.property_id, ...payload }),
+  });
+  const d = await r.json();
+  $('msg').hidden = false;
+  if (!r.ok) {
+    $('msg').className = 'msg bad';
+    $('msg').textContent = d.error || 'The note could not be saved.';
+    return;
+  }
+  $('msg').hidden = true;
+  renderNotes(d.notes, d.flag);
+  // The picker row is now stale in two ways -- last note and flag -- and
+  // the panel is the only place either can change, so it repaints its own
+  // row rather than making the user reload to see what they just wrote.
+  const row = state.list.find((x) => x.property_id === state.property.property_id);
+  if (row && d.flag) Object.assign(row, d.flag);
+  if (row && d.notes && d.notes.length) {
+    const last = d.notes[0];
+    Object.assign(row, { last_note_author: last.author, last_note_author_id: last.author_id,
+                         last_note_at: last.created_at, last_note_body: last.body,
+                         last_note_visibility: last.visibility });
+  }
+  paintRow(state.property.property_id);
+}
+
+// One row, redrawn where it stands. Reloading the whole list would lose
+// the scroll position and the selection for the sake of one line of text.
+function paintRow(id) {
+  const el = document.querySelector(`.prow[data-id="${id}"]`);
+  const row = state.list.find((x) => x.property_id === id);
+  if (!el || !row) return;
+  const fresh = document.createElement('div');
+  fresh.innerHTML = pickerRow(row);
+  const next = fresh.firstElementChild;
+  next.classList.toggle('on', el.classList.contains('on'));
+  next.addEventListener('click', () => openProperty(id));
+  el.replaceWith(next);
 }
 
 function renderHistory(rows) {
@@ -394,25 +542,37 @@ function revert() {
   document.querySelectorAll('.f').forEach((f) => f.classList.remove('changed'));
 }
 
+// The flag rides on the reference, not off on its own: it is a fact about
+// this property and reads as one there. Only the two colours that mean
+// work are drawn -- a green dot on all twenty-five rows says nothing and
+// makes the two red ones harder to find.
+function pickerRow(r2) {
+  return `<button class="prow" data-id="${esc(r2.property_id)}">
+      ${r2.primary_image
+        ? `<img class="pthumb" loading="lazy" alt="" src="${esc(r2.primary_image)}">`
+        : '<span class="pthumb none"></span>'}
+      <span class="ptext">
+        <span class="pref">${esc(r2.listing_ref)}${
+          r2.flag && r2.flag !== 'ok'
+            ? `<i class="fdot ${esc(r2.flag)}" title="${
+                 esc(FLAGS[r2.flag].said)}"></i>` : ''}</span>
+        <span class="paddr">${esc(r2.street_address || r2.city)}</span>
+        <span class="pmeta">${esc(r2.city)}, ${esc(r2.state)} · ${usd(r2.list_price)}
+          ${r2.metro_label ? '· ' + esc(r2.metro_label) : ''}</span>
+        ${r2.last_note_at ? `<span class="pnote">${esc(r2.last_note_author)}
+          · ${esc(when(r2.last_note_at))}</span>` : ''}
+      </span>
+      ${r2.pending_photos ? `<span class="ppend">${r2.pending_photos} pending</span>` : ''}
+    </button>`;
+}
+
 async function loadList(q) {
   const r = await fetch('/api/admin/properties' + (q ? '?q=' + encodeURIComponent(q) : ''));
   if (!r.ok) { $('denied').hidden = false; $('app').hidden = true; return; }
   const d = await r.json();
   state.list = d.rows; state.metros = d.metros;
   $('pcount').textContent = `${d.count} propert${d.count === 1 ? 'y' : 'ies'}`;
-  $('plist').innerHTML = d.rows.map((r2) => `
-    <button class="prow" data-id="${esc(r2.property_id)}">
-      ${r2.primary_image
-        ? `<img class="pthumb" loading="lazy" alt="" src="${esc(r2.primary_image)}">`
-        : '<span class="pthumb none"></span>'}
-      <span class="ptext">
-        <span class="pref">${esc(r2.listing_ref)}</span>
-        <span class="paddr">${esc(r2.street_address || r2.city)}</span>
-        <span class="pmeta">${esc(r2.city)}, ${esc(r2.state)} · ${usd(r2.list_price)}
-          ${r2.metro_label ? '· ' + esc(r2.metro_label) : ''}</span>
-      </span>
-      ${r2.pending_photos ? `<span class="ppend">${r2.pending_photos} pending</span>` : ''}
-    </button>`).join('');
+  $('plist').innerHTML = d.rows.map(pickerRow).join('');
   document.querySelectorAll('.prow').forEach((el) =>
     el.addEventListener('click', () => openProperty(el.dataset.id)));
 }
@@ -430,6 +590,33 @@ async function loadList(q) {
   if (!probe.ok) { $('denied').hidden = false; return; }
   $('app').hidden = false;
   await loadList('');
+
+  state.isAdmin = who.role === 'sdi_admin';
+
+  $('notebody').addEventListener('input', () => {
+    $('addnote').disabled = !$('notebody').value.trim();
+  });
+  document.querySelectorAll('input[name=vis]').forEach((r) =>
+    r.addEventListener('change', () => {
+      $('viswarn').hidden = document.querySelector('input[name=vis]:checked').value !== 'public';
+    }));
+  document.querySelectorAll('input[name=sev]').forEach((r) =>
+    r.addEventListener('change', () => {
+      $('sevwarn').hidden = document.querySelector('input[name=sev]:checked').value === 'note';
+    }));
+  $('addnote').addEventListener('click', async () => {
+    const body = $('notebody').value.trim();
+    if (!body) return;
+    await noteAction({ body,
+      visibility: document.querySelector('input[name=vis]:checked').value,
+      severity: document.querySelector('input[name=sev]:checked').value });
+    $('notebody').value = '';
+    $('addnote').disabled = true;
+    // The level resets. A composer left on Critical turns the next three
+    // ordinary notes into emergencies by inattention.
+    document.querySelector('input[name=sev][value=note]').checked = true;
+    $('sevwarn').hidden = true;
+  });
 
   $('save').addEventListener('click', save);
   $('revert').addEventListener('click', revert);

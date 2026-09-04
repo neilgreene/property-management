@@ -1,5 +1,10 @@
 # The demo web tier. Build context is ./web.
-FROM node:22-alpine
+#
+# Debian (slim), not Alpine, for the same reason the worker is: sharp ships
+# a separate prebuilt binary per libc, and an image built on musl with a
+# lockfile written on glibc installs cleanly and then cannot load it. That
+# cost a deploy cycle once already.
+FROM node:22-slim
 
 WORKDIR /app
 ENV NODE_ENV=production
@@ -14,7 +19,11 @@ RUN npm ci --omit=dev
 # this line listed only server.js and auth.js, which meant adding media.js
 # and nlq.js produced an image that crashed on its first require -- the sort
 # of break that passes every test and fails only in the registry.
-COPY server.js auth.js media.js nlq.js ./
+# The image is not usable if its native dependency will not load, and
+# finding that out from a running container is finding it out too late.
+RUN node -e "const s=require('sharp'); s({create:{width:8,height:8,channels:3,background:'#000'}}).jpeg().toBuffer().then(()=>console.log('sharp ok'))"
+
+COPY server.js auth.js media.js nlq.js images.js ./
 COPY public ./public
 
 # Runs unprivileged. node:alpine ships a `node` user for exactly this.

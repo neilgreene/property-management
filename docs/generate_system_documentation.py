@@ -864,6 +864,41 @@ A(para("Replacing any of this is a URL change. " + mono("core.property_media") +
        "and nothing outside the renderer assumes where they are served from. The gate lives in "
        "the database and does not care where the bytes come from.", BODY))
 
+A(para("7.8  Notes, and the flag they drive", H2))
+A(para("A note on a property is a row, not a field. The description is one piece of prose "
+       "somebody edits until it reads well; a note is an observation made at a moment by a "
+       "person, and the second person to write one must not destroy the first. Each carries "
+       "its author and the time it was written, and removing one is soft \u2014 the note "
+       "leaves the listing, the record that it was written stays.", BODY))
+A(para("A note is public or internal, and the composer says what that means at the moment "
+       "the choice is made. A public note is band 1, as visible as the price, to a visitor "
+       "who has signed nothing. The gate protects the " + mono("street_address") + " column, "
+       "not prose that mentions the address \u2014 \u201cthe tenants at 412 Ashwood are on a "
+       "month-to-month\u201d defeats it in a sentence.", NOTE))
+A(para("Notes carry a level: " + mono("note") + ", " + mono("attention") + " or " +
+       mono("critical") + ". Three, and the middle one earns its place. With only two, "
+       "everything that is not a disaster is ordinary, so people mark things critical to get "
+       "them noticed and the red flag stops meaning anything.", BODY))
+A(para("<b>Severity without resolution is a ratchet.</b> A critical note written in March is "
+       "still critical in June unless somebody can say it was dealt with. So every flagged "
+       "note can be resolved \u2014 by whom, when, and what settled it \u2014 and the "
+       "property\u2019s flag is computed from what is still open. Anyone who can manage the "
+       "property may resolve, not only the author: the person who spots a problem is often "
+       "not the person who fixes it, and requiring the author to close it means flags "
+       "outliving the fix. A green flag then means \u201cnothing outstanding\u201d, which is "
+       "a claim somebody has made, rather than \u201cnobody has written anything alarming "
+       "lately\u201d, which is not.", GOOD))
+A(para(mono("api.property_flag") + " derives the flag from the notes <i>the caller can see</i>, "
+       "which falls out of the row policy rather than being decided a second time. In practice "
+       "critical notes are internal, so a buyer\u2019s flag is computed over public notes and "
+       "is almost always green \u2014 which is why the browser shows it on staff screens only. "
+       "A green flag on a listing page reads as an assurance, and this system is not in a "
+       "position to give one. There is a test asserting an anonymous caller gets " + mono("ok") +
+       " on a property carrying an open internal critical.", NOTE))
+A(para("Where it appears: a chip under the address in the internal panel, a coloured pennant "
+       "on the picker row, and on marketplace cards for staff. Only red and amber are drawn on "
+       "the picker \u2014 twenty-five green dots hide the two that are not.", BODY))
+
 # ------------------------------------------------------------------ 8
 A(PageBreak())
 A(para("8.  Where Listing Data Comes From", H1))
@@ -1236,8 +1271,8 @@ A(table([
     [mono("sql/23_listing_sync_tests.sql"), "10", "The whole listing lifecycle: under contract, failed escrow back to market, a feed outage, a genuine delisting, an advisory source, and a status term nobody has mapped"],
     [mono("sql/27_governance_tests.sql"), "10", "A data right built one failing condition at a time, and the same confirmed right refusing to cover a property one state away"],
     [mono("sql/29_intake_tests.sql"), "9", "Spreadsheet to listing: an invalid row cannot be approved, a pending row cannot be released, and \u201crelease ALL\u201d releases only what was approved"],
-    [mono("web/ (npm test)"), "34", "Password verification cost on the failure path, session revocation on password change, lockout after repeated failures, and that no application role can read a credential hash"],
-    [mono("worker/ (npm test)"), "70", "Signature forgery, replay, oversized bodies, rate-limit handling, ambiguous-create duplication, migration resumability, and the sweep's discipline \u2014 an error is never an absence, an advisory source cannot act. All against doubles, see 6.4"],
+    [mono("web/ (npm test)"), "50", "Password verification cost on the failure path, session revocation on password change, lockout after repeated failures, and that no application role can read a credential hash"],
+    [mono("worker/ (npm test)"), "87", "Signature forgery, replay, oversized bodies, rate-limit handling, ambiguous-create duplication, migration resumability, and the sweep's discipline \u2014 an error is never an absence, an advisory source cannot act. All against doubles, see 6.4"],
 ], [1.95*inch, 0.62*inch, 3.33*inch]))
 A(Spacer(1, 5))
 A(para("Every suite that changes demo data restores it. That is not tidiness: a test that "

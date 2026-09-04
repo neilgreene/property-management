@@ -12,6 +12,81 @@ date the work was completed.
 
 ---
 
+## 0.9.20 — 2026-09-04
+
+**Notes with a name on them, a rail to get around by, and a flag when
+something is wrong.**
+
+### Added — notes
+Notes on a property are rows, not a text box. Each one records who wrote it
+and when, is public or internal, and cannot be destroyed by the next person
+to write one. Removing is soft: the note leaves the listing, the record that
+it was written stays.
+
+Public notes travel with the listing, which is a sharper edge than it looks:
+they are band 1, as visible as the price, to a visitor who has signed nothing.
+The gate protects the `street_address` column, not prose that mentions the
+address — so the composer says so, in the moment somebody picks "public".
+
+### Added — severity, and the flag it drives
+A note can be an ordinary **Note**, need **Attention**, or be **Critical**.
+Three levels, and the middle one earns its place: with only two, everything
+that is not a disaster is ordinary, so people mark things critical to get them
+noticed and the red flag stops meaning anything.
+
+**Severity without resolution is a ratchet.** A critical note written in March
+is still critical in June unless somebody can say it was dealt with — so every
+flagged note can be resolved, with who said so, when, and what settled it, and
+the property's flag is computed from what is still open. A green *Clear* chip
+therefore means "nothing outstanding", which is a claim a person has made,
+rather than "nobody has written anything alarming lately", which is not.
+
+Where it shows: a chip under the address in the panel, a coloured pennant on
+the picker row (red and amber only — twenty-five green dots hide the two that
+are not), and on marketplace cards **for staff only**. The flag is derived
+from the notes the caller can see, so a buyer's is green whenever no public
+note is open, and green on a listing page reads as this system vouching for
+the house. It is not in a position to. There is a test asserting an anonymous
+caller gets `ok` on a property carrying an open internal critical.
+
+### Added — the application rail
+The flat *Properties* button is now a left rail on every page: Browse and
+Favourites, an Admin group with Properties and Intake review, You with Profile,
+and the signed-in person's photograph and name above Sign out. Active state is
+matched on path *and* query, so two entries pointing at the same page under
+different filters do not both light up.
+
+### Added — profiles and avatars
+`/profile.html` edits your display name and photograph; email and role are
+read-only, because they are what the database makes authorisation decisions
+with. Photographs are re-encoded on the way in, which strips EXIF — a staff
+portrait taken on a phone otherwise arrives carrying the GPS coordinates of
+wherever it was taken.
+
+Avatars appear beside the name in the rail and on every note. Initials stand
+in until the photograph loads, and stay if there is none: an author without a
+photograph is the normal case, not a failure.
+
+### Added — the last note, where the question gets asked
+Whose note, and when, now shows on the picker row and on marketplace cards,
+so an internal user can see a property has been touched without opening the
+panel. *Which* note is "last" is decided by the row policy rather than by the
+query: staff see internal notes so theirs may be an internal one, everyone
+else gets the latest public.
+
+### Fixed
+- `.note.open` in the panel collided with an unrelated `.note.open` in
+  `app.css` — a gate notice that has been opened — and painted critical note
+  text green on a red card. The panel's class is `unresolved` now, which says
+  what it means anyway.
+- The severity picker resets to *Note* after each note is added. A composer
+  left on *Critical* turns the next three ordinary notes into emergencies by
+  inattention.
+- Writing a note repaints its own picker row rather than reloading the list,
+  which used to lose the scroll position and the selection.
+
+---
+
 ## 0.9.19 — 2026-09-04
 
 **A picture of the property, in the panel.**

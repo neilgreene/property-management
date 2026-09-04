@@ -53,6 +53,10 @@ COPY sql/39_underwriting.sql     /docker-entrypoint-initdb.d/39_underwriting.sql
 COPY sql/40_property_admin.sql   /docker-entrypoint-initdb.d/40_property_admin.sql
 COPY sql/41_property_manager.sql /docker-entrypoint-initdb.d/41_property_manager.sql
 COPY sql/42_underwriting_seed.sql /docker-entrypoint-initdb.d/42_underwriting_seed.sql
+COPY sql/43_property_notes.sql   /docker-entrypoint-initdb.d/43_property_notes.sql
+COPY sql/44_profile.sql          /docker-entrypoint-initdb.d/44_profile.sql
+COPY sql/45_note_summary.sql     /docker-entrypoint-initdb.d/45_note_summary.sql
+COPY sql/46_note_severity.sql    /docker-entrypoint-initdb.d/46_note_severity.sql
 
 # Application roles take their credentials from the environment at first
 # start, not from anything baked in. See the script for why a build-time flag

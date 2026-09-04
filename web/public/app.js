@@ -259,6 +259,15 @@ function highlight(id, on) {
 // ---------------------------------------------------------------------
 // cards
 // ---------------------------------------------------------------------
+// Staff only, and deliberately. The flag is computed from the notes the
+// caller can see, so a buyer's is green whenever no PUBLIC note is open --
+// which is nearly always, and would read on a listing page as this system
+// vouching for the house. It is not in a position to.
+function staff() {
+  return state.identity
+    && (state.identity.role === 'sdi_agent' || state.identity.role === 'sdi_admin');
+}
+
 function card(r) {
   const gated = !r.address_unlocked;
   const addr = gated
@@ -281,6 +290,15 @@ function card(r) {
       <div class="specs"><b>${r.beds}</b> bd · <b>${Number(r.baths)}</b> ba ·
         <b>${Number(r.sqft).toLocaleString()}</b> sqft · ${esc(r.property_type)}</div>
       <div class="addr${gated ? ' locked' : ''}">${addr}</div>
+      ${staff() && r.flag && r.flag !== 'ok'
+        ? `<div class="cflag ${esc(r.flag)}"><i class="flag"></i>${
+             r.open_critical ? esc(r.open_critical) + ' critical' : ''}${
+             r.open_critical && r.open_attention ? ' · ' : ''}${
+             r.open_attention ? esc(r.open_attention) + ' to chase' : ''}</div>` : ''}
+      ${r.last_note_at ? `<div class="cnote${r.last_note_visibility === 'internal' ? ' int' : ''}"
+        title="${esc(r.last_note_body || '')}">
+        <b>${esc(r.last_note_author)}</b> · ${esc(noteWhen(r.last_note_at))}${
+          r.last_note_visibility === 'internal' ? ' · internal' : ''}</div>` : ''}
       <div class="metrics">
         <div>cap rate<b>${pct(r.cap_rate)}</b></div>
         <div>NOI<b>${usd(r.noi_annual)}</b></div>
@@ -354,6 +372,21 @@ function fillSelects(data) {
 // ---------------------------------------------------------------------
 // the gate banner -- states the rule in words, from data, never guessed
 // ---------------------------------------------------------------------
+// The rail is rendered by nav.js and does not know the favourite count.
+// This page already has it, so it fills the badge in rather than the rail
+// making a second request on every screen that will never show one.
+// Short, because it sits on a card. "2 Sep" is enough to know whether
+// somebody looked at this today or in the spring.
+const noteWhen = (ts) => new Date(ts).toLocaleDateString(undefined,
+  { month: 'short', day: 'numeric' });
+
+function paintRailCount(n) {
+  const b = document.querySelector('#railfav .rcount');
+  if (!b) return;
+  b.hidden = !n;
+  b.textContent = n;
+}
+
 function banner(data) {
   const el = $('gate');
   const anyLocked = data.rows.some((r) => !r.address_unlocked);
@@ -388,6 +421,7 @@ async function load(push = true) {
     data.identity = state.identity;
     state.favorites = data.rows.length;
     $('favcount').textContent = data.rows.length;
+    paintRailCount(data.rows.length);
   } else {
     fillSelects(data);
   }
@@ -405,7 +439,7 @@ async function load(push = true) {
 async function openDetail(id) {
   const res = await fetch('/api/property?id=' + encodeURIComponent(id));
   if (!res.ok) return;
-  const { property: p, media, is_favorite } = await res.json();
+  const { property: p, media, notes, is_favorite } = await res.json();
   const gated = !p.address_unlocked;
 
   const rentM  = Number(p.market_rent_monthly || 0);
@@ -499,6 +533,13 @@ async function openDetail(id) {
       <tr><td>Roof</td><td>${p.roof_year || '—'}</td></tr>
       <tr><td>Last renovated</td><td>${p.last_renovated || '—'}</td></tr>
     </table>
+    ${(notes && notes.length) ? `<h2 class="sec">Notes about this property</h2>
+      <div class="lnotes">${notes.map((nt) => `<article class="lnote">
+        <div class="lnbody">${esc(nt.body)}</div>
+        <div class="lnwho">${esc(nt.author)} · ${esc(new Date(nt.created_at)
+          .toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' }))}</div>
+      </article>`).join('')}</div>` : ''}
+
     ${feats.length ? `<h2 class="sec">Features</h2>
       <div class="tags">${feats.map((f) => `<span class="tag">${esc(f)}</span>`).join('')}</div>` : ''}
 
@@ -662,6 +703,7 @@ async function refreshFavCount() {
   const d = await (await fetch('/api/favorites')).json();
   state.favorites = d.count;
   $('favcount').textContent = d.count;
+  paintRailCount(d.count);
 }
 
 // ---------------------------------------------------------------------
@@ -810,11 +852,6 @@ async function start() {
   $('whoami').title = who.note || '';
   $('signin').hidden  = who.signedIn;
   $('signout').hidden = !who.signedIn;
-  // Offered only to staff, and the link is a convenience rather than the
-  // control: the panel refuses anyone else at the database, so a guessed
-  // url gets the same answer as a hidden button.
-  $('staffnav').hidden = !(who.signedIn
-    && (who.role === 'sdi_admin' || who.role === 'sdi_agent'));
 
   if (!initMap()) $('mapfallback').hidden = false;
 

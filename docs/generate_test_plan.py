@@ -696,11 +696,80 @@ case("T12.9", "Select all means all the releasable ones",
       "The blocked rows are exactly where they were."],
      "\u201cRelease everything\u201d is a narrower promise than it sounds, deliberately.")
 
-A(para("13.  Checks From the Command Line", H1))
+A(para("13.  Notes and Flags", H1))
+A(para("Sign in as Jessica (admin) and open <b>Properties</b> in the left rail. The seeded "
+       "demo has SDI-1010 flying red, SDI-1016 amber, and SDI-1019 carrying a critical note "
+       "that was raised and resolved.", BODY))
+
+case("T13.1", "The flag says what is outstanding, not what has ever been wrong",
+     ["Look at the picker list without opening anything.",
+      "Open SDI-1010 and read the chip under the address.",
+      "Open SDI-1019 and read its chip, then read its notes."],
+     ["<b>Two</b> pennants: red on SDI-1010, amber on SDI-1016. No green dots anywhere.",
+      "<b>Critical &middot; 1 critical, 1 to chase.</b> The worst open note decides the "
+      "colour; the count says there is more than one thing open.",
+      "<b>Clear</b> &mdash; even though it carries a critical note. The note was resolved, "
+      "and the resolution line names who said so and what settled it."],
+     "A flag computed from every note ever written is a ratchet: nothing could ever come "
+     "back down and the colour would stop carrying information. Green here means somebody "
+     "closed something out, not that nobody has written anything alarming lately.")
+
+case("T13.2", "Raising and dropping a flag",
+     ["On any clear property, write a note, choose <b>Critical</b>, and add it.",
+      "Watch the chip under the address and the row in the picker.",
+      "Click <b>Resolve</b> on the note and type what settled it.",
+      "Look at the note and the chip again."],
+     ["The chip turns red immediately and the picker row grows a red pennant &mdash; without "
+      "a page reload.",
+      "Both change together; they are computed from the same rows.",
+      "The tag reads <b>Critical &middot; resolved</b> and a green line underneath names you "
+      "and the time.",
+      "The chip is back to <b>Clear</b>, and <b>Reopen</b> is offered in place of Resolve."],
+     "Resolution is what stops severity being a one-way ratchet, and it is recorded rather "
+     "than implied &mdash; who closed it and why is the part somebody needs three months on.")
+
+case("T13.3", "The level resets after each note",
+     ["Add a note marked Critical.",
+      "Look at the <b>How urgent</b> row without touching it.",
+      "Type a second, ordinary note and add it."],
+     ["Added, flagged red.",
+      "It has snapped back to <b>Note</b>.",
+      "It is added unflagged; the flag count does not go up."],
+     "A composer left on Critical turns the next three ordinary notes into emergencies by "
+     "inattention, and the red flag stops meaning anything within a week.")
+
+case("T13.4", "A buyer cannot infer an internal note from a flag",
+     ["Note that SDI-1010 carries an open <b>internal</b> critical note.",
+      "Sign out entirely and find SDI-1010 in the listings.",
+      "Sign in as Marcus (investor, unsigned) and look again.",
+      "Sign back in as Jessica and look at the same card."],
+     ["Confirmed &mdash; the roof-leak note is marked Internal.",
+      "<b>No flag of any kind</b> on the card.",
+      "Still none.",
+      "<b>1 critical &middot; 1 to chase</b> appears on the card."],
+     "The flag is derived from the notes the caller can see, so this falls out of the row "
+     "policy rather than being decided again in the browser. A visible-but-green flag would "
+     "have been worse than none: it reads as this system vouching for the house.",
+     warn=True)
+
+case("T13.5", "A public note is as public as the price",
+     ["In the composer, choose <b>Public</b> and read the warning that appears.",
+      "Add a public note.",
+      "Sign out and open that listing as an anonymous visitor."],
+     ["It says a public note is as visible as the listing itself, to visitors who have "
+      "signed nothing.",
+      "Added, tagged <b>PUBLIC</b> in blue.",
+      "The note is there, on a gated listing, above the locked address."],
+     "The gate protects the address <i>column</i>. It cannot protect prose that mentions "
+     "the address, and the composer says so at the moment the choice is made rather than in "
+     "a policy document nobody opens.",
+     warn=True)
+
+A(para("14.  Checks From the Command Line", H1))
 A(para("These need shell access to the host. They take about fifteen minutes and cover the "
        "parts a browser cannot show.", BODY))
 
-A(para("13.1  The standing invariants", H2))
+A(para("14.1  The standing invariants", H2))
 A(Preformatted("docker compose exec db psql -U postgres -d sdi \\\n"
                "  -c \"SELECT * FROM api.security_invariants()\"", CODE))
 A(para("<b>Zero rows is the pass.</b> This is the single most valuable check in the "
@@ -710,7 +779,7 @@ A(para("<b>Zero rows is the pass.</b> This is the single most valuable check in 
        "dimension the fair-housing register forbids. Run it after every deployment, and "
        "wire it into whatever runs nightly.", GOOD))
 
-A(para("13.2  The fair-housing assertion", H2))
+A(para("14.2  The fair-housing assertion", H2))
 A(Preformatted("docker compose logs web | grep fair-housing", CODE))
 A(table([
     hdr(["What you see", "Means"]),
@@ -728,7 +797,7 @@ A(para("A protected characteristic, or a proxy for one, offered as a filter or a
        "its own filter list against the register in the database and refuses to start on a "
        "collision, because serving unchecked filters is worse than being down.", BODY))
 
-A(para("13.3  Where the data-rights register stands", H2))
+A(para("14.3  Where the data-rights register stands", H2))
 A(Preformatted("docker compose exec db psql -U postgres -d sdi \\\n"
                "  -c \"SELECT * FROM api.governance_status\" \\\n"
                "  -c \"SELECT * FROM gov.uncovered_publication\"", CODE))
@@ -747,7 +816,7 @@ A(para(mono("gov.uncovered_publication") + " should return no rows. Any row name
        "published listing and the reason no right covers it &mdash; missing, expired, "
        "unreviewed, or out of territory.", BODY))
 
-A(para("13.4  The listing-status walkthrough", H2))
+A(para("14.4  The listing-status walkthrough", H2))
 A(Preformatted("docker compose exec -T db psql -U postgres -d sdi \\\n"
                "  < sql/23_listing_sync_tests.sql", CODE))
 A(para("Ten steps, printing what happens at each: a listing goes under contract, escrow "
@@ -768,7 +837,7 @@ A(para("Step 7 prints an " + mono("ERROR") + " and that is the pass &mdash; it i
        "demonstrating that blocking mode refuses an uncovered publication. The file "
        "restores everything it changes.", NOTE))
 
-A(para("13.5  The governance walkthrough", H2))
+A(para("14.5  The governance walkthrough", H2))
 A(Preformatted("docker compose exec -T db psql -U postgres -d sdi \\\n"
                "  < sql/27_governance_tests.sql", CODE))
 A(para("Builds a data right one failing condition at a time &mdash; unreviewed, no "
@@ -779,7 +848,7 @@ A(para("Builds a data right one failing condition at a time &mdash; unreviewed, 
 
 # ================================================================== 13
 A(PageBreak())
-A(para("14.  Known Gaps", H1))
+A(para("15.  Known Gaps", H1))
 A(para("Do not raise these as defects. They are recorded, and the reasons are in section 12 "
        "of the System Documentation.", BODY))
 A(table([
@@ -795,7 +864,7 @@ A(table([
 ], [1.85*inch, 4.05*inch]))
 
 # ================================================================== 14
-A(para("15.  Recording Results", H1))
+A(para("16.  Recording Results", H1))
 A(table([
     hdr(["Section", "Tests", "Pass", "Fail", "Blocked", "Notes"]),
     ["3. Anonymous visitor", "T3.1&ndash;T3.4", "", "", "", ""],
@@ -808,7 +877,8 @@ A(table([
     ["10. Plain-English search", "T10.1&ndash;T10.3", "", "", "", ""],
     ["11. Must be refused", "T11.1&ndash;T11.6", "", "", "", ""],
     ["12. Intake review", "T12.1&ndash;T12.9", "", "", "", ""],
-    ["13. Command line", "13.1&ndash;13.5", "", "", "", ""],
+    ["13. Notes and flags", "T13.1&ndash;T13.5", "", "", "", ""],
+    ["14. Command line", "14.1&ndash;14.5", "", "", "", ""],
 ], [1.85*inch, 1.0*inch, 0.45*inch, 0.45*inch, 0.55*inch, 1.6*inch]))
 A(Spacer(1, 14))
 A(table([
