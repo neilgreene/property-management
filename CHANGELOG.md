@@ -12,6 +12,83 @@ date the work was completed.
 
 ---
 
+## 0.9.16 — 2026-09-04
+
+**Photographs are masked until access is granted.**
+
+One rule now covers the address, the map and the pictures: released together on
+`sec.can_see_address()` — internal staff, the assigned agent or lender, and an
+investor whose agreement is on file. Everyone else sees a single masked image
+per listing, and every financial figure in full.
+
+### Changed
+- The row policy on `core.property_media`, not the view. Masking only in the
+  view would leave the table readable by any reader role. The policy decides
+  who gets a row at all; `api.property_media` then supplies one synthetic
+  masked row where there is nothing to show, so a listing still has a picture
+  and the page still has a shape.
+- The old rule gated only images flagged `reveals_location`, on the reasoning
+  that a front elevation identifies a house and an interior does not. That was
+  always an assumption: interiors identify a property to anyone who has walked
+  it, an agent recognises a kitchen, and a reverse image search does not care
+  which room it is. Kept as `media_mode = 'exterior_only'` for the record; the
+  default is `masked`.
+- `sec.disclosure.mask_url` points at the stand-in. Replacing the file at that
+  path changes every listing at once, with no rebuild.
+- The three gate notices became one. The address, the photographs and the map
+  are released together on a single predicate, so three separate banners
+  suggested three separate gates.
+
+### Note
+- The mask currently shipped is a **generated placeholder** — a flat house
+  silhouette with a padlock, deliberately not photographic. The masked image
+  from the workbooks replaces it by overwriting
+  `web/public/assets/masked.jpg`.
+
+---
+
+## 0.9.15 — 2026-09-04
+
+**No map without access.**
+
+Coordinates are band 2 now, on the same predicate as the address. A point on a
+map is an address written differently.
+
+### Changed
+- `api.property` withholds `lat` and `lng` entirely unless
+  `sec.can_see_address()` is true. **Hiding the map in the browser would not
+  have been this** — the coordinates travelled in the listings payload, so a
+  hidden map would have left them one View Source away: protection that looks
+  real on screen and is not there at all.
+- The map panel is not rendered for a caller with no positions; the listings
+  take the full width, the *Search this area* toggle goes with it, and a note
+  says the map is part of the address and what unlocks it.
+- Who gets a map: internal staff, the assigned agent or lender, and an investor
+  whose fee agreement is on file. An agent gets a map of their own book.
+
+### The setting
+- `sec.disclosure.map_mode` names the three positions and selects one:
+  **`none`** (now), `approximate` (the ~1km fuzzed pin this system used to
+  show), `exact`. This question has already moved once and the design conflict
+  register still has C3 and C5 open, so the alternative is a setting rather
+  than a deleted branch. Changing the answer is an `UPDATE`, not a migration.
+
+### Fixed
+- `favoriteIds()` runs a query that is *expected* to fail for roles that cannot
+  hold favourites — and an expected failure still aborts the transaction, so
+  every statement after it fails too. It only worked because it happened to be
+  last; adding one query after it broke every listing request. Wrapped in a
+  `SAVEPOINT` now.
+- A bounding box left in a bookmarked url no longer empties the results for a
+  caller who has since lost map access.
+- **`[hidden]{display:none !important}`, once, for the whole stylesheet.** Any
+  author rule setting `display` beats the browser's own `[hidden]` rule. That
+  left `.lightbox{display:flex}` as an invisible full-window layer swallowing
+  every click, and `.filters label{display:flex}` showing a control that had
+  been hidden.
+
+---
+
 ## 0.9.14 — 2026-09-04
 
 **The listings follow the map.**

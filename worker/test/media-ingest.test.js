@@ -182,7 +182,7 @@ test('a pending photograph is invisible to an investor', async (t) => {
   } finally { await c.query('ROLLBACK').catch(() => {}); c.release(); }
 });
 
-test('a published, ungated photograph resolves to a path for an investor', async (t) => {
+test('a published photograph resolves to a path for a caller past the fee gate', async (t) => {
   if (!available) return t.skip('no database');
   const { rows } = await db.query(
     "SELECT media_id FROM core.property_media WHERE original_name = 'IMG_4471.jpg'");
@@ -192,19 +192,31 @@ test('a published, ungated photograph resolves to a path for an investor', async
   await db.query('SELECT api.media_publish($1)', [[id]]);
   await db.query('SELECT api.media_set_gated($1, false)', [id]);
 
-  const c = await app.connect();
-  try {
-    await c.query('BEGIN');
-    await c.query('SET LOCAL ROLE sdi_investor');
-    await c.query("SELECT set_config('app.actor_id',"
-                + " '22222222-2222-2222-2222-222222222222', true)");   // Marcus, no fee
-    const b = await c.query('SELECT storage_path FROM api.media_bytes'
-                          + ' WHERE media_id = $1', [id]);
-    assert.equal(b.rows.length, 1,
-      'the reader roles hold SELECT on the table but no USAGE on schema core — '
-      + 'reading it directly would 404 every photograph for everyone but an admin');
-    assert.match(b.rows[0].storage_path, /^store\/SDI-1009\//);
-  } finally { await c.query('ROLLBACK').catch(() => {}); c.release(); }
+  const asInvestor = async (actor) => {
+    const c = await app.connect();
+    try {
+      await c.query('BEGIN');
+      await c.query('SET LOCAL ROLE sdi_investor');
+      await c.query("SELECT set_config('app.actor_id', $1, true)", [actor]);
+      return (await c.query('SELECT storage_path FROM api.media_bytes'
+                          + ' WHERE media_id = $1', [id])).rows;
+    } finally { await c.query('ROLLBACK').catch(() => {}); c.release(); }
+  };
+
+  // Ruth's agreement is on file, so she gets the path. This also proves the
+  // route's own lookup works for a reader role: they hold SELECT on
+  // core.property_media but no USAGE on schema core, so reading the table
+  // directly would 404 every photograph for everyone but an admin.
+  const ruth = await asInvestor('11111111-1111-1111-1111-111111111111');
+  assert.equal(ruth.length, 1, 'a caller past the fee gate must get the path');
+  assert.match(ruth[0].storage_path, /^store\/SDI-1009\//);
+
+  // Marcus has not signed. Under masked media mode a photograph is band 2
+  // like the address, so he gets no row and therefore no bytes -- not a
+  // smaller image, not a watermark, nothing to fetch.
+  const marcus = await asInvestor('22222222-2222-2222-2222-222222222222');
+  assert.equal(marcus.length, 0,
+    'an ungated caller resolved a photograph to a file path');
 
   // Put it back the way the later tests expect.
   await db.query('SELECT api.media_set_gated($1, true)', [id]);

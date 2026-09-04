@@ -46,6 +46,7 @@ COPY sql/32_media_api.sql        /docker-entrypoint-initdb.d/32_media_api.sql
 COPY sql/33_interior_media.sql   /docker-entrypoint-initdb.d/33_interior_media.sql
 COPY sql/34_property_card.sql    /docker-entrypoint-initdb.d/34_property_card.sql
 COPY sql/35_map_disclosure.sql   /docker-entrypoint-initdb.d/35_map_disclosure.sql
+COPY sql/36_media_masking.sql    /docker-entrypoint-initdb.d/36_media_masking.sql
 
 # Application roles take their credentials from the environment at first
 # start, not from anything baked in. See the script for why a build-time flag

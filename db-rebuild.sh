@@ -29,7 +29,7 @@ for f in 01_schema 02_policies 03_views 04_seed \
          21_listing_sync 22_listing_sync_seed \
          24_data_governance 25_governance_seed 26_fairgrove_media \
          28_intake 30_stock_media 31_media_store 32_media_api 33_interior_media \
-         34_property_card 35_map_disclosure \
+         34_property_card 35_map_disclosure 36_media_masking \
          99_local_logins; do
     printf '    %s\n' "$f"
     psql -d "$DB" -q -v ON_ERROR_STOP=1 -f "sql/$f.sql"

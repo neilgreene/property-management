@@ -293,6 +293,32 @@ test('the viewport filter uses the coordinate the caller was shown', async (t) =
   }
 });
 
+// Photographs are band 2 with the address and the map: one masked image
+// until access is granted, and no way to fetch anything behind it.
+test('photographs are masked until access is granted', async (t) => {
+  if (!available) return t.skip('no server');
+  const anon = await (await fetch(`${base}/api/listings`)).json();
+  const cards = new Set(anon.rows.map((r) => r.primary_image));
+  assert.equal(cards.size, 1, 'every listing shows the same masked image');
+  assert.match([...cards][0], /masked/);
+
+  // And the drill-down agrees: one masked tile, not a gallery.
+  const one = await (await fetch(
+    `${base}/api/property?id=${anon.rows[0].property_id}`)).json();
+  assert.equal(one.media.length, 1, 'a masked listing has exactly one image');
+  assert.match(one.media[0].url, /masked/);
+  assert.match(one.media[0].caption, /released when the agreement is signed/);
+
+  const login = await jsonPost('/api/login', { email: 'ruth@example.com', password: 'ruth-pw' });
+  const cookie = login.headers.get('set-cookie').split(';')[0];
+  const ruth = await (await fetch(`${base}/api/listings`, { headers: { cookie } })).json();
+  assert.ok(new Set(ruth.rows.map((r) => r.primary_image)).size > 1,
+    'a caller past the fee gate sees the real photographs, each its own');
+  const ruthOne = await (await fetch(
+    `${base}/api/property?id=${anon.rows[0].property_id}`, { headers: { cookie } })).json();
+  assert.ok(ruthOne.media.length > 1, 'and a gallery rather than a single tile');
+});
+
 test('the login page is served', async (t) => {
   if (!available) return t.skip('no server');
   const r = await fetch(`${base}/login.html`);

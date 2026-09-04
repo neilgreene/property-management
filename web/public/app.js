@@ -298,7 +298,6 @@ function applyMapAccess(identity) {
   const on = !!(identity && identity.mapAccess);
   document.querySelector('main').classList.toggle('nomap', !on);
   $('maparea').closest('label').hidden = !on;
-  $('nomapnote').hidden = on;
   if (on && map) map.invalidateSize();       // it was display:none until now
   return on;
 }
@@ -362,11 +361,16 @@ function banner(data) {
   el.classList.toggle('open', !anyLocked && anyOpen);
   if (!data.rows.length) { el.textContent = ''; return; }
   if (!anyLocked) {
-    el.textContent = 'Addresses and exact map locations are shown: your platform fee agreement is on file.';
+    el.textContent = 'Addresses, photographs and exact map locations are shown: your platform fee agreement is on file.';
   } else if (anyOpen) {
     el.textContent = 'Addresses are shown for the properties you are assigned to. For the rest, the map shows an approximate area until the fee agreement is signed.';
   } else {
-    el.textContent = 'Street addresses and exterior photographs are withheld until the $750 platform fee agreement is signed. Everything else — the numbers you underwrite on — is shown in full.';
+    // One sentence for one rule. The address, the photographs and the map
+    // are released together on a single predicate, so listing them as
+    // three separate notices would suggest three separate gates.
+    el.textContent = 'The street address, the photographs and the map are released once '
+      + 'the $750 platform fee agreement is signed. Everything you underwrite on — the '
+      + 'rent, the expenses, the cap rate, the area figures — is shown in full.';
   }
 }
 
