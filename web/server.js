@@ -259,6 +259,34 @@ function buildListingQuery(criteria) {
     args.push(v);
     where.push(clause + args.length);
   }
+  // The map viewport.
+  //
+  // Filtered on p.lat and p.lng from api.property_card, which are the
+  // PUBLISHED coordinates -- offset by roughly a kilometre for any listing
+  // whose address is still gated. That is load-bearing in two ways.
+  //
+  // It keeps the list and the pins honest: a listing appears in the
+  // results exactly when the pin the caller was shown is on screen.
+  //
+  // And it does not leak. Filtering on the true coordinate would let a
+  // caller shrink the box around a gated listing until it dropped out of
+  // the results, and binary-search their way to the address the whole
+  // platform exists to withhold. The fuzz has to be applied before the
+  // comparison, not after.
+  if (criteria.bbox_s !== undefined && criteria.bbox_n !== undefined) {
+    args.push(criteria.bbox_s, criteria.bbox_n);
+    where.push(`p.lat BETWEEN $${args.length - 1} AND $${args.length}`);
+  }
+  if (criteria.bbox_w !== undefined && criteria.bbox_e !== undefined) {
+    args.push(criteria.bbox_w, criteria.bbox_e);
+    const w = args.length - 1, e = args.length;
+    // A viewport dragged across the antimeridian arrives with west east of
+    // east. Two ranges, not one, or the box silently matches nothing.
+    where.push(criteria.bbox_w <= criteria.bbox_e
+      ? `p.lng BETWEEN $${w} AND $${e}`
+      : `(p.lng >= $${w} OR p.lng <= $${e})`);
+  }
+
   // Free text, matched against the fields a caller can see in every case.
   // Deliberately NOT against street_address: matching on a masked column
   // would let a caller confirm an address by probing for it.

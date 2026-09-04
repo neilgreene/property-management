@@ -38,7 +38,11 @@ const TYPES = {
 // not be produced.
 const KEYS = new Set(['q', 'city', 'state', 'property_type', 'status',
   'min_price', 'max_price', 'min_beds', 'max_beds', 'min_baths', 'max_baths',
-  'min_sqft', 'max_sqft', 'sort']);
+  'min_sqft', 'max_sqft', 'sort',
+  // The map viewport. Not a search intent a person types, but a criterion
+  // the server applies, so it passes through the same validator as
+  // everything else rather than round the side of it.
+  'bbox_n', 'bbox_s', 'bbox_e', 'bbox_w']);
 
 const SORTS = new Set(['price_asc', 'price_desc', 'sqft_desc', 'beds_desc', 'cap_desc', 'ref']);
 
@@ -143,6 +147,17 @@ function interpret(obj) {
     if (k === 'sort') { if (SORTS.has(v)) out.sort = v; continue; }
     if (k === 'q' || k === 'city' || k === 'state' || k === 'property_type' || k === 'status') {
       if (typeof v === 'string' && v.length && v.length <= 60) out[k] = v;
+      continue;
+    }
+    // Coordinates are the one numeric criterion that is legitimately
+    // negative -- every longitude in the United States is. The general
+    // rule below rejects negatives on purpose (a price or a bedroom count
+    // never is), so the map box needs its own bounds rather than a
+    // loosened rule for everything.
+    if (k.startsWith('bbox_')) {
+      const n = Number(v);
+      const limit = (k === 'bbox_n' || k === 'bbox_s') ? 90 : 180;
+      if (Number.isFinite(n) && n >= -limit && n <= limit) out[k] = n;
       continue;
     }
     const n = Number(v);

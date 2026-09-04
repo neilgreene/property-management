@@ -12,6 +12,48 @@ date the work was completed.
 
 ---
 
+## 0.9.14 — 2026-09-04
+
+**The listings follow the map.**
+
+### Added
+- Panning or zooming the map re-runs the search against the visible area.
+  Zoom into Florida and you get the Tampa listings and nothing else. A
+  **Search this area** toggle in the filter bar turns it off; the scope line
+  reads *in this map view* while it is on, and an empty result says the map is
+  the reason and offers the way out.
+- The viewport is in the address bar, so a copied link reproduces both the
+  filters and the region — and reloading one restores the map position before
+  the first query, rather than showing a different area than the link asked for.
+
+### The part that matters
+- **The filter runs on the coordinate the caller was shown, not the real one.**
+  For a gated listing `api.property` publishes a position offset by roughly a
+  kilometre. Filtering on the true coordinate would have let anyone shrink a
+  box around a listing until it dropped out of the results and read the address
+  off the boundary — a binary search around the gate, using the search feature
+  itself. It also keeps the list and the pins honest: a listing is in the
+  results exactly when the pin you were shown is on screen. There is a test
+  asserting a box drawn on the true position does *not* match.
+
+### Fixed while building it
+- `readForm()` is also what **Save search** sends, so folding the viewport into
+  it meant a saved search carried a bounding box — which `core.saved_search`'s
+  known-keys constraint rejects outright, and which would anyway have made a
+  saved search quietly remember a map position. The viewport is merged in
+  `load()` now; intent alone is what gets saved.
+- `drawMap()` refits the map to the results after every draw. With the map as
+  the filter that is a feedback loop — fit to what is on screen, the box
+  shrinks, fewer results, fit again — and the map zooms itself to nothing while
+  you watch. Suppressed while the toggle is on.
+- `nlq.interpret()`, the validator every criterion passes through, rejected
+  negative numbers. Correct for a price or a bedroom count and wrong for a
+  longitude: every listing here is in the western hemisphere, so the filter
+  would have been silently dropped. Coordinates now have their own bounds
+  rather than the general rule being loosened for everything.
+
+---
+
 ## 0.9.13 — 2026-09-04
 
 **Favourites show the same photograph the search grid does.**

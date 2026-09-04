@@ -197,6 +197,68 @@ test('favourites and the search grid show the same photograph', async (t) => {
   }
 });
 
+// The map viewport as a filter. The interesting assertion is the last
+// one: a gated listing must be selected by the coordinate the caller was
+// SHOWN, not the real one. Filtering on the truth would let anybody shrink
+// a box around a listing until it dropped out of the results and read the
+// address off the boundary.
+test('the map viewport filters the listings', async (t) => {
+  if (!available) return t.skip('no server');
+  const all = await (await fetch(`${base}/api/listings`)).json();
+  assert.ok(all.rows.length > 2, 'the fixture must have listings to narrow');
+
+  const target = all.rows.find((r) => r.lat != null);
+  const d = 0.02;
+  const box = `bbox_s=${target.lat - d}&bbox_n=${Number(target.lat) + d}`
+            + `&bbox_w=${target.lng - d}&bbox_e=${Number(target.lng) + d}`;
+  const near = await (await fetch(`${base}/api/listings?${box}`)).json();
+
+  assert.ok(near.rows.length >= 1, 'the listing inside its own box is returned');
+  assert.ok(near.rows.some((r) => r.property_id === target.property_id));
+  assert.ok(near.rows.length < all.rows.length, 'and the box actually excluded something');
+
+  // A box on the far side of the world returns nothing rather than
+  // everything -- an ignored filter is worse than a rejected one.
+  const empty = await (await fetch(
+    `${base}/api/listings?bbox_s=-40&bbox_n=-35&bbox_w=140&bbox_e=150`)).json();
+  assert.equal(empty.rows.length, 0);
+
+  // Negative longitudes survive the validator. Every listing here is in
+  // the western hemisphere, so a rule that dropped negatives would leave
+  // the filter silently unapplied.
+  const west = await (await fetch(
+    `${base}/api/listings?bbox_s=24&bbox_n=50&bbox_w=-125&bbox_e=-66`)).json();
+  assert.ok(west.rows.length > 0, 'a negative longitude must not be discarded');
+});
+
+test('the viewport filter uses the coordinate the caller was shown', async (t) => {
+  if (!available) return t.skip('no server');
+  const d = await db();
+  // Anonymous: every coordinate is fuzzed. Take one listing's TRUE
+  // position from the table and box tightly around it.
+  const anon = await (await fetch(`${base}/api/listings`)).json();
+  const row = anon.rows.find((r) => !r.address_unlocked && r.lat != null);
+  assert.ok(row, 'the fixture must contain a gated listing');
+
+  const truth = (await d.query(
+    'SELECT lat, lng FROM core.property WHERE property_id = $1', [row.property_id])).rows[0];
+  const e = 0.002;                                  // ~200m, well inside the ~1km offset
+  const tight = await (await fetch(`${base}/api/listings`
+    + `?bbox_s=${truth.lat - e}&bbox_n=${Number(truth.lat) + e}`
+    + `&bbox_w=${truth.lng - e}&bbox_e=${Number(truth.lng) + e}`)).json();
+
+  assert.ok(!tight.rows.some((r) => r.property_id === row.property_id),
+    'a box drawn on the TRUE position matched the listing — the filter is reading the '
+    + 'real coordinate, which turns the map into a way to binary-search a gated address');
+
+  // And the published position does select it, so the pins and the list agree.
+  const shown = await (await fetch(`${base}/api/listings`
+    + `?bbox_s=${row.lat - e}&bbox_n=${Number(row.lat) + e}`
+    + `&bbox_w=${row.lng - e}&bbox_e=${Number(row.lng) + e}`)).json();
+  assert.ok(shown.rows.some((r) => r.property_id === row.property_id),
+    'the listing must be found where its own pin is drawn');
+});
+
 test('the login page is served', async (t) => {
   if (!available) return t.skip('no server');
   const r = await fetch(`${base}/login.html`);

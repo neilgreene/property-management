@@ -51,6 +51,24 @@ function readForm() {
   return c;
 }
 
+// The map viewport, as four criteria the server understands.
+//
+// Kept OUT of readForm() on purpose. The viewport is where you are
+// looking, not what you are looking for, and readForm() is also what the
+// Save search button sends: folding the box in there meant a saved search
+// carried a bounding box, which core.saved_search's known-keys constraint
+// rejects outright. Even if it did not, a saved search that quietly
+// remembered a map position would return different listings tomorrow for a
+// reason its name never mentioned. load() merges the two; nothing else
+// does.
+function viewportCriteria() {
+  if (!map || !$('maparea').checked) return {};
+  const b = map.getBounds();
+  const r = (n) => Math.round(n * 1e5) / 1e5;
+  return { bbox_s: r(b.getSouth()), bbox_n: r(b.getNorth()),
+           bbox_w: r(b.getWest()),  bbox_e: r(b.getEast()) };
+}
+
 function writeForm(c) {
   for (const f of FIELDS) $(f).value = c[f] == null ? '' : c[f];
   if (!c.sort) $('sort').value = 'ref';
@@ -75,6 +93,17 @@ function initMap() {
     maxZoom: 18, attribution: '© OpenStreetMap contributors',
   }).addTo(map);
   layer = L.layerGroup().addTo(map);
+
+  // Debounced: a drag fires moveend once, but a pinch-zoom or a keyboard
+  // pan fires several, and each one is a query. 350ms is long enough to
+  // coalesce a gesture and short enough that the list feels attached to
+  // the map.
+  let pending = null;
+  map.on('moveend', () => {
+    if (!$('maparea').checked || state.mode !== 'search') return;
+    clearTimeout(pending);
+    pending = setTimeout(() => load(true), 350);
+  });
   return true;
 }
 
@@ -109,6 +138,11 @@ function drawMap(rows) {
     mk.on('mouseout',  () => highlight(r.property_id, false));
     markers.set(r.property_id, mk);
   }
+  // Refitting the map to the results is right when a filter changed the
+  // results, and a feedback loop when the map itself is the filter: fit to
+  // what is on screen, the box shrinks, fewer results, fit again. The map
+  // zooms itself to nothing while the user watches.
+  if ($('maparea').checked) return;
   const pts = rows.filter((r) => r.lat != null).map((r) => [Number(r.lat), Number(r.lng)]);
   if (pts.length) map.fitBounds(L.latLngBounds(pts).pad(0.25), { maxZoom: 12 });
 }
@@ -255,12 +289,20 @@ function card(r) {
 function draw(data) {
   state.rows = data.rows;
   state.identity = data.identity;
+  // An empty result while the map is the filter is not the same problem as
+  // an empty result from the filter bar, and saying so saves the reader
+  // hunting through filters that are not the cause.
+  const byMap = state.mode === 'search' && map && $('maparea').checked;
   $('grid').innerHTML = data.rows.length
     ? data.rows.map(card).join('')
-    : '<div class="empty">No listings match these filters.</div>';
+    : `<div class="empty">${byMap
+        ? 'No listings in this part of the map. Zoom out, or untick '
+          + '<b>Search this area</b> to search everywhere.'
+        : 'No listings match these filters.'}</div>`;
   $('count').textContent = `${data.count} ${data.count === 1 ? 'property' : 'properties'}`;
   $('scope').textContent = state.mode === 'favorites'
     ? 'your favourites'
+    : byMap ? 'in this map view'
     : (data.facets && data.facets.total != null ? `of ${data.facets.total} visible to you` : '');
   drawMap(data.rows);
 
@@ -314,7 +356,9 @@ function banner(data) {
 // loading
 // ---------------------------------------------------------------------
 async function load(push = true) {
-  const c = readForm();
+  // Search intent, then the viewport on top. Intent alone is what gets
+  // saved; the pair is what gets queried and put in the address bar.
+  const c = { ...readForm(), ...viewportCriteria() };
   const url = state.mode === 'favorites' ? '/api/favorites' : '/api/listings?' + query(c);
   const data = await (await fetch(url)).json();
   if (state.mode === 'favorites') {
@@ -671,6 +715,10 @@ $('savesearch').addEventListener('click', async () => {
   if (res.ok) refreshSearches();
 });
 
+// Turning the map filter off has to re-run the search, or the results stay
+// clipped to a viewport that is no longer being applied.
+$('maparea').addEventListener('change', () => { if (state.mode === 'search') load(); });
+
 $('searchpicker').addEventListener('change', async (e) => {
   const v = e.target.value;
   if (!v) return;
@@ -753,6 +801,15 @@ async function start() {
   const c = {};
   for (const f of [...FIELDS, ...CARRIED]) if (p.get(f)) c[f] = p.get(f);
   writeForm(c);
+
+  // A shared link carries the map view too, so restore it before the first
+  // query. Without this the URL says one region and the map shows another,
+  // and the first pan silently replaces the link's results with the
+  // default view's.
+  const box = ['bbox_s', 'bbox_w', 'bbox_n', 'bbox_e'].map((k) => Number(p.get(k)));
+  if (map && box.every(Number.isFinite) && p.get('bbox_s') !== null) {
+    map.fitBounds(L.latLngBounds([box[0], box[1]], [box[2], box[3]]), { animate: false });
+  }
 
   await load(false);
   // canFavorite arrives with the listings payload, so these come after.
