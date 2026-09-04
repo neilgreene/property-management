@@ -12,6 +12,52 @@ date the work was completed.
 
 ---
 
+## 0.9.17 — 2026-09-04
+
+**The markets list, and a pool of masks rather than one.**
+
+### Added — `core.metro`
+The workbook's Metro dropdown, all twelve entries, with the exact labels and in
+the order it shows them so an import matches without renaming anything.
+
+**Three of them are not places.** *No Monthly Fee*, *Hybrid* and *Resi\** describe
+how a property is managed or charged for, and *Kansas City-OS* / *Kansas City-SH*
+are one city under two arrangements. Entirely reasonable in a spreadsheet, and a
+problem the first time a market filter goes on the public site — it would offer
+**Hybrid** as a place to buy a house. So `kind` records whether an entry is a
+`market` or an `arrangement`, and `metro_name` carries the geography where there
+is one. Nothing is lost and the two jobs can be separated when somebody decides
+how.
+
+The classification is **inferred from the labels and unconfirmed** — recorded in
+a `classified` column so the guesses are visible rather than passing as fact.
+
+`core.property.metro_code` is backfilled only where the city matches exactly one
+market: Birmingham (1) and Tampa (3). Kansas City's two listings stay null
+because the city alone does not say which arrangement, and 21 are unassigned
+rather than guessed.
+
+### Changed — masking draws from a pool
+An unapproved caller now sees a mask that has **nothing to do with the
+property**, even when the property has photographs of its own — not its own
+exterior under a watermark. That distinction is the point: a watermark over the
+real photograph still shows the roofline, the street trees and the neighbour's
+fence, anyone who has driven the block recognises it, and a reverse image search
+does not read watermarks.
+
+The property is paired with a mask by hashing its id rather than re-rolled per
+request. Unpredictable from outside, identical on every load — a card that
+changes picture on every load reads as broken and defeats caching — and carrying
+no information either way, because whichever is drawn is a photograph of a
+different house.
+
+### Note
+- The six masks shipped are **numbered placeholders**. Dropping the branded
+  images over `web/public/assets/mask/mask_01.jpg` … `mask_06.jpg` (and 720px
+  copies under `thumb/mask/`) is the whole change; no rebuild.
+
+---
+
 ## 0.9.16 — 2026-09-04
 
 **Photographs are masked until access is granted.**

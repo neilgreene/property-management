@@ -410,6 +410,77 @@
   },
   {
     "schema": "core",
+    "name": "mask_image",
+    "comment": "Stand-in photographs shown in place of a withheld gallery. Each is a real interior or exterior carrying the operator's branding, and none is a photograph of the property it is shown for.",
+    "rls": true,
+    "columns": [
+      {
+        "name": "mask_id",
+        "type": "integer",
+        "nullable": false,
+        "default": "",
+        "key": "PK",
+        "references": "",
+        "comment": ""
+      },
+      {
+        "name": "url",
+        "type": "text",
+        "nullable": false,
+        "default": "",
+        "key": "",
+        "references": "",
+        "comment": ""
+      },
+      {
+        "name": "thumb_url",
+        "type": "text",
+        "nullable": true,
+        "default": "",
+        "key": "",
+        "references": "",
+        "comment": ""
+      },
+      {
+        "name": "caption",
+        "type": "text",
+        "nullable": true,
+        "default": "",
+        "key": "",
+        "references": "",
+        "comment": ""
+      },
+      {
+        "name": "active",
+        "type": "boolean",
+        "nullable": false,
+        "default": "true",
+        "key": "",
+        "references": "",
+        "comment": ""
+      },
+      {
+        "name": "added_at",
+        "type": "timestamptz",
+        "nullable": false,
+        "default": "now()",
+        "key": "",
+        "references": "",
+        "comment": ""
+      },
+      {
+        "name": "note",
+        "type": "text",
+        "nullable": true,
+        "default": "",
+        "key": "",
+        "references": "",
+        "comment": ""
+      }
+    ]
+  },
+  {
+    "schema": "core",
     "name": "media_event",
     "comment": "",
     "rls": true,
@@ -473,6 +544,104 @@
         "type": "timestamptz",
         "nullable": false,
         "default": "now()",
+        "key": "",
+        "references": "",
+        "comment": ""
+      }
+    ]
+  },
+  {
+    "schema": "core",
+    "name": "metro",
+    "comment": "",
+    "rls": true,
+    "columns": [
+      {
+        "name": "metro_code",
+        "type": "text",
+        "nullable": false,
+        "default": "",
+        "key": "PK",
+        "references": "",
+        "comment": ""
+      },
+      {
+        "name": "label",
+        "type": "text",
+        "nullable": false,
+        "default": "",
+        "key": "UQ",
+        "references": "",
+        "comment": ""
+      },
+      {
+        "name": "kind",
+        "type": "text",
+        "nullable": false,
+        "default": "'market'::text",
+        "key": "CK",
+        "references": "",
+        "comment": "market: a place a property can be in. arrangement: a management or fee structure that shares the workbook dropdown with the places. A market filter must offer only the former, or it offers Hybrid as a city."
+      },
+      {
+        "name": "metro_name",
+        "type": "text",
+        "nullable": true,
+        "default": "",
+        "key": "CK",
+        "references": "",
+        "comment": ""
+      },
+      {
+        "name": "state",
+        "type": "char(2)",
+        "nullable": true,
+        "default": "",
+        "key": "",
+        "references": "",
+        "comment": ""
+      },
+      {
+        "name": "arrangement",
+        "type": "text",
+        "nullable": true,
+        "default": "",
+        "key": "",
+        "references": "",
+        "comment": ""
+      },
+      {
+        "name": "sort_order",
+        "type": "integer",
+        "nullable": false,
+        "default": "0",
+        "key": "",
+        "references": "",
+        "comment": ""
+      },
+      {
+        "name": "active",
+        "type": "boolean",
+        "nullable": false,
+        "default": "true",
+        "key": "",
+        "references": "",
+        "comment": ""
+      },
+      {
+        "name": "classified",
+        "type": "text",
+        "nullable": false,
+        "default": "'inferred'::text",
+        "key": "CK",
+        "references": "",
+        "comment": "inferred: this row's kind was guessed from its label and nobody has confirmed it. confirmed: somebody who knows has said so."
+      },
+      {
+        "name": "note",
+        "type": "text",
+        "nullable": true,
+        "default": "",
         "key": "",
         "references": "",
         "comment": ""
@@ -903,6 +1072,15 @@
         "default": "now()",
         "key": "",
         "references": "",
+        "comment": ""
+      },
+      {
+        "name": "metro_code",
+        "type": "text",
+        "nullable": true,
+        "default": "",
+        "key": "FK",
+        "references": "core.metro",
         "comment": ""
       }
     ]

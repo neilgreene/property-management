@@ -298,16 +298,27 @@ test('the viewport filter uses the coordinate the caller was shown', async (t) =
 test('photographs are masked until access is granted', async (t) => {
   if (!available) return t.skip('no server');
   const anon = await (await fetch(`${base}/api/listings`)).json();
-  const cards = new Set(anon.rows.map((r) => r.primary_image));
-  assert.equal(cards.size, 1, 'every listing shows the same masked image');
-  assert.match([...cards][0], /masked/);
+  const cards = anon.rows.map((r) => r.primary_image);
+  assert.ok(cards.every((u) => /\/mask\//.test(u)),
+    'every listing must show a mask, not its own photograph');
+
+  // Drawn from a pool, so the picture carries no information about which
+  // property it belongs to -- and a listing whose card image is visibly
+  // its own exterior under a watermark is not masked at all.
+  assert.ok(new Set(cards).size > 1, 'the pool is not being used');
+
+  // Stable, though. A card that changes picture on every load reads as a
+  // broken image and defeats caching.
+  const again = await (await fetch(`${base}/api/listings`)).json();
+  assert.deepEqual(again.rows.map((r) => r.primary_image), cards,
+    'the same property must draw the same mask every time');
 
   // And the drill-down agrees: one masked tile, not a gallery.
   const one = await (await fetch(
     `${base}/api/property?id=${anon.rows[0].property_id}`)).json();
   assert.equal(one.media.length, 1, 'a masked listing has exactly one image');
-  assert.match(one.media[0].url, /masked/);
-  assert.match(one.media[0].caption, /released when the agreement is signed/);
+  assert.match(one.media[0].url, /\/mask\//);
+  assert.match(one.media[0].caption, /Not this property/);
 
   const login = await jsonPost('/api/login', { email: 'ruth@example.com', password: 'ruth-pw' });
   const cookie = login.headers.get('set-cookie').split(';')[0];
