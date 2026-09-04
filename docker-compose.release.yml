@@ -44,6 +44,14 @@ services:
       PGDATABASE: ${POSTGRES_DB:-sdi}
       PGUSER: sdi_app
       PGPASSWORD: ${SDI_APP_PASSWORD}
+      SDI_MEDIA_ROOT: /srv/media
+    # The media store. A host path, deliberately NOT a named volume:
+    # `docker compose down -v` destroys named volumes, and the schema flow
+    # requires down -v on every schema change. Uploaded photographs must
+    # not die with a database rebuild. Point SDI_MEDIA_DIR at a shared
+    # mount (CephFS, NFS) so staff can drop files into inbox/ from a PC.
+    volumes:
+      - ${SDI_MEDIA_DIR:-./media}:/srv/media
     ports:
       - "${WEB_PORT:-3000}:3000"
     restart: unless-stopped
@@ -63,6 +71,14 @@ services:
       GHL_TOKEN: ${GHL_TOKEN:-}
       GHL_LOCATION_ID: ${GHL_LOCATION_ID:-}
       GHL_WEBHOOK_PUBLIC_KEY: ${GHL_WEBHOOK_PUBLIC_KEY:-}
+      SDI_MEDIA_ROOT: /srv/media
+    # The media store. A host path, deliberately NOT a named volume:
+    # `docker compose down -v` destroys named volumes, and the schema flow
+    # requires down -v on every schema change. Uploaded photographs must
+    # not die with a database rebuild. Point SDI_MEDIA_DIR at a shared
+    # mount (CephFS, NFS) so staff can drop files into inbox/ from a PC.
+    volumes:
+      - ${SDI_MEDIA_DIR:-./media}:/srv/media
     ports:
       - "${WORKER_PORT:-3001}:3001"
     restart: unless-stopped

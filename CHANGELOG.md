@@ -12,6 +12,78 @@ date the work was completed.
 
 ---
 
+## 0.9.8 — 2026-09-04
+
+**Photographs stop being part of the build.**
+
+Until now a photograph was a file inside the container image: adding one meant
+a commit, a build and a deploy, so staff could not add one at all. Worse, a
+file under `web/public/` is fetchable by anyone who guesses its path — the
+database decided who was *told* a photograph existed, never who could *fetch*
+it. That was survivable only because every image in the system is stock with
+nothing to leak.
+
+### Added
+- **A media store on a shared mount**, outside the image. A host path rather
+  than a Docker named volume, because `down -v` destroys named volumes and the
+  schema flow needs `down -v`; photographs must not die with a rebuild. Four
+  zones: `inbox/` (staff drop files here), `store/` (machine-managed),
+  `quarantine/`, `purged/`.
+- **`/media/file/<media_id>`** — the authorising route. It re-asks the database,
+  *as the caller*, before any bytes leave. A row the caller cannot see is a
+  **404, not a 403**: a 403 would confirm the photograph exists, which is half
+  of what the gate withholds.
+- **`scan-media.js`** — ingest, reconcile and purge. Ingest re-encodes every
+  file, which is what strips EXIF, then thumbnails, stores under an id and
+  registers it as pending.
+- **`core.media_event`** — who published what, and when.
+- **Lifecycle columns** on `core.property_media`: `storage_path`, `state`,
+  `published_at`, `purge_after`, `legal_hold`, `content_sha256`.
+- 17 tests for the above, including one that builds a JPEG carrying GPS
+  coordinates and asserts they are gone from the stored bytes.
+
+### Notable decisions
+- **The filename in `store/` is the `media_id`.** Anyone holding a file
+  identifies it with one query and no lookup table; `ls store/SDI-1009/` is the
+  complete set for a listing. The row still stores its own `storage_path`,
+  because a listing reference can be corrected and a derived path silently
+  stops resolving when it is.
+- **EXIF stripping is not housekeeping.** A phone photograph carries GPS
+  accurate to a few metres. Untouched, the exact address sits inside the file —
+  the gate intact in the database and bypassed in fact. It runs on the share
+  path too, because a file copied from a PC never passed through a browser.
+- **Arrival fails closed.** Every photograph lands pending, unpublished, and
+  `reveals_location = true`. Publish-and-correct-later leaves the gate open
+  between arrival and review, and no correction un-discloses anything.
+- **Deletion happens twice.** Unpublish is immediate and reversible; destruction
+  waits out a retention window. Legal hold beats a due retention date, or a
+  well-behaved cleanup job destroys exactly the evidence somebody needs.
+- **Reconcile reports and fixes nothing.** A row with no file may be a restore
+  that failed; a file with no row may be the only copy of something.
+- **The scanner can register but not publish.** No `EXECUTE` on
+  `api.media_publish` for `sdi_integration` — an unattended process that can
+  publish defeats the review step entirely.
+
+### Fixed during the build
+- The route first read `core.property_media` directly. The reader roles hold
+  `SELECT` on that table but **no `USAGE` on schema `core`**, so it would have
+  404'd every photograph for everyone except an admin. Now read through
+  `api.media_bytes`.
+- The scanner first read `core.property` directly. Every policy on that table is
+  scoped `TO` a named application role and `sdi_integration` is not one, so the
+  read returned **zero rows rather than an error** — every folder reported as an
+  unknown listing while the scanner looked like it was working. Now
+  `api.listing_id()`.
+
+  Both were invisible to a test suite running as `sdi_test_admin`. There is now
+  a test that runs the scan as the role the worker actually connects as.
+- Authorisation for the scanner was first a `session_user = 'sdi_integration'`
+  special case, which could not be tested without connecting as that exact role.
+  Replaced with a service account person, so the scanner authorises through the
+  same predicate as everyone else and the audit trail names it.
+
+---
+
 ## 0.9.7 — 2026-09-04
 
 **The media lifecycle, written down before it is built.**

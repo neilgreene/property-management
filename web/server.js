@@ -24,6 +24,12 @@ const pool = new Pool({
   max: 8,
 });
 
+// Where uploaded and ingested photographs live. A shared mount in
+// production, so it is deliberately outside the image and outside
+// web/public/ -- nothing here is reachable by path, only through
+// /media/file/<media_id> after the database has authorised the caller.
+const MEDIA_ROOT = path.resolve(process.env.SDI_MEDIA_ROOT || '/srv/media');
+
 // Personas are a demo affordance only. In production this mapping comes
 // out of the session/JWT after authentication; the database contract is
 // identical either way.
@@ -770,6 +776,59 @@ const server = http.createServer(async (req, res) => {
       res.writeHead(500, { 'Content-Type': 'application/json' });
       return res.end(JSON.stringify({ error: 'parse failed' }));
     }
+  }
+
+  // ---- stored photography, served under authority -----------------------
+  //
+  // This is the route the whole media store exists for. A file under
+  // web/public/ is fetchable by anyone who guesses its path -- the
+  // database decided who was TOLD a photograph existed, never who could
+  // fetch it. Here the request itself re-asks the database, AS THE CALLER,
+  // and a row the caller cannot see is a 404 rather than a refusal: a 403
+  // would confirm the photograph exists, which is half of what the gate
+  // is withholding.
+  if (url.pathname.startsWith('/media/file/')) {
+    const id = url.pathname.slice('/media/file/'.length);
+    if (!/^[0-9a-f-]{36}$/i.test(id)) { res.writeHead(404); return res.end('Not found'); }
+    const wantThumb = url.searchParams.get('v') === 'thumb';
+
+    // One query, inside the caller's own transaction. api.media_bytes is
+    // security_invoker over a FORCE ROW LEVEL SECURITY table, so the same
+    // policy that decides whether this caller may be TOLD the photograph
+    // exists decides whether this lookup returns a path at all. No row, no
+    // bytes, and no separate privileged read that could drift from it.
+    let paths = null;
+    try {
+      const identity = await identityFor(req, url);
+      paths = (await withTx(identity, url.searchParams.get('brand'), (c) =>
+        c.query('SELECT storage_path, thumb_path FROM api.media_bytes'
+                + ' WHERE media_id = $1', [id])
+      )).rows[0] || null;
+    } catch { paths = null; }
+    const rel = paths && (wantThumb ? (paths.thumb_path || paths.storage_path)
+                                    : paths.storage_path);
+    if (!rel) { res.writeHead(404); return res.end('Not found'); }
+
+    // The path came from our own database, but it still gets resolved and
+    // checked against the root. A stored path is data, and data that
+    // becomes a filesystem path without a boundary check is how a store
+    // turns into a file server for the whole disk.
+    const full = path.resolve(MEDIA_ROOT, rel);
+    if (full !== MEDIA_ROOT && !full.startsWith(MEDIA_ROOT + path.sep)) {
+      res.writeHead(404); return res.end('Not found');
+    }
+    return fs.readFile(full, (err, buf) => {
+      if (err) { res.writeHead(404); return res.end('Not found'); }
+      res.writeHead(200, {
+        'Content-Type': MIME[path.extname(full).toLowerCase()] || 'application/octet-stream',
+        // Private: a gated photograph must not be held by a shared cache
+        // that would then serve it to somebody the gate is closed against.
+        // The short max-age is also the tail on a purge -- see section 6.3
+        // of the media lifecycle document.
+        'Cache-Control': 'private, max-age=300',
+      });
+      res.end(buf);
+    });
   }
 
   // ---- placeholder photography ------------------------------------------

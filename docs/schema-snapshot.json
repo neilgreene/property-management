@@ -410,6 +410,77 @@
   },
   {
     "schema": "core",
+    "name": "media_event",
+    "comment": "",
+    "rls": true,
+    "columns": [
+      {
+        "name": "event_id",
+        "type": "bigint",
+        "nullable": false,
+        "default": "nextval('core.media_event_event_id_seq'::regclass)",
+        "key": "PK",
+        "references": "",
+        "comment": ""
+      },
+      {
+        "name": "media_id",
+        "type": "uuid",
+        "nullable": false,
+        "default": "",
+        "key": "",
+        "references": "",
+        "comment": ""
+      },
+      {
+        "name": "property_id",
+        "type": "uuid",
+        "nullable": true,
+        "default": "",
+        "key": "",
+        "references": "",
+        "comment": ""
+      },
+      {
+        "name": "action",
+        "type": "text",
+        "nullable": false,
+        "default": "",
+        "key": "CK",
+        "references": "",
+        "comment": ""
+      },
+      {
+        "name": "actor_id",
+        "type": "uuid",
+        "nullable": true,
+        "default": "",
+        "key": "",
+        "references": "",
+        "comment": ""
+      },
+      {
+        "name": "detail",
+        "type": "jsonb",
+        "nullable": false,
+        "default": "'{}'::jsonb",
+        "key": "",
+        "references": "",
+        "comment": ""
+      },
+      {
+        "name": "at",
+        "type": "timestamptz",
+        "nullable": false,
+        "default": "now()",
+        "key": "",
+        "references": "",
+        "comment": ""
+      }
+    ]
+  },
+  {
+    "schema": "core",
     "name": "person",
     "comment": "",
     "rls": true,
@@ -1148,9 +1219,9 @@
       {
         "name": "url",
         "type": "text",
-        "nullable": false,
+        "nullable": true,
         "default": "",
-        "key": "",
+        "key": "CK",
         "references": "",
         "comment": ""
       },
@@ -1198,6 +1269,132 @@
         "key": "",
         "references": "",
         "comment": "True for exterior and street views. Such an image is band 2: showing it to an ungated caller would reopen the address gate through the photo gallery."
+      },
+      {
+        "name": "storage_path",
+        "type": "text",
+        "nullable": true,
+        "default": "",
+        "key": "CK",
+        "references": "",
+        "comment": "Path under the media root. The FILENAME IS THE media_id: anyone holding a file identifies it with one query and no lookup table, and ls store/<listing_ref>/ is the complete set for a listing. Stored rather than derived, because a listing reference can be corrected and a derived path silently stops resolving when it is."
+      },
+      {
+        "name": "thumb_path",
+        "type": "text",
+        "nullable": true,
+        "default": "",
+        "key": "",
+        "references": "",
+        "comment": ""
+      },
+      {
+        "name": "content_sha256",
+        "type": "bytea",
+        "nullable": true,
+        "default": "",
+        "key": "",
+        "references": "",
+        "comment": ""
+      },
+      {
+        "name": "byte_size",
+        "type": "integer",
+        "nullable": true,
+        "default": "",
+        "key": "",
+        "references": "",
+        "comment": ""
+      },
+      {
+        "name": "width",
+        "type": "integer",
+        "nullable": true,
+        "default": "",
+        "key": "",
+        "references": "",
+        "comment": ""
+      },
+      {
+        "name": "height",
+        "type": "integer",
+        "nullable": true,
+        "default": "",
+        "key": "",
+        "references": "",
+        "comment": ""
+      },
+      {
+        "name": "original_name",
+        "type": "text",
+        "nullable": true,
+        "default": "",
+        "key": "",
+        "references": "",
+        "comment": ""
+      },
+      {
+        "name": "state",
+        "type": "media_state",
+        "nullable": false,
+        "default": "'published'::core.media_state",
+        "key": "",
+        "references": "",
+        "comment": ""
+      },
+      {
+        "name": "published_at",
+        "type": "timestamptz",
+        "nullable": true,
+        "default": "",
+        "key": "",
+        "references": "",
+        "comment": ""
+      },
+      {
+        "name": "deleted_at",
+        "type": "timestamptz",
+        "nullable": true,
+        "default": "",
+        "key": "",
+        "references": "",
+        "comment": ""
+      },
+      {
+        "name": "purge_after",
+        "type": "date",
+        "nullable": true,
+        "default": "",
+        "key": "",
+        "references": "",
+        "comment": ""
+      },
+      {
+        "name": "legal_hold",
+        "type": "boolean",
+        "nullable": false,
+        "default": "false",
+        "key": "",
+        "references": "",
+        "comment": ""
+      },
+      {
+        "name": "created_by",
+        "type": "uuid",
+        "nullable": true,
+        "default": "",
+        "key": "FK",
+        "references": "core.person",
+        "comment": ""
+      },
+      {
+        "name": "created_at",
+        "type": "timestamptz",
+        "nullable": false,
+        "default": "now()",
+        "key": "",
+        "references": "",
+        "comment": ""
       }
     ]
   },

@@ -7,10 +7,10 @@ Generates the Property Media Lifecycle PDF.
 The operational requirements for listing photography: how a file gets in,
 how it acquires meaning, how it is maintained, and when it is destroyed.
 
-This is a REQUIREMENTS document, not a description of what is built. Most
-of it is not built. Section 9 says exactly which parts are, so the two do
-not get confused -- a requirements document read as a status report is how
-a team ends up believing it has a feature it does not have.
+This is a REQUIREMENTS document. Much of it is now built, and section 9 is
+the table that says which parts -- kept current, because a requirements
+document read as a status report is how a team comes to believe it has a
+feature it does not have, and a stale status table is worse than none.
 """
 import sys, os
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -55,7 +55,7 @@ A(para("Property Media Lifecycle", CS))
 A(para("Upload, assignment, maintenance and purge", CS))
 A(Spacer(1, 0.45*inch))
 A(table([
-    ["Document type", "Operational requirements. <b>Not</b> a description of what is built — see section 9."],
+    ["Document type", "Operational requirements. What is built, and what is not, is section 9."],
     ["Build at", mono("v" + VERSION) + ", github.com/neilgreene/property-management"],
     ["Covers", "Photographs and other listing media, from arrival to destruction"],
     ["Does not cover", "Documents (fee agreements, inspection reports) — a different retention regime"],
@@ -395,33 +395,44 @@ A(table([
     [mono("thumb_url") + " and the thumbnail split", "<b>Built.</b> Cards use the small file, detail uses the full one"],
     ["Photographs on listings", "<b>Built,</b> from files committed to the repository"],
     ["Provenance recorded", "<b>Built,</b> as " + mono("STOCK-PHOTOGRAPHY") + " — and <b>unreviewed</b>, source unestablished"],
-    ["Shared mount", "<b>Not built.</b> Files live in the container image"],
-    ["Authorising route", "<b>Not built.</b> Files under " + mono("public/") + " are fetchable by anyone who guesses the path"],
-    ["Ingest, EXIF stripping, quarantine", "<b>Not built.</b> Nothing strips metadata today"],
-    ["The properties panel", "<b>Not built</b>"],
-    ["Unpublish, purge, retention, legal hold", "<b>Not built.</b> A row can be deleted; nothing manages bytes"],
-    ["Reconciliation", "<b>Not built</b>"],
-    ["Media audit trail", "<b>Not built</b>"],
+    ["Shared mount", "<b>Built.</b> A host path, not a named volume — " + mono("down -v") + " must not destroy photographs"],
+    ["Authorising route", "<b>Built.</b> " + mono("/media/file/&lt;media_id&gt;") + " re-asks the database as the caller; not visible is a 404, not a 403"],
+    ["Ingest, EXIF stripping, quarantine", "<b>Built.</b> " + mono("scan-media.js") + ", with a test asserting GPS is gone from the stored bytes"],
+    ["Pending on arrival, gated by default", "<b>Built.</b> Nothing is published by arriving"],
+    ["Unpublish, purge, retention, legal hold", "<b>Built.</b> Two-step deletion; a hold beats a due retention date"],
+    ["Reconciliation", "<b>Built.</b> Reports both drift directions, fixes neither"],
+    ["Media audit trail", "<b>Built.</b> " + mono("core.media_event")],
+    ["The properties panel", "<b>Not built.</b> The operations exist as API functions; there is no screen"],
+    ["Self-describing folders, " + mono("_unsorted") + " triage", "<b>Partly.</b> " + mono("_unsorted") + " is counted and reported; nothing creates the folders"],
+    ["Browser upload", "<b>Not built.</b> The share is the only way in"],
 ], [2.3*inch, 3.6*inch]))
 A(Spacer(1, 8))
-A(para("<b>The one to notice.</b> Because every photograph in the system today is a "
-       "representative stock image rather than a picture of the actual property, the "
-       "unbuilt authorising route has not yet cost anything — there is nothing "
-       "location-revealing to leak. The first genuine listing photograph changes that, "
-       "and it should not arrive before the route does.", NOTE))
+A(para("<b>Note what is still true of the seeded images.</b> The twenty-five "
+       "photographs committed to the repository are still served statically from "
+       + mono("web/public/assets") + ", by path, to anyone who guesses one. That is "
+       "acceptable only because they are representative stock images with nothing to "
+       "leak. Anything genuinely location-revealing has to arrive through the store, "
+       "where the route decides who gets bytes — and the seeded set should move "
+       "there before it is mistaken for a pattern to follow.", NOTE))
 A(Spacer(1, 8))
 A(para("9.1  Suggested order", H2))
 A(table([
     hdr(["Step", "Delivers", "Unblocks"]),
-    ["1", "Mount, store layout, authorising route, ingest with EXIF stripping", "Real photography can exist at all"],
-    ["2", "The properties panel: assign, KEY image, gate, publish", "Staff stop needing a developer"],
+    ["1", "Mount, store layout, authorising route, ingest with EXIF stripping", "<b>Done.</b> Real photography can exist at all"],
+    ["4", "Unpublish, purge, retention, legal hold, reconciliation", "<b>Done.</b> The obligations in sections 6 and 7"],
+    ["2", "The properties panel: assign, KEY image, gate, publish", "<b>Next.</b> Staff stop needing a developer"],
     ["3", "Self-describing folders, " + mono("_unsorted") + " triage", "Bulk drops from a PC"],
-    ["4", "Unpublish, purge, retention, legal hold, reconciliation", "The obligations in sections 6 and 7"],
 ], [0.5*inch, 3.2*inch, 2.2*inch]))
 A(Spacer(1, 10))
-A(para("Steps 1 and 2 are the working system. Steps 3 and 4 are what keeps it working "
-       "after the first year, and are the ones usually deferred until the day they are "
-       "needed urgently.", BODY))
+A(para("Step 4 came early rather than last because its pieces — two-step deletion, "
+       "retention, legal hold — are cheap to write alongside the schema and "
+       "expensive to retrofit onto a store already holding a year of photographs under "
+       "rules it was not built for.", BODY))
+A(para("<b>Step 2 is the gap that matters now.</b> Every operation a person needs "
+       "exists as a callable function with its authorisation enforced in the database, "
+       "and there is no screen that calls them. Until there is, publishing a photograph "
+       "means somebody at a psql prompt — which is the situation the store was "
+       "built to end.", NOTE))
 A(Spacer(1, 10))
 A(para("Requirements as of " + mono("v" + VERSION) + ". Regenerate after either the "
        "requirements or the build changes: "

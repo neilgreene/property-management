@@ -199,6 +199,110 @@ Not wired to a scheduler. Add to the host's crontab:
 With no MLS feed connected this does nothing but record that it looked, which
 is the correct behaviour rather than a failure.
 
+## D2. Photographs: the media store
+
+Bytes live on a shared mount outside the container image, and are served only
+through `/media/file/<media_id>` after the database has decided the caller may
+see the row. Nothing under the mount is reachable by path.
+
+### D2.1. Mount the share
+
+A **host path**, not a Docker named volume: `docker compose down -v` destroys
+named volumes and the schema flow needs `down -v` on every schema change.
+Photographs must not die with a database rebuild.
+
+CephFS, as an example, on the host that runs the containers:
+
+```
+# /etc/fstab
+<mon1>,<mon2>,<mon3>:/sdi-media  /mnt/cephfs/sdi-media  ceph  name=<client>,secretfile=/etc/ceph/<client>.secret,_netdev,noatime  0 0
+```
+
+`_netdev` orders the mount after the network. Docker also has to be ordered
+after the mount, or a slow Ceph start hands the containers an empty directory
+and every photograph appears to have been deleted:
+
+```
+mkdir -p /etc/systemd/system/docker.service.d
+printf '[Unit]\nRequiresMountsFor=/mnt/cephfs/sdi-media\n' \
+  > /etc/systemd/system/docker.service.d/sdi-media.conf
+systemctl daemon-reload
+```
+
+Lay out the four zones and give them to the container's user — both images run
+as `node`, **uid 1000**:
+
+```
+mkdir -p /mnt/cephfs/sdi-media/{inbox/_unsorted,store,quarantine,purged}
+chown -R 1000:1000 /mnt/cephfs/sdi-media
+chmod -R 2775 /mnt/cephfs/sdi-media
+```
+
+Then set `SDI_MEDIA_DIR=/mnt/cephfs/sdi-media` in `.env` and `docker compose up -d`.
+
+Verify from inside, which is the only verification that counts:
+
+```
+docker compose exec web ls -la /srv/media
+docker compose exec web touch /srv/media/inbox/.w && docker compose exec web rm /srv/media/inbox/.w
+```
+
+### D2.2. What each zone is for
+
+| Zone | Who touches it | Safe to clear by hand |
+|---|---|---|
+| `inbox/` | staff, from a PC | **no** — it is a queue |
+| `store/` | the system only | **never** — every file is referenced by a row |
+| `quarantine/` | nobody | yes |
+| `purged/` | nobody | yes |
+
+Re-export **`inbox/` only** over SMB for the PC share. Staff never see `store/`,
+where filenames are `media_id`s and hand-editing breaks things.
+
+### D2.3. Drop photographs
+
+One folder per listing, named for its reference with an optional label:
+
+```
+inbox/SDI-1009/
+inbox/SDI-1009 - Columbus OH - Single Family/     <- also fine
+inbox/_unsorted/                                  <- when the property is unknown
+```
+
+Filenames do not matter. Then:
+
+```
+cd /opt/sdi
+docker compose run --rm worker node tools/scan-media.js
+```
+
+Expected: one line per file with its new `media_id`, and `[exif stripped]` on
+any that carried metadata. **Nothing becomes visible** — every photograph
+arrives pending and gated, and is published by a person.
+
+Files that are not images go to `quarantine/` with a `.reason.txt` beside them.
+A folder naming a listing that does not exist is reported, never guessed at.
+
+### D2.4. Reconcile, nightly
+
+```
+0 6 * * *  cd /opt/sdi && docker compose run --rm worker node tools/scan-media.js --reconcile >> /var/log/sdi-media.log 2>&1
+```
+
+Reports rows with no file and files with no row. **It fixes nothing** — a row
+with no file may be a restore that went wrong, and a file with no row may be
+the only copy of something.
+
+### D2.5. Purge
+
+```
+docker compose run --rm worker node tools/scan-media.js --purge
+```
+
+Destroys bytes for rows unpublished past their retention date and not under
+legal hold. Note what this does not reach: backups taken before now still hold
+the files and age out on their own schedule.
+
 ---
 
 ## E. Health checks
