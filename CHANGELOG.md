@@ -12,6 +12,47 @@ date the work was completed.
 
 ---
 
+## 0.9.21 — 2026-09-04
+
+**Fixed: uploading a profile photograph did nothing at all.**
+
+### Fixed
+Choosing a photograph opened the file dialog, and then nothing happened — no
+avatar, no error, no sign the click had registered.
+
+The upload route read the request body under the **default 8,192-byte cap**
+that every other JSON endpoint here wants and no photograph on earth fits
+inside. A 29 KB avatar was rejected by the transport before a single rule
+about images got to judge it. The route now passes its own limit, sized to
+clear base64 of the largest image it claims to accept — setting the transport
+limit equal to the image limit is how an upload that passes every stated check
+dies in the plumbing.
+
+**Why it was silent rather than merely broken**, which is the more useful half:
+an over-length body destroyed the socket immediately, so no response was ever
+written. The browser saw a network failure with no status code, and the page
+had nothing to react to. Over-length now drains and answers **413**; past a
+hard ceiling it is a flood rather than a large upload, and only then does the
+socket go.
+
+And the page had no error handling on that path at all, so anything thrown
+went nowhere. Every path through the uploader now says something — wrong file
+type, too large (with the actual size), the server's own message, or a request
+that never arrived. Silence is the one outcome a person cannot act on: they
+cannot tell a rejected file from a broken server from a click that missed.
+
+The result is reported **beside the photograph** rather than in the details
+card below it. A message three inches out of view reads, exactly, as nothing
+having happened.
+
+### Added — tests
+The old test posted a few hundred bytes of synthetic flat colour and passed
+throughout. Two new ones: a photograph-sized photograph (noise, so it cannot
+compress under the very limit being held down) uploads, re-encodes and serves
+back; and an oversized body is **answered** rather than dropped.
+
+---
+
 ## 0.9.20 — 2026-09-04
 
 **Notes with a name on them, a rail to get around by, and a flag when

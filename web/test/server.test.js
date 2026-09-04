@@ -639,6 +639,62 @@ test('a profile is your own, and the photograph is stripped on the way in', asyn
   assert.match((await notImage.json()).error, /not an image/);
 });
 
+// The regression this exists for: the upload route read the request body
+// under the DEFAULT 8 KB cap, which every JSON endpoint here wants and no
+// photograph on earth fits inside. A real 29 KB avatar was rejected before
+// it reached any of the checks that were supposed to judge it -- and because
+// an over-length body destroyed the socket, the browser got no response at
+// all and the page sat there saying nothing.
+//
+// The old test passed throughout, because it only ever posted a few hundred
+// bytes of synthetic colour. A photograph-sized photograph is the whole point.
+test('a photograph-sized photograph uploads', async (t) => {
+  if (!available) return t.skip('no server');
+  const sharp = require('sharp');
+  const cookie = await staffCookie();
+
+  // Noise, not flat colour: a solid image compresses to a few hundred bytes
+  // and would sail under the very limit this test exists to hold down.
+  const px = Buffer.alloc(900 * 900 * 3);
+  for (let i = 0; i < px.length; i++) px[i] = (i * 2654435761) % 256;
+  const photo = await sharp(px, { raw: { width: 900, height: 900, channels: 3 } })
+    .jpeg({ quality: 90 }).toBuffer();
+  assert.ok(photo.length > 60 * 1024,
+    `the fixture must be photograph-sized, got ${photo.length} bytes`);
+
+  const r = await jsonPost('/api/profile/photo',
+    { image: 'data:image/jpeg;base64,' + photo.toString('base64') }, cookie);
+  assert.equal(r.status, 200,
+    'A 29 KB AVATAR WAS REJECTED BY THE TRANSPORT before any rule about '
+    + 'images got to judge it. The body cap on this route must clear '
+    + 'base64 of the largest image the route claims to accept');
+  const d = await r.json();
+  assert.match(d.avatar, /^avatars\/[0-9a-f-]{36}\.jpg$/);
+  assert.ok(d.bytes > 0 && d.bytes < photo.length,
+    're-encoded down to an avatar, not stored as sent');
+
+  // And it comes back out.
+  const img = await fetch(`${base}/media/avatar/77777777-7777-7777-7777-777777777777`,
+    { headers: { cookie } });
+  assert.equal(img.status, 200);
+  assert.equal(img.headers.get('content-type'), 'image/jpeg');
+
+  await jsonPost('/api/profile/photo', { remove: true }, cookie);
+});
+
+test('an oversized body is answered, not dropped', async (t) => {
+  if (!available) return t.skip('no server');
+  const cookie = await staffCookie();
+  // Past the transport limit. The caller must get a status code it can show
+  // somebody -- a destroyed socket reaches the browser as a network failure
+  // with nothing to report, which is what "nothing happens" looked like.
+  const huge = 'A'.repeat(13 * 1024 * 1024);
+  const r = await jsonPost('/api/profile/photo',
+    { image: 'data:image/jpeg;base64,' + huge }, cookie);
+  assert.equal(r.status, 413);
+  assert.match((await r.json()).error, /too large/);
+});
+
 test('the login page is served', async (t) => {
   if (!available) return t.skip('no server');
   const r = await fetch(`${base}/login.html`);

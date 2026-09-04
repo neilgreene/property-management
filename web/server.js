@@ -136,18 +136,44 @@ async function runAs(identity, brand) {
 // Reads a request body, capped. The login route is the only thing that
 // takes one, and an uncapped read on an unauthenticated endpoint is a
 // free way to make the process eat memory.
+// The default is small on purpose: every route here takes a short JSON
+// object, and an uncapped read on an unauthenticated endpoint is a way to
+// exhaust memory from outside. A route that legitimately receives more --
+// an uploaded photograph -- passes its own limit and says why.
+//
+// OVER-LIMIT DRAINS RATHER THAN DESTROYS. Destroying the socket the moment
+// the cap is passed means the caller never receives a response at all: the
+// browser reports a network failure, the page has no status code to react
+// to, and the person sees nothing happen. Draining costs the tail of one
+// request and buys a 413 somebody can read. Past a hard ceiling it is a
+// flood rather than a large upload, and then the socket does go.
 function readBody(req, limit = 8192) {
   return new Promise((resolve, reject) => {
-    const chunks = []; let size = 0;
+    const chunks = []; let size = 0; let over = false;
+    const ceiling = limit * 4;
     req.on('data', (c) => {
       size += c.length;
-      if (size > limit) { reject(new Error('body too large')); req.destroy(); return; }
+      if (over) { if (size > ceiling) req.destroy(); return; }
+      if (size > limit) {
+        over = true;
+        const e = new Error('body too large');
+        e.code = 'BODY_TOO_LARGE';
+        req.resume();
+        return reject(e);
+      }
       chunks.push(c);
     });
     req.on('end', () => resolve(Buffer.concat(chunks).toString('utf8')));
     req.on('error', reject);
   });
 }
+
+// A photograph, base64'd inside a JSON object. images.MAX_INPUT caps the
+// DECODED bytes at 8 MB; base64 inflates by a third, and the JSON wrapper
+// adds a little, so the transport limit has to be meaningfully higher than
+// the limit that actually matters. Setting them equal is how an upload that
+// passes every stated check dies in the plumbing.
+const UPLOAD_LIMIT = 12 * 1024 * 1024;
 
 // Filtered listings.
 //
@@ -896,7 +922,8 @@ const server = http.createServer(async (req, res) => {
         return res.end(JSON.stringify(d.rows[0] || null));
       }
 
-      const b = JSON.parse(await readBody(req) || '{}');
+      const b = JSON.parse(await readBody(req,
+        url.pathname === '/api/profile/photo' ? UPLOAD_LIMIT : undefined) || '{}');
 
       if (url.pathname === '/api/profile/photo' && req.method === 'POST') {
         // Removing a photograph clears the row and leaves the file: the
@@ -940,6 +967,10 @@ const server = http.createServer(async (req, res) => {
       res.writeHead(404, { 'Content-Type': 'application/json' });
       return res.end(JSON.stringify({ error: 'not found' }));
     } catch (e) {
+      if (e.code === 'BODY_TOO_LARGE') {
+        res.writeHead(413, { 'Content-Type': 'application/json' });
+        return res.end(JSON.stringify({ error: 'that image is too large to upload' }));
+      }
       const plain = /not signed in|at least two characters|not an image|avatar path/
         .test(e.message);
       console.error('profile failed:', e.message);
