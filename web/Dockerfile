@@ -15,16 +15,28 @@ ENV NODE_ENV=production
 COPY package.json package-lock.json ./
 RUN npm ci --omit=dev
 
-# Every module server.js requires, named explicitly. An earlier version of
-# this line listed only server.js and auth.js, which meant adding media.js
-# and nlq.js produced an image that crashed on its first require -- the sort
-# of break that passes every test and fails only in the registry.
+# Every .js file at the root of ./web, by glob rather than by name.
+#
+# This line used to name each module explicitly, and it went stale twice --
+# once when media.js and nlq.js were added, and again when share.js was.
+# Both times the image built, pushed, passed every test, and then crashed on
+# its first require in front of somebody. A list that must be edited in
+# lockstep with an import is a list that will be forgotten, and the failure
+# lands as far from the mistake as it is possible to get.
+#
+# The glob picks up exactly the server's modules: tests live in ./test and
+# browser code in ./public, neither of which is at this level.
 # The image is not usable if its native dependency will not load, and
 # finding that out from a running container is finding it out too late.
 RUN node -e "const s=require('sharp'); s({create:{width:8,height:8,channels:3,background:'#000'}}).jpeg().toBuffer().then(()=>console.log('sharp ok'))"
 
-COPY server.js auth.js media.js nlq.js images.js ./
+COPY *.js ./
 COPY public ./public
+
+# And a belt to go with the braces: resolve every local module server.js
+# imports, at build time. A missing file then fails the BUILD, in CI,
+# rather than the first request against a container already deployed.
+RUN node -e "const fs=require('fs');const src=fs.readFileSync('/app/server.js','utf8');const mods=[...src.matchAll(/require\(.(\.\/[^']+)./g)].map(m=>m[1]);for (const m of mods) require.resolve('/app/'+m.slice(2));console.log('server modules resolve: '+mods.join(' '))"
 
 # Stamped at build time so the running container can say which build it is.
 # The build context is ./web, so the repository's VERSION file cannot simply

@@ -12,6 +12,35 @@ date the work was completed.
 
 ---
 
+## 0.9.26 — 2026-09-04
+
+**Fixed: 0.9.25's web container would not start.**
+
+### Fixed
+`server.js` gained `require('./share')` and the Dockerfile's `COPY` line — which
+names each module explicitly — did not gain `share.js`. The image built, pushed,
+passed all 71 tests, and then crashed on its first require. The container
+reported *Started* and the port refused connections.
+
+That COPY line has now gone stale twice: once when `media.js` and `nlq.js` were
+added, and again here. The comment above it described the first occurrence as a
+warning; a warning is not a mechanism. **It is a glob now** — `COPY *.js ./` —
+which covers exactly the server's modules, since tests live in `./test` and
+browser code in `./public`.
+
+Two guards, because this class of break lands as far from the mistake as it is
+possible to get:
+
+- The image **resolves every local import at build time**, so a missing module
+  fails the build in CI rather than the first request against a deployed
+  container.
+- A test reads the Dockerfile and asserts every module `server.js` imports
+  would actually be copied. Nothing that runs against a source tree can
+  otherwise see a file the *image* is missing. It fails against the old COPY
+  line and passes against the glob.
+
+---
+
 ## 0.9.25 — 2026-09-04
 
 **Share a listing as a PDF — masked by default, for everybody, and logged.**

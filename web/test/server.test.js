@@ -947,6 +947,41 @@ test('the unmask control is offered only where it would be honoured', async (t) 
     'hiding the control is a courtesy; the refusal above is the boundary');
 });
 
+// The break this exists for: server.js gained require('./share') and the
+// Dockerfile's COPY line did not gain share.js. The image built, pushed,
+// passed all 71 of these tests, and then refused connections on a machine
+// somebody had already deployed to. Nothing in a test suite that runs
+// against a source tree can see a file the IMAGE is missing -- so this test
+// reads the Dockerfile.
+test('the image copies every module the server imports', async () => {
+  const fs = require('fs');
+  const path = require('path');
+  const root = path.join(__dirname, '..');
+  const src = fs.readFileSync(path.join(root, 'server.js'), 'utf8');
+  const mods = [...src.matchAll(/require\(['"](\.\/[^'"]+)['"]\)/g)].map((m) => m[1]);
+  assert.ok(mods.length >= 4, 'found the local imports');
+
+  for (const m of mods) {
+    const file = m.slice(2) + (m.endsWith('.js') ? '' : '.js');
+    assert.ok(fs.existsSync(path.join(root, file)), `${file} exists in the source tree`);
+  }
+
+  const dockerfile = fs.readFileSync(path.join(root, 'Dockerfile'), 'utf8');
+  const copies = [...dockerfile.matchAll(/^COPY\s+(.+?)\s+\.\/$/gm)]
+    .flatMap((m) => m[1].split(/\s+/));
+  // A glob covers everything at this level and cannot go stale, which is the
+  // point. An explicit list is allowed only if it is actually complete --
+  // and it went stale twice, so the glob is what should be here.
+  const globbed = copies.some((c) => c === '*.js');
+  for (const m of mods) {
+    const file = m.slice(2) + (m.endsWith('.js') ? '' : '.js');
+    assert.ok(globbed || copies.includes(file),
+      `THE IMAGE WOULD NOT CONTAIN ${file} — server.js requires it and the `
+      + 'Dockerfile does not copy it. This breaks only in a deployed '
+      + 'container, on its first request, long after every test has passed');
+  }
+});
+
 test('the login page is served', async (t) => {
   if (!available) return t.skip('no server');
   const r = await fetch(`${base}/login.html`);
