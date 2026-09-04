@@ -28,6 +28,12 @@
   <section id="picker" class="picker">
     <div class="pickhead">
       <input id="search" type="search" placeholder="Search by reference, city or address…">
+      <div id="flagfilter" class="flagfilter" role="group" aria-label="Filter by flag">
+        <button class="fbtn on"        data-flag="all">All <span></span></button>
+        <button class="fbtn critical"  data-flag="critical"><i class="flag"></i>Critical <span></span></button>
+        <button class="fbtn attention" data-flag="attention"><i class="flag"></i>Attention <span></span></button>
+        <button class="fbtn ok"        data-flag="ok"><i class="flag"></i>Clear <span></span></button>
+      </div>
       <span id="pcount" class="muted"></span>
     </div>
     <div id="plist" class="plist"></div>

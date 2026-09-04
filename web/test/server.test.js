@@ -557,6 +557,53 @@ test('a flagged note raises the property flag until somebody resolves it', async
   assert.equal(end.flag.flag, 'ok', 'a deleted note stops flying its flag');
 });
 
+test('the properties list filters by flag', async (t) => {
+  if (!available) return t.skip('no server');
+  const cookie = await staffCookie();
+  const get = async (qs) => (await fetch(`${base}/api/admin/properties${qs}`,
+    { headers: { cookie } })).json();
+
+  const all = await get('');
+  assert.equal(all.counts.all, all.rows.length, 'the tally covers everything listed');
+  assert.equal(all.counts.ok + all.counts.attention + all.counts.critical, all.counts.all,
+    'every property lands in exactly one bucket');
+
+  const crit = await get('?flag=critical');
+  assert.equal(crit.rows.length, all.counts.critical);
+  assert.ok(crit.rows.every((r) => r.flag === 'critical'));
+  // Counted over the whole list, not the filtered one -- otherwise filtering
+  // to Critical hides the fact that anything else needs looking at.
+  assert.equal(crit.counts.all, all.counts.all, 'the tallies do not collapse to the filter');
+
+  const attn = await get('?flag=attention');
+  assert.ok(attn.rows.every((r) => r.flag === 'attention'));
+
+  // A property nobody has written a note about is CLEAR, not missing.
+  // api.property_flag left-joins the notes onto every property, so it
+  // reports 'ok' rather than nothing -- and the filter still coalesces,
+  // because a property_admin row with no matching flag row would otherwise
+  // fall out of every bucket and be unreachable from any chip.
+  const clear = await get('?flag=ok');
+  assert.equal(clear.rows.length, all.counts.ok);
+  assert.ok(clear.rows.every((r) => (r.flag || 'ok') === 'ok'));
+  const noNotes = clear.rows.find((r) => r.listing_ref === 'SDI-1009');
+  assert.ok(noNotes, 'a property with no notes at all appears under Clear');
+  assert.equal(noNotes.last_note_at, null, 'and it really has none');
+
+  // Search AND flag, not search OR flag. The search is three ORs; without
+  // parentheses around them a flag clause binds to the last one alone and
+  // silently returns the wrong rows.
+  const both = await get('?flag=critical&q=Memphis');
+  assert.ok(both.rows.every((r) => r.flag === 'critical' && /Memphis/i.test(r.city)));
+  const none = await get('?flag=critical&q=Irvine');
+  assert.equal(none.rows.length, 0,
+    'A FLAG FILTER THAT WIDENS ON SEARCH — the two must intersect, never union');
+
+  const bogus = await get('?flag=; DROP TABLE core.property--');
+  assert.equal(bogus.rows.length, all.rows.length,
+    'an unrecognised flag is ignored rather than interpreted');
+});
+
 test('an ordinary note has nothing to resolve', async (t) => {
   if (!available) return t.skip('no server');
   const cookie = await staffCookie();

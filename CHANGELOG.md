@@ -12,6 +12,39 @@ date the work was completed.
 
 ---
 
+## 0.9.22 — 2026-09-04
+
+**Filter the properties panel by flag.**
+
+### Added
+Four chips under the search box in **Admin → Properties**: All, Critical,
+Attention, Clear. Each carries a count, and the counts are computed over the
+**whole** list rather than the filtered one — a tally that collapses to the
+current filter makes it impossible to see there is anything else worth
+looking at.
+
+- **Clear is a real choice, not the absence of one.** "Show me the properties
+  with nothing outstanding" is a different question from "show me all".
+- Clicking the active chip clears it. Otherwise the only way back to
+  everything is to find All, and people reach for the thing they just pressed.
+- A chip that can only return nothing is **dimmed, not hidden**. "No critical
+  properties" is itself worth being able to see, and a chip that vanishes takes
+  its own answer with it.
+- The empty result says *None flagged critical* rather than *0 properties*,
+  which reads as an empty database rather than as a filter doing its job.
+- Adding or resolving a note refreshes the counts, but deliberately does
+  **not** re-filter the list: pulling the open property out from under
+  somebody because the note they just wrote moved it out of the current
+  filter is a worse surprise than a count catching up a moment later.
+
+### Fixed
+The search clause was three ORs with no parentheses around it. Appending a
+flag filter would have produced `ref OR city OR address AND flag` — binding
+the flag to the address alone and silently returning the wrong rows. Bracketed,
+with a test that asserts search and flag **intersect** rather than union.
+
+---
+
 ## 0.9.21 — 2026-09-04
 
 **Fixed: uploading a profile photograph did nothing at all.**

@@ -211,3 +211,28 @@
 .link.ok{color:var(--ok)}
 .nres{margin-top:6px;font-size:11.5px;color:var(--ok);background:var(--okbg);
   border-radius:6px;padding:5px 9px}
+
+/* ---------------------------------------------------------------------
+   filtering the picker by flag
+   --------------------------------------------------------------------- */
+.flagfilter{display:flex;gap:4px;flex-wrap:wrap;margin-top:8px}
+.fbtn{display:inline-flex;align-items:center;gap:4px;font:inherit;font-size:11px;
+  font-weight:600;cursor:pointer;border:1px solid var(--line);border-radius:20px;
+  padding:3px 8px;background:var(--card);color:var(--ink2);white-space:nowrap}
+.fbtn span{font-weight:700;color:var(--mut)}
+.fbtn:hover{border-color:var(--mut)}
+.fbtn.critical{color:var(--crit)}
+.fbtn.attention{color:var(--attn)}
+.fbtn.ok{color:var(--ok)}
+/* The active chip fills with its own colour rather than a shared blue: the
+   list underneath is that colour, and the two reading as one thing is the
+   whole point of a filter. */
+.fbtn.on{color:#fff;border-color:transparent;background:var(--ink2)}
+.fbtn.on span{color:rgba(255,255,255,.8)}
+.fbtn.critical.on{background:var(--crit)}
+.fbtn.attention.on{background:var(--attn)}
+.fbtn.ok.on{background:var(--ok)}
+/* Dimmed, not hidden. "No critical properties" is worth being able to see,
+   and a chip that vanishes takes its own answer with it. */
+.fbtn.empty{opacity:.45}
+.fbtn.empty.on{opacity:1}

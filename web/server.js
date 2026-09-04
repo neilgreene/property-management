@@ -421,12 +421,29 @@ async function listings(identity, params) {
 // which is granted to a reader role. A signed-in investor reaching these
 // urls gets the same refusal as an anonymous one.
 // ---------------------------------------------------------------------
-async function adminPropertyList(identity, brand, q) {
+async function adminPropertyList(identity, brand, q, flag) {
   return withTx(identity, brand, async (client) => {
     const args = [];
-    let where = '';
-    if (q) { args.push('%' + q + '%');
-      where = `WHERE a.listing_ref ILIKE $1 OR a.city ILIKE $1 OR a.street_address ILIKE $1`; }
+    const clauses = [];
+    // PARENTHESISED. The search is three ORs; a second filter appended to it
+    // unbracketed becomes `ref OR city OR address AND flag`, which binds the
+    // flag to the address alone and quietly returns the wrong rows.
+    if (q) {
+      args.push('%' + q + '%');
+      clauses.push(`(a.listing_ref ILIKE $${args.length} OR a.city ILIKE $${args.length}`
+                 + ` OR a.street_address ILIKE $${args.length})`);
+    }
+    // 'ok' is a real choice, not the absence of one: "show me the properties
+    // with nothing outstanding" is a different question from "show me all".
+    // A property with no notes has no row in the flag view, so ok has to
+    // cover null as well or the clean ones vanish from their own filter.
+    if (flag === 'critical' || flag === 'attention') {
+      args.push(flag);
+      clauses.push(`f.flag = $${args.length}`);
+    } else if (flag === 'ok') {
+      clauses.push(`COALESCE(f.flag, 'ok') = 'ok'`);
+    }
+    const where = clauses.length ? 'WHERE ' + clauses.join(' AND ') : '';
     const rows = (await client.query(
       `SELECT a.property_id, a.listing_ref, a.status, a.street_address, a.city, a.state,
               a.metro_label, a.property_type, a.beds, a.baths, a.sqft, a.list_price,
@@ -441,7 +458,17 @@ async function adminPropertyList(identity, brand, q) {
          ${where} ORDER BY a.listing_ref`, args)).rows;
     const metros = (await client.query(
       `SELECT metro_code, label, kind FROM api.metro WHERE active ORDER BY sort_order`)).rows;
-    return { rows, metros, count: rows.length };
+    // Counted over the WHOLE list, not the filtered one, so the chips keep
+    // saying how much there is of each. Counts that collapse to the current
+    // filter make it impossible to see there is anything else to look at.
+    const tally = (await client.query(
+      `SELECT COALESCE(f.flag, 'ok') AS flag, count(*)::int AS n
+         FROM api.property_admin a
+         LEFT JOIN api.property_flag f ON f.property_id = a.property_id
+        GROUP BY 1`)).rows;
+    const counts = { all: 0, ok: 0, attention: 0, critical: 0 };
+    for (const t of tally) { counts[t.flag] = t.n; counts.all += t.n; }
+    return { rows, metros, count: rows.length, counts, flag: flag || 'all' };
   });
 }
 
@@ -1009,7 +1036,8 @@ const server = http.createServer(async (req, res) => {
       const what = url.pathname.slice('/api/admin/'.length);
 
       if (what === 'properties' && req.method === 'GET') {
-        const d = await adminPropertyList(identity, brand, url.searchParams.get('q'));
+        const d = await adminPropertyList(identity, brand,
+          url.searchParams.get('q'), url.searchParams.get('flag'));
         res.writeHead(200, { 'Content-Type': 'application/json' });
         return res.end(JSON.stringify(d));
       }

@@ -16,7 +16,8 @@
 const $ = (id) => document.getElementById(id);
 
 const state = { list: [], metros: [], property: null, original: null,
-                fees: null, notes: [], flag: null, isAdmin: false, patch: {} };
+                fees: null, notes: [], flag: null, isAdmin: false, patch: {},
+                q: '', listFlag: 'all' };
 
 const usd  = (n) => n == null || n === '' ? '—'
   : '$' + Math.round(Number(n)).toLocaleString();
@@ -478,6 +479,22 @@ async function noteAction(payload) {
                          last_note_visibility: last.visibility });
   }
   paintRow(state.property.property_id);
+  refreshCounts();
+}
+
+// A note just changed this property's flag, so the tallies on the chips are
+// stale. The rows are deliberately NOT replaced: pulling the open property
+// out from under somebody because the note they just wrote moved it out of
+// the current filter is a worse surprise than a count catching up a moment
+// later.
+async function refreshCounts() {
+  const p = new URLSearchParams();
+  if (state.q) p.set('q', state.q);
+  try {
+    const r = await fetch('/api/admin/properties' + (p.toString() ? '?' + p : ''));
+    if (!r.ok) return;
+    paintFlagFilter((await r.json()).counts, state.listFlag);
+  } catch { /* the counts are a convenience; a failure here is not worth a banner */ }
 }
 
 // One row, redrawn where it stands. Reloading the whole list would lose
@@ -566,12 +583,40 @@ function pickerRow(r2) {
     </button>`;
 }
 
-async function loadList(q) {
-  const r = await fetch('/api/admin/properties' + (q ? '?q=' + encodeURIComponent(q) : ''));
+// The count on each chip is over the whole list, not the filtered one, so
+// a person filtered down to Critical can still see there are three more
+// needing attention behind it.
+function paintFlagFilter(counts, active) {
+  if (!counts) return;
+  document.querySelectorAll('#flagfilter .fbtn').forEach((b) => {
+    const k = b.dataset.flag;
+    b.classList.toggle('on', k === (active || 'all'));
+    b.querySelector('span').textContent = counts[k] == null ? '' : counts[k];
+    // A filter that can only ever return nothing is worse than absent: it
+    // invites a click and answers with an empty list. Dimmed, not hidden --
+    // "no critical properties" is itself worth being able to see.
+    b.classList.toggle('empty', k !== 'all' && !counts[k]);
+  });
+}
+
+async function loadList(q, flag) {
+  if (q !== undefined) state.q = q;
+  if (flag !== undefined) state.listFlag = flag;
+  const p = new URLSearchParams();
+  if (state.q) p.set('q', state.q);
+  if (state.listFlag && state.listFlag !== 'all') p.set('flag', state.listFlag);
+  const r = await fetch('/api/admin/properties' + (p.toString() ? '?' + p : ''));
   if (!r.ok) { $('denied').hidden = false; $('app').hidden = true; return; }
   const d = await r.json();
   state.list = d.rows; state.metros = d.metros;
-  $('pcount').textContent = `${d.count} propert${d.count === 1 ? 'y' : 'ies'}`;
+  paintFlagFilter(d.counts, d.flag);
+  // Says what was asked for as well as what came back. "0 properties" on its
+  // own reads as an empty database rather than as a filter doing its job.
+  const scope = state.listFlag && state.listFlag !== 'all'
+    ? ` flagged ${FLAGS[state.listFlag].word.toLowerCase()}` : '';
+  $('pcount').textContent = d.count === 0 && scope
+    ? `None${scope}`
+    : `${d.count} propert${d.count === 1 ? 'y' : 'ies'}${scope}`;
   $('plist').innerHTML = d.rows.map(pickerRow).join('');
   document.querySelectorAll('.prow').forEach((el) =>
     el.addEventListener('click', () => openProperty(el.dataset.id)));
@@ -628,6 +673,13 @@ async function loadList(q) {
   $('search').addEventListener('input', () => {
     clearTimeout(t); t = setTimeout(() => loadList($('search').value.trim()), 250);
   });
+  document.querySelectorAll('#flagfilter .fbtn').forEach((b) =>
+    b.addEventListener('click', () => {
+      // Clicking the active chip clears it. Otherwise the only way back to
+      // everything is to find All, and people reach for the thing they just
+      // pressed.
+      loadList(undefined, state.listFlag === b.dataset.flag ? 'all' : b.dataset.flag);
+    }));
   // Leaving with unsaved edits is nearly always an accident.
   window.addEventListener('beforeunload', (e) => {
     if (Object.keys(state.patch).length) { e.preventDefault(); e.returnValue = ''; }
