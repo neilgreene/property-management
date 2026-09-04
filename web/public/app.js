@@ -351,11 +351,15 @@ async function openDetail(id) {
   const hoa    = Number(p.hoa_annual || 0);
   const net    = gross - vac - mgmt - opex - hoa;
 
-  const lead = media[0], rest = media.slice(1, 3);
+  // Every photograph, not the first three. The gallery used to slice to
+  // two thumbnails, which was fine when everything after the card was a
+  // generated drawing and was not fine the moment real interiors arrived:
+  // the bedroom simply never appeared, and nothing said so.
+  const lead = media[0], rest = media.slice(1);
   const gallery = media.length ? `<div class="gallery">
       <img class="lead" data-fallback="/media/${p.property_id}/hero.svg"
            src="${esc(lead.url)}" alt="${esc(lead.caption)}">
-      ${rest.map((m) => `<img class="thumb" loading="lazy" data-fallback="/media/${p.property_id}/hero.svg" src="${esc(m.thumb_url || m.url)}" alt="${esc(m.caption)}">`).join('')}
+      <div class="strip">${rest.map((m) => `<img class="thumb" loading="lazy" title="${esc(m.caption)}" data-fallback="/media/${p.property_id}/hero.svg" src="${esc(m.thumb_url || m.url)}" alt="${esc(m.caption)}">`).join('')}</div>
     </div>` : '';
 
   const feats = Array.isArray(p.features) ? p.features : [];

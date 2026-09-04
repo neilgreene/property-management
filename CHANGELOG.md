@@ -12,6 +12,45 @@ date the work was completed.
 
 ---
 
+## 0.9.11 — 2026-09-04
+
+**The supplied interiors actually reach the listings.**
+
+The 75 interior photographs were committed in 0.9.8 and nothing pointed at
+them. Every gallery still showed a real card photograph followed by three
+generated drawings, which looked worse than the drawings alone did.
+
+### Added
+- `33_interior_media.sql` — each listing's living room, kitchen and bedroom,
+  paired by the same deterministic `listing_ref` ordering the exteriors use, so
+  a listing's card and its interiors stay together across a rebuild.
+- 720px thumbnails for all 75 (15.4 MB → 3.6 MB), used in the gallery strip.
+
+### Changed
+- **The gallery showed only three images.** `media.slice(1, 3)` was fine when
+  everything after the card was a drawing and stopped being fine the moment
+  real interiors arrived — the bedroom never appeared and nothing said so. It
+  now renders every photograph, in a strip that wraps to however many there
+  are, instead of a two-column grid built around exactly three.
+- The generated `hero.svg` at position 0 is removed. It was the card image
+  until `30_stock_media.sql` put a photograph in front of it; since then it has
+  been a drawing sitting between a real photograph and three real interiors.
+  The renderer still draws one on demand, so the client-side fallback for a
+  file that will not load is unaffected.
+- Captions read *"Living area — representative photo, not the actual
+  property"*. Same reason as the exteriors: an investor who walks the house and
+  finds a different kitchen stops trusting the numbers too.
+
+### Notable
+- These stay **static assets in the image**, not rows in the media store built
+  in 0.9.8. The store is for operational photography that staff add and manage;
+  seeding a demo into it would make its contents a mixture of things that can
+  be purged and things that come back on the next deploy.
+- `reveals_location` is false on all of them. The flag means *identifying*, not
+  *interior* — a photograph of a different kitchen identifies nothing.
+
+---
+
 ## 0.9.10 — 2026-09-04
 
 **Say which CPU feature is missing, instead of a stack trace about `endsWith`.**
