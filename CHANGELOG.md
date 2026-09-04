@@ -12,6 +12,35 @@ date the work was completed.
 
 ---
 
+## 0.9.10 — 2026-09-04
+
+**Say which CPU feature is missing, instead of a stack trace about `endsWith`.**
+
+### Fixed
+- `scan-media.js` reported `Cannot read properties of undefined (reading
+  'endsWith')` when `sharp` would not load. That message comes from **sharp's
+  own error handler**: it collects the reasons the load failed and then formats
+  them with `err.code.endsWith(...)`, and one of the collected errors has no
+  `code`, so the formatter throws and takes the real reason with it.
+
+  The loader now re-runs the checks sharp would have reported and names the
+  cause. In this deployment the cause was `_isUsingX64V2()` returning false —
+  sharp's Linux x64 prebuilds are compiled for the **x86-64-v2**
+  microarchitecture, and a hypervisor presenting a generic CPU model does not
+  advertise it. Proxmox's default `kvm64` has no SSE4.2, so the binary loads
+  and sharp then refuses it.
+
+  The fix is on the host, not in the image: set the VM's processor type to
+  `host` or `x86-64-v2-AES`.
+
+### Worth noting
+- The build-time assertion added in 0.9.9 did its job and still could not catch
+  this. It runs on a GitHub runner with a modern CPU, so sharp loads there. No
+  image-side check can see a missing CPU feature on a machine it will never run
+  on — which is the argument for the runtime message naming it precisely.
+
+---
+
 ## 0.9.9 — 2026-09-04
 
 **A worker image that can actually load its image library.**

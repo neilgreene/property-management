@@ -30,16 +30,41 @@ const ingest = require('../src/media/ingest');
 
 const ROOT = process.env.SDI_MEDIA_ROOT || '/srv/media';
 
+// sharp's own loader collects the reasons it failed and then formats them
+// with `err.code.endsWith(...)`. One of the collected errors has no `code`,
+// so the formatter throws and the real reason is lost -- you get
+// "Cannot read properties of undefined (reading 'endsWith')" and no clue.
+// This re-runs the two checks it would have reported, so the message names
+// the actual problem.
+function explain() {
+  let native;
+  try {
+    native = require('@img/sharp-linux-x64/sharp.node');
+  } catch (e) {
+    return `the prebuilt binary would not load: ${e.message}`;
+  }
+  // The one that bites on a virtual machine. sharp's Linux x64 prebuilds
+  // are compiled for the x86-64-v2 microarchitecture, and a hypervisor
+  // configured to present a generic CPU model does not advertise it --
+  // Proxmox's default kvm64, for instance, has no SSE4.2. The binary loads
+  // and sharp then refuses it.
+  if (typeof native._isUsingX64V2 === 'function' && !native._isUsingX64V2()) {
+    return 'this CPU does not advertise the x86-64-v2 microarchitecture, which '
+         + 'the prebuilt binaries require.\n\n'
+         + 'On a virtual machine this is usually the hypervisor presenting a '
+         + 'generic CPU model rather than the host\'s. In Proxmox, set the '
+         + "VM's Processor type to `host` (or `x86-64-v2-AES`) and power-cycle "
+         + 'it -- a reboot from inside the guest does not change it.';
+  }
+  return 'the binary loaded and sharp rejected it for an unreported reason';
+}
+
 let sharp;
 try {
   sharp = require('sharp');
 } catch (e) {
-  // Print what actually went wrong. An earlier version reported "sharp is
-  // not installed" for every failure, which sent the diagnosis in the
-  // wrong direction when the real cause was a native binary that would
-  // not load.
-  console.error('cannot load sharp:', e.message);
-  console.error('\nThis is a broken worker image, not a configuration problem.');
+  console.error('cannot load sharp:', explain());
+  console.error(`\n(underlying error: ${e.message})`);
   process.exit(2);
 }
 
