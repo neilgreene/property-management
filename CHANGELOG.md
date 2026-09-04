@@ -12,6 +12,32 @@ date the work was completed.
 
 ---
 
+## 0.9.4 — 2026-09-04
+
+**Supplied photography on the cards.**
+
+### Added
+- `30_stock_media.sql` points each of the 25 listings at one of the supplied
+  photographs, paired deterministically by listing reference so a rebuild does
+  not reshuffle them.
+- `/api/listings` now returns `primary_image`, read through
+  `api.property_media` rather than naming a file — so a gated photograph can
+  never become a card thumbnail by accident. The generated illustration remains
+  the fallback for any listing without one.
+- `gov.data_right` `STOCK-PHOTOGRAPHY`, recorded **unreviewed**: the source and
+  licence of the supplied images are not established, and a stock licence, an
+  attribution-required licence and a broker's listing photograph look identical
+  on disk.
+
+### Changed
+- These images are **not photographs of these properties**, and that one fact
+  decides two things. `reveals_location` is false, because the flag means
+  *identifying*, not *exterior* — a photograph of a different house identifies
+  nothing. And every one is captioned as representative, because a stock
+  exterior presented without qualification reads as a picture of the property.
+
+---
+
 ## 0.9.3 — 2026-09-04
 
 **A cooler palette, and cards that look like different properties.**

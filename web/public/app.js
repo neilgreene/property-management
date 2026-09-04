@@ -232,7 +232,8 @@ function card(r) {
 
   return `<article class="card" data-id="${r.property_id}">
     <div class="shot">
-      <img loading="lazy" src="/media/${r.property_id}/hero.svg" alt="">
+      <img loading="lazy" alt=""
+           src="${esc(r.primary_image || '/media/' + r.property_id + '/hero.svg')}">
       <span class="badge">${esc(r.status.replace('_', ' '))}</span>${heart}
     </div>
     <div class="body">

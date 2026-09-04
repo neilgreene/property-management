@@ -268,7 +268,15 @@ function buildListingQuery(criteria) {
             p.beds, p.baths, p.sqft, p.year_built, p.list_price, p.noi_annual,
             p.cap_rate, p.gross_rent_annual, p.hoa_annual,
             p.street_address, p.unit, p.lat, p.lng, p.address_unlocked,
-            p.brand_service_tier, p.brand_platform_fee
+            p.brand_service_tier, p.brand_platform_fee,
+            -- The card image, chosen by the same rules that decide which
+            -- images a caller may see at all. Reading it through
+            -- api.property_media rather than naming a file means a gated
+            -- photograph can never become a card thumbnail by accident.
+            (SELECT mm.url FROM api.property_media mm
+              WHERE mm.property_id = p.property_id
+              ORDER BY mm.is_primary DESC, mm.position
+              LIMIT 1) AS primary_image
        FROM api.property p
       ${where.length ? 'WHERE ' + where.join(' AND ') : ''}
       ORDER BY ${sort}`;
