@@ -12,6 +12,30 @@ date the work was completed.
 
 ---
 
+## 0.9.9 — 2026-09-04
+
+**A worker image that can actually load its image library.**
+
+### Fixed
+- The published worker image installed `sharp` cleanly and then could not load
+  it, so `scan-media.js` refused to run. `sharp` ships prebuilt native binaries
+  as per-platform optional dependencies, and **musl is a different binary from
+  glibc**. The image was built `FROM node:22-alpine` (musl) while the lockfile
+  and every test were made on glibc, so `npm ci` resolved a binary the runtime
+  could not use. The worker now builds `FROM node:22-slim`, matching the
+  platform the lockfile and the tests were made on.
+- The Dockerfile now **asserts sharp loads and encodes a JPEG at build time**,
+  so an image that cannot do its job fails the build instead of being published.
+  This is the same failure mode as the earlier web image that copied two of its
+  four modules: passes every test, breaks only in the registry.
+- `scan-media.js` printed *"sharp is not installed"* for every failure,
+  including a native binary that was present but would not load. It now prints
+  the real error and says plainly that this is a broken image rather than a
+  configuration problem — the wrong message sent the diagnosis in the wrong
+  direction.
+
+---
+
 ## 0.9.8 — 2026-09-04
 
 **Photographs stop being part of the build.**

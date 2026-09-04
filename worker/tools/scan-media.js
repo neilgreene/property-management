@@ -31,8 +31,15 @@ const ingest = require('../src/media/ingest');
 const ROOT = process.env.SDI_MEDIA_ROOT || '/srv/media';
 
 let sharp;
-try { sharp = require('sharp'); } catch {
-  console.error('sharp is not installed. Rebuild the worker image.');
+try {
+  sharp = require('sharp');
+} catch (e) {
+  // Print what actually went wrong. An earlier version reported "sharp is
+  // not installed" for every failure, which sent the diagnosis in the
+  // wrong direction when the real cause was a native binary that would
+  // not load.
+  console.error('cannot load sharp:', e.message);
+  console.error('\nThis is a broken worker image, not a configuration problem.');
   process.exit(2);
 }
 
