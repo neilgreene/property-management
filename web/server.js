@@ -394,7 +394,8 @@ async function adminPropertyList(identity, brand, q) {
     const rows = (await client.query(
       `SELECT property_id, listing_ref, status, street_address, city, state,
               metro_label, property_type, beds, baths, sqft, list_price,
-              cap_rate, published_photos, pending_photos, underwriting_updated_at
+              cap_rate, primary_image, published_photos, pending_photos,
+              underwriting_updated_at
          FROM api.property_admin ${where} ORDER BY listing_ref`, args)).rows;
     const metros = (await client.query(
       `SELECT metro_code, label, kind FROM api.metro WHERE active ORDER BY sort_order`)).rows;

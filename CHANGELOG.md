@@ -12,6 +12,24 @@ date the work was completed.
 
 ---
 
+## 0.9.19 — 2026-09-04
+
+**A picture of the property, in the panel.**
+
+### Added
+- A thumbnail on every row of the property picker and beside the address in
+  the sheet header, so somebody editing the numbers can see which house they
+  are editing without opening another screen.
+- Read through `api.property_media` rather than named directly, so it obeys the
+  same rules as everywhere else. Staff are past the gate, so this is the real
+  photograph — and if that ever stopped being true, the panel would show the
+  mask rather than silently bypassing the gate for an internal screen.
+- A listing with no photograph shows no frame rather than an empty one: a blank
+  box in the header reads as a failure, and the line underneath already says
+  how many photographs there are.
+
+---
+
 ## 0.9.18 — 2026-09-04
 
 **The properties panel, and the fee model behind it.**

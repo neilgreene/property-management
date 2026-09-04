@@ -327,6 +327,11 @@ async function openProperty(id) {
   state.patch = {};
 
   $('sheet').hidden = false;
+  // A listing with no photograph shows no frame rather than a broken one:
+  // an empty box in the header reads as a failure, and "no photographs
+  // yet" is already said in the line underneath.
+  $('shot').hidden = !d.property.primary_image;
+  if (d.property.primary_image) $('shot').src = d.property.primary_image;
   $('addr').textContent = d.property.street_address
     ? `${d.property.street_address}${d.property.unit ? ' ' + d.property.unit : ''}, `
       + `${d.property.city}, ${d.property.state} ${d.property.zip || ''}`
@@ -397,10 +402,15 @@ async function loadList(q) {
   $('pcount').textContent = `${d.count} propert${d.count === 1 ? 'y' : 'ies'}`;
   $('plist').innerHTML = d.rows.map((r2) => `
     <button class="prow" data-id="${esc(r2.property_id)}">
-      <span class="pref">${esc(r2.listing_ref)}</span>
-      <span class="paddr">${esc(r2.street_address || r2.city)}</span>
-      <span class="pmeta">${esc(r2.city)}, ${esc(r2.state)} · ${usd(r2.list_price)}
-        ${r2.metro_label ? '· ' + esc(r2.metro_label) : ''}</span>
+      ${r2.primary_image
+        ? `<img class="pthumb" loading="lazy" alt="" src="${esc(r2.primary_image)}">`
+        : '<span class="pthumb none"></span>'}
+      <span class="ptext">
+        <span class="pref">${esc(r2.listing_ref)}</span>
+        <span class="paddr">${esc(r2.street_address || r2.city)}</span>
+        <span class="pmeta">${esc(r2.city)}, ${esc(r2.state)} · ${usd(r2.list_price)}
+          ${r2.metro_label ? '· ' + esc(r2.metro_label) : ''}</span>
+      </span>
       ${r2.pending_photos ? `<span class="ppend">${r2.pending_photos} pending</span>` : ''}
     </button>`).join('');
   document.querySelectorAll('.prow').forEach((el) =>

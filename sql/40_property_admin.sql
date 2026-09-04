@@ -94,6 +94,17 @@ SELECT
                                                                  AS opex_annual,
     p.noi_annual, p.cap_rate,
 
+    -- The card image, read through api.property_media so it obeys the same
+    -- rules as everywhere else. Staff are past the gate, so this is the
+    -- real photograph rather than a mask -- which is the point: somebody
+    -- editing the numbers should be able to see which house they are
+    -- editing without opening another screen.
+    (SELECT COALESCE(mm.thumb_url, mm.url)
+       FROM api.property_media mm
+      WHERE mm.property_id = p.property_id
+      ORDER BY mm.is_primary DESC, mm.position
+      LIMIT 1)                                                   AS primary_image,
+
     (SELECT count(*) FROM core.property_media pm
       WHERE pm.property_id = p.property_id AND pm.state = 'published')::int
                                                                  AS published_photos,
