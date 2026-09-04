@@ -1155,6 +1155,15 @@
         "comment": ""
       },
       {
+        "name": "thumb_url",
+        "type": "text",
+        "nullable": true,
+        "default": "",
+        "key": "",
+        "references": "",
+        "comment": ""
+      },
+      {
         "name": "caption",
         "type": "text",
         "nullable": true,

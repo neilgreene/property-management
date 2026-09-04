@@ -12,6 +12,37 @@ date the work was completed.
 
 ---
 
+## 0.9.5 — 2026-09-04
+
+**The photographs, at a weight a page can carry.**
+
+The supplied files are 1280px and average 380 KB. Twenty-five of them on one
+listings page is 9.4 MB, which is not a page — it is a download.
+
+### Added
+- `core.property_media.thumb_url`: a downscaled copy of the same picture, 720px
+  and ~84 KB. Null means there is no smaller version, so every reader coalesces
+  rather than assumes. It carries no visibility of its own — it is the same
+  photograph, released or withheld with the row that owns it, so a thumbnail is
+  never a way around a gated image.
+- `web/public/assets/thumb/` — the 25 downscaled copies. 9.4 MB → 2.1 MB.
+- An image fallback in `app.js`: a media row can outlive the file it names
+  (108 Fairgrove's `front` is seeded before the photograph has been supplied,
+  and a mistyped path looks the same), so a failed load falls back to the
+  generated illustration instead of a broken-image icon.
+
+### Changed
+- `/api/listings` returns `coalesce(thumb_url, url)` as `primary_image`; the
+  detail gallery keeps the full file for the lead image and uses thumbnails for
+  the strip beneath it.
+
+### Fixed
+- The 25 photographs are now committed. They had been placed on the deployment
+  host only, and `web/Dockerfile` copies `public/` at build time — so the
+  published image would have carried none of them.
+
+---
+
 ## 0.9.4 — 2026-09-04
 
 **Supplied photography on the cards.**

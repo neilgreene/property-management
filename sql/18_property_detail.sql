@@ -82,6 +82,12 @@ CREATE TABLE core.property_media (
     media_id         uuid PRIMARY KEY DEFAULT gen_random_uuid(),
     property_id      uuid NOT NULL REFERENCES core.property(property_id) ON DELETE CASCADE,
     url              text NOT NULL,
+    -- A downscaled copy of `url`, for cards and grids. Null means there is
+    -- no smaller version and the full file is the only one there is; every
+    -- reader must therefore coalesce rather than assume. It carries no
+    -- visibility of its own: it is the same picture, so it is released or
+    -- withheld with the row that owns it.
+    thumb_url        text,
     caption          text,
     position         integer NOT NULL DEFAULT 0,
     is_primary       boolean NOT NULL DEFAULT false,
@@ -169,7 +175,7 @@ LEFT JOIN core.market_area     m ON m.city = p.city AND m.state = p.state;
 
 CREATE VIEW api.property_media
 WITH (security_invoker = true, security_barrier = true) AS
-SELECT media_id, property_id, url, caption, position, is_primary, reveals_location
+SELECT media_id, property_id, url, thumb_url, caption, position, is_primary, reveals_location
 FROM core.property_media
 ORDER BY is_primary DESC, position;
 

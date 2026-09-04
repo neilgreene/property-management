@@ -830,13 +830,39 @@ A(para("The favourites view joins " + mono("api.property") + ", not " + mono("co
        "drift apart.", GOOD))
 
 A(para("7.7  Photography", H2))
-A(para("The listing images are generated: deterministic flat vector illustrations, seeded on "
-       "the property id so a listing always looks the same. Real photographs are somebody's "
-       "copyright and a stock service is an account and a dependency, so the demo draws its "
-       "own and makes them visibly illustrations rather than photo-imitations.", BODY))
-A(para("Replacing them is a URL change. " + mono("core.property_media") + " stores a url and "
-       "nothing outside the renderer assumes where it is served from. The gate lives in the "
-       "database and does not care where the bytes come from.", BODY))
+A(para("Twenty-five photographs were supplied by the operator and are served from "
+       + mono("web/public/assets") + ". Each of the twenty-five listings is paired with one, "
+       "deterministically by listing reference, so a rebuild does not reshuffle them \u2014 a "
+       "listing whose picture changes on every deploy looks broken even when nothing is. Any "
+       "listing without a photograph still falls back to a generated illustration: a "
+       "deterministic flat vector drawing seeded on the property id, visibly an illustration "
+       "rather than a photo-imitation.", BODY))
+A(para("These are not photographs of these properties, and that single fact settles two "
+       "questions that would otherwise be judgement calls. " + mono("reveals_location") + " is "
+       "false, because the flag means <i>identifying</i>, not <i>exterior</i> \u2014 a "
+       "photograph of a different house identifies nothing, and gating it would withhold "
+       "something that protects nobody while teaching the next reader the wrong meaning. And "
+       "every one is captioned as representative, because a stock exterior presented without "
+       "qualification reads as a picture of the property, which is a small deception that "
+       "compounds: an investor who drives past and finds a different house stops trusting the "
+       "numbers too.", BODY))
+A(para("Each row carries two files. " + mono("url") + " is the supplied 1280px original, used "
+       "for the lead image on a detail page. " + mono("thumb_url") + " is a 720px copy used for "
+       "cards and the gallery strip; twenty-five originals on one listings page came to "
+       "9.4 MB against 2.1 MB of thumbnails, which is the whole reason the second column "
+       "exists. It is null when there is no smaller version, so every reader coalesces rather "
+       "than assumes. The thumbnail carries no visibility of its own \u2014 it is the same "
+       "picture, released or withheld with the row that owns it, so it is never a way around a "
+       "gated image.", BODY))
+A(para("Where the photographs came from is <b>not established</b>. They are recorded in "
+       + mono("gov.data_right") + " as " + mono("STOCK-PHOTOGRAPHY") + ", marked unreviewed. "
+       "That is not a formality: a stock licence permitting commercial use without attribution, "
+       "a licence requiring attribution, and a listing photograph belonging to a broker are "
+       "three very different positions that look identical on disk, and the difference only "
+       "surfaces in a demand letter.", NOTE))
+A(para("Replacing any of this is a URL change. " + mono("core.property_media") + " stores urls "
+       "and nothing outside the renderer assumes where they are served from. The gate lives in "
+       "the database and does not care where the bytes come from.", BODY))
 
 # ------------------------------------------------------------------ 8
 A(PageBreak())

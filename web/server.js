@@ -273,7 +273,10 @@ function buildListingQuery(criteria) {
             -- images a caller may see at all. Reading it through
             -- api.property_media rather than naming a file means a gated
             -- photograph can never become a card thumbnail by accident.
-            (SELECT mm.url FROM api.property_media mm
+            -- coalesce, not thumb_url: a row with no downscaled copy still
+            -- has a picture, and a card that renders nothing is worse than
+            -- a card that renders a large file.
+            (SELECT coalesce(mm.thumb_url, mm.url) FROM api.property_media mm
               WHERE mm.property_id = p.property_id
               ORDER BY mm.is_primary DESC, mm.position
               LIMIT 1) AS primary_image
@@ -332,7 +335,7 @@ async function propertyDetail(identity, id, brand) {
     const r = await client.query('SELECT * FROM api.property_detail WHERE property_id = $1', [id]);
     if (!r.rows.length) return null;
     const m = await client.query(
-      'SELECT media_id, url, caption, position, is_primary, reveals_location '
+      'SELECT media_id, url, thumb_url, caption, position, is_primary, reveals_location '
       + 'FROM api.property_media WHERE property_id = $1', [id]);
     let is_favorite = false;
     try {

@@ -22,6 +22,12 @@
 -- The generated illustration stays as the fallback for anything without a
 -- photograph, and the generated `front` stays gated, because it stands in
 -- for the real exterior that does not exist yet.
+--
+-- Each row carries two files: the supplied 1280px original in `url`, and a
+-- 720px copy in `thumb_url`. Twenty-five cards on one page came to 9.4 MB
+-- of the former and 2.1 MB of the latter, which is the whole reason the
+-- second column exists. Both are the same picture, so both are released or
+-- withheld together -- the thumbnail is not a way around a gated image.
 
 BEGIN;
 
@@ -100,9 +106,10 @@ WITH numbered AS (
     FROM core.property
 )
 INSERT INTO core.property_media
- (property_id, url, caption, position, is_primary, reveals_location)
+ (property_id, url, thumb_url, caption, position, is_primary, reveals_location)
 SELECT n.property_id,
-       '/assets/property_' || lpad(n.n::text, 2, '0') || '.jpg',
+       '/assets/property_'       || lpad(n.n::text, 2, '0') || '.jpg',
+       '/assets/thumb/property_' || lpad(n.n::text, 2, '0') || '.jpg',
        'Representative photo — not the actual property',
        -1,        -- ahead of the generated images
        true,

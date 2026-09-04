@@ -233,6 +233,7 @@ function card(r) {
   return `<article class="card" data-id="${r.property_id}">
     <div class="shot">
       <img loading="lazy" alt=""
+           data-fallback="/media/${r.property_id}/hero.svg"
            src="${esc(r.primary_image || '/media/' + r.property_id + '/hero.svg')}">
       <span class="badge">${esc(r.status.replace('_', ' '))}</span>${heart}
     </div>
@@ -352,8 +353,9 @@ async function openDetail(id) {
 
   const lead = media[0], rest = media.slice(1, 3);
   const gallery = media.length ? `<div class="gallery">
-      <img class="lead" src="${esc(lead.url)}" alt="${esc(lead.caption)}">
-      ${rest.map((m) => `<img class="thumb" src="${esc(m.url)}" alt="${esc(m.caption)}">`).join('')}
+      <img class="lead" data-fallback="/media/${p.property_id}/hero.svg"
+           src="${esc(lead.url)}" alt="${esc(lead.caption)}">
+      ${rest.map((m) => `<img class="thumb" loading="lazy" data-fallback="/media/${p.property_id}/hero.svg" src="${esc(m.thumb_url || m.url)}" alt="${esc(m.caption)}">`).join('')}
     </div>` : '';
 
   const feats = Array.isArray(p.features) ? p.features : [];
@@ -607,4 +609,18 @@ async function start() {
   await refreshSearches();
   await refreshFavCount();
 }
+// A media row can outlive the file it names -- 108 Fairgrove's `front` is
+// seeded before the photograph has been supplied, and a mistyped path looks
+// exactly the same. Rather than a broken-image icon, fall back to the
+// generated illustration. `error` does not bubble, hence the capture phase,
+// and the guard stops a missing fallback from looping.
+document.addEventListener('error', (e) => {
+  const el = e.target;
+  if (!(el instanceof HTMLImageElement) || el.dataset.fellBack) return;
+  const alt = el.dataset.fallback;
+  if (!alt || el.getAttribute('src') === alt) return;
+  el.dataset.fellBack = '1';
+  el.src = alt;
+}, true);
+
 start();
