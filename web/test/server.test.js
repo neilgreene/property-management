@@ -146,6 +146,57 @@ test('whoami reports the truth and does not leak the persona list', async (t) =>
   assert.deepEqual(j.personas, [], 'the switcher list is not served when it is disabled');
 });
 
+// The favourites grid and the search grid are different queries over
+// different views. They must not disagree about which photograph a listing
+// has -- and they did: the card image was a subquery written inside the
+// search query, so favourites had no such column and silently fell back to
+// a generated drawing. Nothing failed; one page just quietly showed
+// something else. This asserts the two agree, listing by listing.
+test('favourites and the search grid show the same photograph', async (t) => {
+  if (!available) return t.skip('no server');
+  const login = await jsonPost('/api/login', { email: 'ruth@example.com', password: 'ruth-pw' });
+  const cookie = login.headers.get('set-cookie').split(';')[0];
+
+  // /api/listings, which is what the grid calls. /api/view is the older
+  // demo endpoint and returns neither property_id nor the card image, so a
+  // test written against it would prove nothing about either page.
+  const listings = await (await fetch(`${base}/api/listings`, { headers: { cookie } })).json();
+  // Ruth starts with favourites of her own from the seed. Note what was
+  // there and add only listings that were not, so the cleanup restores the
+  // fixture rather than emptying it.
+  const before = new Set(((await (await fetch(`${base}/api/favorites`,
+    { headers: { cookie } })).json()).rows).map((r) => r.property_id));
+  const target = listings.rows.filter((r) => !before.has(r.property_id)).slice(0, 3);
+  assert.ok(target.length, 'the fixture must offer listings that are not already saved');
+
+  for (const r of target) {
+    await jsonPost('/api/favorite', { property_id: r.property_id }, cookie);
+  }
+  try {
+    const favs = await (await fetch(`${base}/api/favorites`, { headers: { cookie } })).json();
+    const byId = new Map(favs.rows.map((f) => [f.property_id, f]));
+    for (const r of target) {
+      const f = byId.get(r.property_id);
+      assert.ok(f, `${r.listing_ref} is missing from favourites`);
+      assert.ok(r.primary_image, `${r.listing_ref} has no card image in the grid`);
+      assert.equal(f.primary_image, r.primary_image,
+        `${r.listing_ref}: favourites and the grid disagree about the card image`);
+    }
+  } finally {
+    // Leave the fixture as it was found. A test that quietly leaves
+    // favourites behind changes what the next one sees.
+    for (const r of target) {
+      await fetch(`${base}/api/favorite`, {
+        method: 'DELETE', headers: { cookie, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ property_id: r.property_id }),
+      });
+    }
+    const after = await (await fetch(`${base}/api/favorites`, { headers: { cookie } })).json();
+    assert.equal(after.rows.length, before.size,
+      'the cleanup must leave the fixture exactly as it was found');
+  }
+});
+
 test('the login page is served', async (t) => {
   if (!available) return t.skip('no server');
   const r = await fetch(`${base}/login.html`);

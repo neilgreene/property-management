@@ -275,18 +275,13 @@ function buildListingQuery(criteria) {
             p.cap_rate, p.gross_rent_annual, p.hoa_annual,
             p.street_address, p.unit, p.lat, p.lng, p.address_unlocked,
             p.brand_service_tier, p.brand_platform_fee,
-            -- The card image, chosen by the same rules that decide which
-            -- images a caller may see at all. Reading it through
-            -- api.property_media rather than naming a file means a gated
-            -- photograph can never become a card thumbnail by accident.
-            -- coalesce, not thumb_url: a row with no downscaled copy still
-            -- has a picture, and a card that renders nothing is worse than
-            -- a card that renders a large file.
-            (SELECT coalesce(mm.thumb_url, mm.url) FROM api.property_media mm
-              WHERE mm.property_id = p.property_id
-              ORDER BY mm.is_primary DESC, mm.position
-              LIMIT 1) AS primary_image
-       FROM api.property p
+            -- The card image comes from api.property_card, which is where
+            -- it is defined. It used to be a subquery written here, which
+            -- meant the favourites list -- reading a different view -- had
+            -- no card image and silently fell back to a generated drawing.
+            -- One definition, two consumers, and they cannot drift.
+            p.primary_image
+       FROM api.property_card p
       ${where.length ? 'WHERE ' + where.join(' AND ') : ''}
       ORDER BY ${sort}`;
   return { sql, args };

@@ -12,6 +12,35 @@ date the work was completed.
 
 ---
 
+## 0.9.13 — 2026-09-04
+
+**Favourites show the same photograph the search grid does.**
+
+### Fixed
+- The favourites list showed generated drawings while every other page showed
+  photographs. The card image was chosen by a correlated subquery written
+  inside the web tier's *search* query, so `api.my_favorite` — a different view
+  — had no such column and the page fell back to the generated illustration.
+  Nothing failed; one page just quietly showed something else.
+
+  The fix is not a second copy of the subquery. `api.property_card` now defines
+  the card image once, and both the search grid and `api.my_favorite` read it.
+
+- A test asserts the two agree, listing by listing. Written against
+  `/api/listings` rather than `/api/view` — the latter is the older demo
+  endpoint and returns neither `property_id` nor the card image, so a test
+  against it would have proved nothing about either page.
+
+### Note
+- `primary_image` deliberately lives on `api.property_card` and **not** on
+  `api.property`, which would have been simpler. `core.property_media`'s row
+  policy is written in terms of `api.property`, so a subquery over
+  `api.property_media` inside `api.property` makes the policy depend on the
+  view that depends on the policy — a recursion PostgreSQL discovers at query
+  time, not at definition time.
+
+---
+
 ## 0.9.12 — 2026-09-04
 
 **A property you can actually look at.**
