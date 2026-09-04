@@ -63,6 +63,10 @@ function readForm() {
 // does.
 function viewportCriteria() {
   if (!map || !$('maparea').checked) return {};
+  // No map access, no viewport: a caller with no coordinates has no view to
+  // search, and sending a box they cannot see would be filtering by
+  // something they were never shown.
+  if (state.identity && !state.identity.mapAccess) return {};
   const b = map.getBounds();
   const r = (n) => Math.round(n * 1e5) / 1e5;
   return { bbox_s: r(b.getSouth()), bbox_n: r(b.getNorth()),
@@ -286,9 +290,23 @@ function card(r) {
   </article>`;
 }
 
+// A map is drawn only for a caller the database gives coordinates to --
+// internal staff, the assigned agent, and an investor past the fee gate.
+// The browser is told, not left to infer it from whether lat happens to be
+// null: a filter that returns nothing must not read as losing map access.
+function applyMapAccess(identity) {
+  const on = !!(identity && identity.mapAccess);
+  document.querySelector('main').classList.toggle('nomap', !on);
+  $('maparea').closest('label').hidden = !on;
+  $('nomapnote').hidden = on;
+  if (on && map) map.invalidateSize();       // it was display:none until now
+  return on;
+}
+
 function draw(data) {
   state.rows = data.rows;
   state.identity = data.identity;
+  applyMapAccess(data.identity);
   // An empty result while the map is the filter is not the same problem as
   // an empty result from the filter bar, and saying so saves the reader
   // hunting through filters that are not the cause.

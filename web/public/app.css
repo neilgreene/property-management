@@ -54,6 +54,14 @@ h1{font-size:19px;margin:0}
 .filters{display:flex;flex-wrap:wrap;align-items:flex-end;gap:12px;
   padding:11px 18px;background:#fff;border-bottom:1px solid var(--line);
   position:sticky;top:57px;z-index:800}
+/* The `hidden` attribute means hidden, everywhere.
+   The browser's own rule is [hidden]{display:none}, and ANY author rule
+   that sets display beats it -- so .filters label{display:flex} left a
+   "hidden" control on screen, and .lightbox{display:flex} left an
+   invisible full-window layer swallowing every click. Both were real bugs
+   that looked like nothing was wrong. One declaration ends the class. */
+[hidden]{display:none !important}
+
 .filters label{display:flex;flex-direction:column;gap:4px;
   font-size:11px;text-transform:uppercase;letter-spacing:.5px;color:var(--mut);font-weight:600}
 .filters input,.filters select{border:1px solid var(--line);border-radius:6px;
@@ -69,6 +77,12 @@ h1{font-size:19px;margin:0}
 .gate.open{background:var(--okbg);color:var(--ok);border-bottom-color:#c9e5dc}
 
 /* ---------- layout ---------- */
+/* No map access, no map. The listings take the whole width rather than
+   sitting beside an empty panel. */
+main.nomap{grid-template-columns:1fr}
+.nomapnote{background:var(--gatebg);border-color:var(--gateline);color:var(--gate)}
+main.nomap .mapwrap{display:none}
+
 main{display:grid;grid-template-columns:minmax(320px,44%) 1fr;
   height:calc(100vh - 155px);min-height:420px}
 .mapwrap{position:relative;border-right:1px solid var(--line);background:#e8eef1}
@@ -196,13 +210,8 @@ main{display:grid;grid-template-columns:minmax(320px,44%) 1fr;
   padding:1px 6px;margin-left:6px}
 
 /* ---------- one photograph, large ---------- */
-/* :not([hidden]) is load-bearing. An author rule setting `display` beats
-   the browser's `[hidden]{display:none}`, so a plain `.lightbox{display:flex}`
-   leaves a transparent full-screen layer over the page swallowing every
-   click -- the listing cards simply stop responding and nothing looks
-   wrong. */
-.lightbox{position:fixed;inset:0;z-index:1300;background:rgba(10,15,20,.94)}
-.lightbox:not([hidden]){display:flex;align-items:center;justify-content:center}
+.lightbox{position:fixed;inset:0;z-index:1300;background:rgba(10,15,20,.94);
+  display:flex;align-items:center;justify-content:center}
 .lightbox figure{margin:0;max-width:94vw;max-height:92vh;display:flex;
   flex-direction:column;align-items:center;gap:10px}
 .lightbox img{max-width:94vw;max-height:82vh;object-fit:contain;display:block}

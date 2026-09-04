@@ -19,6 +19,10 @@ GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA ghl  TO sdi_test_ad
 GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA feed TO sdi_test_admin;
 GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA gov  TO sdi_test_admin;
 GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA intake TO sdi_test_admin;
+-- sec holds predicates, and since 35_map_disclosure a settings table too.
+-- The suite flips map disclosure to prove the viewport filter reads the
+-- published coordinate rather than the true one, then puts it back.
+GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA sec TO sdi_test_admin;
 GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA core, ghl, feed, gov, intake TO sdi_test_admin;
 GRANT EXECUTE ON ALL FUNCTIONS IN SCHEMA feed, gov, intake TO sdi_test_admin;
 -- The api views too: operator tools report through them.

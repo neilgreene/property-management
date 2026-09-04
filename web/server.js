@@ -237,10 +237,21 @@ async function withTx(identity, brand, fn) {
 // cannot hold favourites (anonymous, agent) -- the view is not granted to
 // them and the failure is expected, not an error.
 async function favoriteIds(client) {
+  // The SAVEPOINT is the point of this function. An expected failure still
+  // aborts the whole transaction, so every statement after it fails too
+  // with "current transaction is aborted" -- and this one used to be last,
+  // which is the only reason that never showed. Rolling back to a
+  // savepoint contains the expected failure to itself, so the caller can
+  // add a statement after this one without discovering the coupling.
+  await client.query('SAVEPOINT favs');
   try {
     const r = await client.query('SELECT property_id FROM core.saved_property');
+    await client.query('RELEASE SAVEPOINT favs');
     return r.rows.map((x) => x.property_id);
-  } catch { return []; }
+  } catch {
+    await client.query('ROLLBACK TO SAVEPOINT favs');
+    return [];
+  }
 }
 
 function buildListingQuery(criteria) {
@@ -273,9 +284,16 @@ function buildListingQuery(criteria) {
   // the results, and binary-search their way to the address the whole
   // platform exists to withhold. The fuzz has to be applied before the
   // comparison, not after.
+  //
+  // `lat IS NULL OR` is not a loophole, it is the rule for a caller who has
+  // no coordinates at all. Since map disclosure was tightened, an ungated
+  // caller sees no positions and gets no map -- and a bounding box left in
+  // a bookmarked url would otherwise match nothing and empty their results
+  // with an explanation about a map they cannot see. A listing you cannot
+  // place is not outside the box; it is not on the map at all.
   if (criteria.bbox_s !== undefined && criteria.bbox_n !== undefined) {
     args.push(criteria.bbox_s, criteria.bbox_n);
-    where.push(`p.lat BETWEEN $${args.length - 1} AND $${args.length}`);
+    where.push(`(p.lat IS NULL OR p.lat BETWEEN $${args.length - 1} AND $${args.length})`);
   }
   if (criteria.bbox_w !== undefined && criteria.bbox_e !== undefined) {
     args.push(criteria.bbox_w, criteria.bbox_e);
@@ -283,8 +301,8 @@ function buildListingQuery(criteria) {
     // A viewport dragged across the antimeridian arrives with west east of
     // east. Two ranges, not one, or the box silently matches nothing.
     where.push(criteria.bbox_w <= criteria.bbox_e
-      ? `p.lng BETWEEN $${w} AND $${e}`
-      : `(p.lng >= $${w} OR p.lng <= $${e})`);
+      ? `(p.lng IS NULL OR p.lng BETWEEN $${w} AND $${e})`
+      : `(p.lng IS NULL OR p.lng >= $${w} OR p.lng <= $${e})`);
   }
 
   // Free text, matched against the fields a caller can see in every case.
@@ -343,9 +361,15 @@ async function listings(identity, params) {
     const favs = new Set(await favoriteIds(client));
     for (const r of rows) r.is_favorite = favs.has(r.property_id);
 
+    // Whether to draw a map at all. Asked of the database rather than
+    // inferred from the rows in hand: a filter that happens to return
+    // nothing must not read as "you have lost map access", and a caller
+    // whose current page is empty may still have a map on the next.
+    const mapAccess = (await client.query('SELECT api.map_access() AS ok')).rows[0].ok;
+
     return {
       identity: { label: identity.label, role: identity.role, note: identity.note,
-                  signedIn: identity.key === 'session', canFavorite: favs !== null &&
+                  signedIn: identity.key === 'session', mapAccess, canFavorite: favs !== null &&
                     (identity.role === 'sdi_investor' || identity.role === 'sdi_admin') },
       criteria, applied: criteria, sort: criteria.sort || 'ref',
       facets, cities, types, count: rows.length, rows,

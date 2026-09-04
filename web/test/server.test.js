@@ -197,66 +197,100 @@ test('favourites and the search grid show the same photograph', async (t) => {
   }
 });
 
-// The map viewport as a filter. The interesting assertion is the last
-// one: a gated listing must be selected by the coordinate the caller was
-// SHOWN, not the real one. Filtering on the truth would let anybody shrink
-// a box around a listing until it dropped out of the results and read the
-// address off the boundary.
+// The map viewport as a filter. Ruth throughout, because coordinates are
+// band 2 now: nobody without the fee agreement gets a position at all, so
+// there is no viewport to test for an anonymous caller.
+test('coordinates are withheld unless the address is unlocked', async (t) => {
+  if (!available) return t.skip('no server');
+  const anon = await (await fetch(`${base}/api/listings`)).json();
+  assert.ok(anon.rows.length, 'the fixture must return listings');
+  assert.ok(anon.rows.every((r) => r.lat === null && r.lng === null),
+    'an ungated caller received a coordinate \u2014 a point on a map is an address '
+    + 'written differently, and hiding the map in the browser would leave this '
+    + 'one View Source away');
+  assert.equal(anon.identity.mapAccess, false);
+
+  const login = await jsonPost('/api/login', { email: 'ruth@example.com', password: 'ruth-pw' });
+  const cookie = login.headers.get('set-cookie').split(';')[0];
+  const ruth = await (await fetch(`${base}/api/listings`, { headers: { cookie } })).json();
+  assert.ok(ruth.rows.every((r) => r.lat !== null),
+    'a caller past the fee gate must get positions, or there is no map for anybody');
+  assert.equal(ruth.identity.mapAccess, true);
+});
+
 test('the map viewport filters the listings', async (t) => {
   if (!available) return t.skip('no server');
-  const all = await (await fetch(`${base}/api/listings`)).json();
+  const login = await jsonPost('/api/login', { email: 'ruth@example.com', password: 'ruth-pw' });
+  const cookie = login.headers.get('set-cookie').split(';')[0];
+  const get = async (qs) => (await (await fetch(`${base}/api/listings${qs}`,
+    { headers: { cookie } })).json());
+
+  const all = await get('');
   assert.ok(all.rows.length > 2, 'the fixture must have listings to narrow');
 
   const target = all.rows.find((r) => r.lat != null);
   const d = 0.02;
-  const box = `bbox_s=${target.lat - d}&bbox_n=${Number(target.lat) + d}`
-            + `&bbox_w=${target.lng - d}&bbox_e=${Number(target.lng) + d}`;
-  const near = await (await fetch(`${base}/api/listings?${box}`)).json();
-
-  assert.ok(near.rows.length >= 1, 'the listing inside its own box is returned');
+  const near = await get(`?bbox_s=${target.lat - d}&bbox_n=${Number(target.lat) + d}`
+                       + `&bbox_w=${target.lng - d}&bbox_e=${Number(target.lng) + d}`);
   assert.ok(near.rows.some((r) => r.property_id === target.property_id));
-  assert.ok(near.rows.length < all.rows.length, 'and the box actually excluded something');
+  assert.ok(near.rows.length < all.rows.length, 'the box actually excluded something');
 
   // A box on the far side of the world returns nothing rather than
   // everything -- an ignored filter is worse than a rejected one.
-  const empty = await (await fetch(
-    `${base}/api/listings?bbox_s=-40&bbox_n=-35&bbox_w=140&bbox_e=150`)).json();
-  assert.equal(empty.rows.length, 0);
+  assert.equal((await get('?bbox_s=-40&bbox_n=-35&bbox_w=140&bbox_e=150')).rows.length, 0);
 
-  // Negative longitudes survive the validator. Every listing here is in
-  // the western hemisphere, so a rule that dropped negatives would leave
-  // the filter silently unapplied.
-  const west = await (await fetch(
+  // Negative longitudes survive the validator. Every listing here is in the
+  // western hemisphere, so a rule that dropped negatives would leave the
+  // filter silently unapplied.
+  assert.ok((await get('?bbox_s=24&bbox_n=50&bbox_w=-125&bbox_e=-66')).rows.length > 0,
+    'a negative longitude must not be discarded');
+});
+
+test('a stale bounding box does not empty the results for a caller with no map', async (t) => {
+  if (!available) return t.skip('no server');
+  // Signing out with a viewport in the url used to leave a box filtering
+  // rows that no longer carry a position, so every result vanished behind
+  // an explanation about a map the caller could not see.
+  const anon = await (await fetch(
     `${base}/api/listings?bbox_s=24&bbox_n=50&bbox_w=-125&bbox_e=-66`)).json();
-  assert.ok(west.rows.length > 0, 'a negative longitude must not be discarded');
+  assert.ok(anon.rows.length > 0,
+    'a listing you cannot place is not outside the box; it is not on the map at all');
 });
 
 test('the viewport filter uses the coordinate the caller was shown', async (t) => {
   if (!available) return t.skip('no server');
   const d = await db();
-  // Anonymous: every coordinate is fuzzed. Take one listing's TRUE
-  // position from the table and box tightly around it.
-  const anon = await (await fetch(`${base}/api/listings`)).json();
-  const row = anon.rows.find((r) => !r.address_unlocked && r.lat != null);
-  assert.ok(row, 'the fixture must contain a gated listing');
+  // With map disclosure set to 'none' an ungated listing has no coordinate
+  // at all, so this leak cannot happen by construction. The guard still
+  // belongs in the query rather than in the setting: 'approximate' is one
+  // UPDATE away and the design conflict register has that question open.
+  // So the test flips the setting, proves the guard, and puts it back.
+  await d.query("UPDATE sec.disclosure SET map_mode = 'approximate' WHERE id");
+  try {
+    const anon = await (await fetch(`${base}/api/listings`)).json();
+    const row = anon.rows.find((r) => !r.address_unlocked && r.lat != null);
+    assert.ok(row, 'approximate mode must publish a fuzzed position');
 
-  const truth = (await d.query(
-    'SELECT lat, lng FROM core.property WHERE property_id = $1', [row.property_id])).rows[0];
-  const e = 0.002;                                  // ~200m, well inside the ~1km offset
-  const tight = await (await fetch(`${base}/api/listings`
-    + `?bbox_s=${truth.lat - e}&bbox_n=${Number(truth.lat) + e}`
-    + `&bbox_w=${truth.lng - e}&bbox_e=${Number(truth.lng) + e}`)).json();
+    const truth = (await d.query(
+      'SELECT lat, lng FROM core.property WHERE property_id = $1', [row.property_id])).rows[0];
+    const e = 0.002;                             // ~200m, well inside the ~1km offset
+    const tight = await (await fetch(`${base}/api/listings`
+      + `?bbox_s=${truth.lat - e}&bbox_n=${Number(truth.lat) + e}`
+      + `&bbox_w=${truth.lng - e}&bbox_e=${Number(truth.lng) + e}`)).json();
+    assert.ok(!tight.rows.some((r) => r.property_id === row.property_id),
+      'a box drawn on the TRUE position matched the listing \u2014 the filter is reading '
+      + 'the real coordinate, which turns the map into a way to binary-search a gated address');
 
-  assert.ok(!tight.rows.some((r) => r.property_id === row.property_id),
-    'a box drawn on the TRUE position matched the listing — the filter is reading the '
-    + 'real coordinate, which turns the map into a way to binary-search a gated address');
-
-  // And the published position does select it, so the pins and the list agree.
-  const shown = await (await fetch(`${base}/api/listings`
-    + `?bbox_s=${row.lat - e}&bbox_n=${Number(row.lat) + e}`
-    + `&bbox_w=${row.lng - e}&bbox_e=${Number(row.lng) + e}`)).json();
-  assert.ok(shown.rows.some((r) => r.property_id === row.property_id),
-    'the listing must be found where its own pin is drawn');
+    const shown = await (await fetch(`${base}/api/listings`
+      + `?bbox_s=${row.lat - e}&bbox_n=${Number(row.lat) + e}`
+      + `&bbox_w=${row.lng - e}&bbox_e=${Number(row.lng) + e}`)).json();
+    assert.ok(shown.rows.some((r) => r.property_id === row.property_id),
+      'the listing must be found where its own pin is drawn');
+  } finally {
+    await d.query("UPDATE sec.disclosure SET map_mode = 'none' WHERE id");
+    assert.equal((await d.query('SELECT map_mode FROM sec.disclosure')).rows[0].map_mode,
+      'none', 'the setting must be put back');
+  }
 });
 
 test('the login page is served', async (t) => {
