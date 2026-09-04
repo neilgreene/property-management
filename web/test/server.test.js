@@ -330,6 +330,133 @@ test('photographs are masked until access is granted', async (t) => {
   assert.ok(ruthOne.media.length > 1, 'and a gallery rather than a single tile');
 });
 
+// ---- the properties panel -------------------------------------------
+// The arithmetic assertions are against the 401 NW 71st St workbook, which
+// is the only figures in this system that came from outside it. If a
+// change to api.property_admin ever stops reconciling to that sheet, this
+// is where it shows.
+const JESS = '77777777-7777-7777-7777-777777777777';
+
+async function staffCookie() {
+  const d = await db();
+  await d.query('SELECT api.set_password($1, $2)',
+                [JESS, await auth.hashPassword('jess-pw')]);
+  const r = await jsonPost('/api/login', { email: 'jpool2@yahoo.com', password: 'jess-pw' });
+  return r.headers.get('set-cookie').split(';')[0];
+}
+
+test('the properties panel is staff only', async (t) => {
+  if (!available) return t.skip('no server');
+  assert.equal((await fetch(`${base}/api/admin/properties`)).status, 403);
+
+  const login = await jsonPost('/api/login', { email: 'ruth@example.com', password: 'ruth-pw' });
+  const investor = login.headers.get('set-cookie').split(';')[0];
+  assert.equal((await fetch(`${base}/api/admin/properties`,
+    { headers: { cookie: investor } })).status, 403,
+    'an investor with the fee paid still has no business editing the numbers');
+
+  const cookie = await staffCookie();
+  const ok = await fetch(`${base}/api/admin/properties`, { headers: { cookie } });
+  assert.equal(ok.status, 200);
+  assert.ok((await ok.json()).rows.length > 0);
+});
+
+test('the derived figures reconcile to the workbook', async (t) => {
+  if (!available) return t.skip('no server');
+  const cookie = await staffCookie();
+  const list = await (await fetch(`${base}/api/admin/properties?q=SDI-1009`,
+    { headers: { cookie } })).json();
+  const id = list.rows[0].property_id;
+  const { property: p } = await (await fetch(`${base}/api/admin/property?id=${id}`,
+    { headers: { cookie } })).json();
+
+  assert.equal(Number(p.improvement_estimate), 3750,
+    'improvements are costed at the middle of the range, not the top');
+  assert.equal(Number(p.total_cost), 307084);
+  assert.equal(Number(p.day_one_equity), -7084);
+  assert.equal(Number(p.down_payment_amount), 88500);
+  assert.equal(Number(p.financed_amount), 206500);
+  assert.equal(Math.round(Number(p.monthly_mortgage)), 1304);
+  assert.equal(Number(p.cash_outlay), 100584);
+});
+
+test('a save is recorded field by field, and an unknown field is refused', async (t) => {
+  if (!available) return t.skip('no server');
+  const cookie = await staffCookie();
+  const list = await (await fetch(`${base}/api/admin/properties?q=SDI-1010`,
+    { headers: { cookie } })).json();
+  const id = list.rows[0].property_id;
+
+  const before = await (await fetch(`${base}/api/admin/property?id=${id}`,
+    { headers: { cookie } })).json();
+  const was = before.property.insurance_annual;
+
+  const r = await jsonPost('/api/admin/property',
+    { property_id: id, patch: { insurance_annual: '1234' } }, cookie);
+  const d = await r.json();
+  assert.equal(d.changed.length, 1);
+  assert.equal(d.changed[0].field, 'insurance_annual');
+  assert.equal(Number(d.property.insurance_annual), 1234);
+
+  // Saving the same value again writes nothing: a change log full of
+  // no-op entries is a change log nobody reads.
+  const again = await (await jsonPost('/api/admin/property',
+    { property_id: id, patch: { insurance_annual: '1234' } }, cookie)).json();
+  assert.equal(again.changed.length, 0);
+
+  const after = await (await fetch(`${base}/api/admin/property?id=${id}`,
+    { headers: { cookie } })).json();
+  assert.ok(after.history.some((h) => h.field === 'insurance_annual'),
+    'the change must appear in the history');
+
+  // A field outside the allowlist is refused, not silently dropped --
+  // ignoring it would look like a successful save and lose the edit.
+  const bad = await jsonPost('/api/admin/property',
+    { property_id: id, patch: { acquisition_cost: '1' } }, cookie);
+  assert.equal(bad.status, 400);
+  assert.match((await bad.json()).error, /not editable/);
+
+  // Put it back.
+  await jsonPost('/api/admin/property',
+    { property_id: id, patch: { insurance_annual: was == null ? '' : String(was) } }, cookie);
+});
+
+test('a later fee schedule does not restate an earlier agreement', async (t) => {
+  if (!available) return t.skip('no server');
+  const d = await db();
+  const cookie = await staffCookie();
+  const list = await (await fetch(`${base}/api/admin/properties?q=SDI-1009`,
+    { headers: { cookie } })).json();
+  const id = list.rows[0].property_id;
+
+  const before = await (await fetch(`${base}/api/admin/property?id=${id}`,
+    { headers: { cookie } })).json();
+  assert.equal(Number(before.property.management_fee_bps), 800,
+    'the fixture is on the January schedule');
+  assert.equal(before.fees.schedule_superseded, false);
+
+  // sdi_test_admin is not a member of sdi_admin, so it cannot SET ROLE to
+  // it. It does not need to: api.record_fee_schedule authorises on the
+  // ACTOR being internal, which Jessica is, not on the connection role.
+  await d.query("SELECT set_config('app.actor_id', $1, false)", [JESS]);
+  const newId = (await d.query(
+    "SELECT api.record_fee_schedule('KC-SH', $1::date, 1000, 35.00, NULL, 'test') AS id",
+    ['2026-03-01'])).rows[0].id;
+  try {
+    const after = await (await fetch(`${base}/api/admin/property?id=${id}`,
+      { headers: { cookie } })).json();
+    assert.equal(Number(after.property.management_fee_bps), 800,
+      'RAISING THE PROGRAMME FEE CHANGED AN AGREED PROPERTY — a fee is copied '
+      + 'onto a property once, never read live, or every past deal is restated '
+      + 'the moment a manager puts its prices up');
+    assert.equal(after.fees.schedule_superseded, true,
+      'and the panel must be able to say the property is on an older schedule');
+    assert.equal(Number(after.fees.current_management_fee_bps), 1000);
+  } finally {
+    await d.query('DELETE FROM core.fee_schedule WHERE schedule_id = $1', [newId]);
+  }
+});
+
 test('the login page is served', async (t) => {
   if (!available) return t.skip('no server');
   const r = await fetch(`${base}/login.html`);

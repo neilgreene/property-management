@@ -1,0 +1,92 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>SDI — Property</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="stylesheet" href="/app.css">
+<link rel="stylesheet" href="/admin.css">
+<link rel="stylesheet" href="/property-admin.css">
+
+<header class="bar">
+  <div class="brand"><span class="mark">SDI</span> <span class="brandtxt">Property</span></div>
+  <nav class="adminnav">
+    <a href="/">← Marketplace</a>
+    <a href="/admin.html">Intake review</a>
+  </nav>
+  <div class="who">
+    <span id="whoami" class="chip">…</span>
+    <button id="signout" class="ghost" hidden>Sign out</button>
+  </div>
+</header>
+
+<div id="denied" class="denied" hidden>
+  <h1>Staff only</h1>
+  <p>This panel edits the numbers behind a listing, including what was paid for it.
+     The database refuses these queries for any role but staff, so signing in as an
+     investor will not help.</p>
+  <p><a class="ghost" href="/login.html">Sign in</a></p>
+</div>
+
+<main id="app" hidden>
+  <!-- the picker -->
+  <section id="picker" class="picker">
+    <div class="pickhead">
+      <input id="search" type="search" placeholder="Search by reference, city or address…">
+      <span id="pcount" class="muted"></span>
+    </div>
+    <div id="plist" class="plist"></div>
+  </section>
+
+  <!-- the sheet -->
+  <section id="sheet" class="sheet" hidden>
+    <div class="sheethead">
+      <div>
+        <div id="addr" class="shaddr"></div>
+        <div id="sub" class="muted"></div>
+      </div>
+      <div class="sheetact">
+        <label class="metro">Metro
+          <select id="metro_code"></select>
+        </label>
+        <span id="dirty" class="dirty" hidden>unsaved</span>
+        <button id="save" class="primary" disabled>Save</button>
+        <button id="revert" class="ghost" disabled>Revert</button>
+      </div>
+    </div>
+    <div id="fees" class="fees" hidden></div>
+    <div id="msg" class="msg" hidden></div>
+
+    <div class="blocks">
+      <div class="block">
+        <h2><span class="bk">A</span> Property specifications</h2>
+        <div class="fields" id="blockA"></div>
+      </div>
+      <div class="block">
+        <h2><span class="bk">C</span> Financing assumptions</h2>
+        <div class="fields" id="blockC"></div>
+        <div class="derived" id="derivedC"></div>
+      </div>
+      <div class="block">
+        <h2><span class="bk">B</span> Purchase assumptions</h2>
+        <div class="fields" id="blockB"></div>
+        <div class="derived" id="derivedB"></div>
+      </div>
+      <div class="block">
+        <h2><span class="bk">D</span> Estimated financial assumptions</h2>
+        <div class="fields" id="blockD"></div>
+        <div class="derived" id="derivedD"></div>
+      </div>
+    </div>
+
+    <div class="block wide">
+      <h2><span class="bk">E</span> General notes about this property</h2>
+      <div class="fields" id="blockE"></div>
+    </div>
+
+    <div class="block wide">
+      <h2>History</h2>
+      <div id="history" class="history"></div>
+    </div>
+  </section>
+</main>
+
+<script src="/property-admin.js"></script>

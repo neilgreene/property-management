@@ -12,6 +12,66 @@ date the work was completed.
 
 ---
 
+## 0.9.18 — 2026-09-04
+
+**The properties panel, and the fee model behind it.**
+
+### Added — the panel
+An internal screen at `/property-admin.html`, laid out like the workbook:
+the same A/B/C/D/E blocks in the same order with the same field names, so
+somebody who has worked the sheet for years does not have to learn where
+anything went. Derived figures sit under the inputs they come from and update
+as you type. Edited fields are marked until saved; every save reports which
+fields changed and writes them to a history strip.
+
+**It reconciles to your sheet exactly.** Against 401 NW 71st St: total cost
+$307,084, day-one equity −$7,084, down payment $88,500, financed $206,500,
+monthly payment $1,304, cash outlay $100,584, 18 days on market. There is a
+test asserting all of it.
+
+One figure did not reconcile at first and the difference was informative:
+**improvements are costed at the middle of the range, not the top.** Costing at
+the high end — the obvious guess — came out exactly $1,250 heavy, being half
+the $2,500–$5,000 range.
+
+### Added — property managers and versioned fees
+The metro dropdown is (metro × property manager), and the manager sets the
+management and leasing fees. Two Kansas City entries differ only by manager.
+
+**Fee schedules are append-only and dated.** A fee change is a new row with a
+later `effective_from`, never an `UPDATE` — there is no `UPDATE` policy on the
+table for anyone, so the rule is enforced by the absence of a way to break it.
+A property copies fees once, deliberately, and records which schedule version
+they came from. Raising a fee in March does not restate a deal agreed in
+January, and the panel says plainly when a property is on an older schedule.
+
+### Added — the underwriting layer
+`core.property_underwriting` holds what the workbook holds and the listing
+never did: offer, suggested range, asking, market value after improvements,
+improvement range, closing and mortgage costs, other fees, financing terms,
+rent range, leasing fee. **Band 3 throughout** — an offer and a day-one equity
+figure tell a buyer the operator's margin.
+
+### Deliberately not included
+- The workbook's **Schools Rating**. `gov.prohibited_dimension` lists
+  `school_rating` as a proxy for race and national origin, and the standing
+  invariant fails the build if it appears in the `api` schema. Storing it as a
+  sortable number is one careless view away from being a filter. It belongs in
+  internal notes as prose.
+
+### Fixed
+- `api.property_save` compared **text renderings**, so `numeric(12,2)` rendering
+  1234 as "1234.00" made every re-save of an unchanged form look like a change.
+  Open the panel, press Save, and the history gained "1234.00 → 1234". The
+  comparison now happens in the column's own type, inside the `UPDATE`.
+- `toInput` trimmed trailing zeros with `/\.?0+$/`, which strips them whether or
+  not there is a decimal point — a 30% down payment rendered as **3%**.
+- A `SECURITY INVOKER` function reading `core` fails for every reader role, none
+  of which holds `USAGE` on that schema. Third occurrence in this branch. Views
+  resolve references at definition time and survive it; function bodies do not.
+
+---
+
 ## 0.9.17 — 2026-09-04
 
 **The markets list, and a pool of masks rather than one.**

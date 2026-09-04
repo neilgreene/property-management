@@ -15,7 +15,9 @@ for f in sql/01_schema.sql sql/02_policies.sql sql/03_views.sql \
          sql/28_intake.sql sql/30_stock_media.sql \
          sql/31_media_store.sql sql/32_media_api.sql sql/33_interior_media.sql \
          sql/34_property_card.sql sql/35_map_disclosure.sql \
-         sql/36_media_masking.sql sql/37_metro.sql sql/38_mask_pool.sql; do
+         sql/36_media_masking.sql sql/37_metro.sql sql/38_mask_pool.sql \
+         sql/39_underwriting.sql sql/40_property_admin.sql \
+         sql/41_property_manager.sql sql/42_underwriting_seed.sql; do
   echo "loading $f"; psql -d "$DB" -v ON_ERROR_STOP=1 -q -f "$f"
 done
 # Demo logins for both roles. Same file docker-compose loads, so the two

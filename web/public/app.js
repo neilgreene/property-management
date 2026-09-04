@@ -810,6 +810,11 @@ async function start() {
   $('whoami').title = who.note || '';
   $('signin').hidden  = who.signedIn;
   $('signout').hidden = !who.signedIn;
+  // Offered only to staff, and the link is a convenience rather than the
+  // control: the panel refuses anyone else at the database, so a guessed
+  // url gets the same answer as a hidden button.
+  $('staffnav').hidden = !(who.signedIn
+    && (who.role === 'sdi_admin' || who.role === 'sdi_agent'));
 
   if (!initMap()) $('mapfallback').hidden = false;
 

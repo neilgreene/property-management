@@ -377,6 +377,58 @@ async function listings(identity, params) {
   });
 }
 
+// ---------------------------------------------------------------------
+// The properties panel
+//
+// Staff only, and the database says so rather than the route: every query
+// here goes through api.property_admin or api.property_save, neither of
+// which is granted to a reader role. A signed-in investor reaching these
+// urls gets the same refusal as an anonymous one.
+// ---------------------------------------------------------------------
+async function adminPropertyList(identity, brand, q) {
+  return withTx(identity, brand, async (client) => {
+    const args = [];
+    let where = '';
+    if (q) { args.push('%' + q + '%');
+      where = `WHERE listing_ref ILIKE $1 OR city ILIKE $1 OR street_address ILIKE $1`; }
+    const rows = (await client.query(
+      `SELECT property_id, listing_ref, status, street_address, city, state,
+              metro_label, property_type, beds, baths, sqft, list_price,
+              cap_rate, published_photos, pending_photos, underwriting_updated_at
+         FROM api.property_admin ${where} ORDER BY listing_ref`, args)).rows;
+    const metros = (await client.query(
+      `SELECT metro_code, label, kind FROM api.metro WHERE active ORDER BY sort_order`)).rows;
+    return { rows, metros, count: rows.length };
+  });
+}
+
+async function adminProperty(identity, brand, id) {
+  return withTx(identity, brand, async (client) => {
+    const r = await client.query(
+      'SELECT * FROM api.property_admin WHERE property_id = $1', [id]);
+    if (!r.rows.length) return null;
+    const history = (await client.query(
+      'SELECT * FROM api.property_history WHERE property_id = $1 LIMIT 40', [id])).rows;
+    const metros = (await client.query(
+      `SELECT metro_code, label, kind, manager_name, management_fee_bps,
+              leasing_fee_monthly, current_effective_from
+         FROM api.metro WHERE active ORDER BY sort_order`)).rows;
+    const fees = (await client.query(
+      'SELECT * FROM api.property_fee_status WHERE property_id = $1', [id])).rows[0] || null;
+    return { property: r.rows[0], history, metros, fees };
+  });
+}
+
+async function adminPropertySave(identity, brand, id, patch) {
+  return withTx(identity, brand, async (client) => {
+    const changed = (await client.query(
+      'SELECT * FROM api.property_save($1, $2)', [id, JSON.stringify(patch)])).rows;
+    const r = await client.query(
+      'SELECT * FROM api.property_admin WHERE property_id = $1', [id]);
+    return { changed, property: r.rows[0] };
+  });
+}
+
 // The drill-down. One property, its detail, its photographs.
 //
 // Note what is NOT here: any check that the caller may see this property.
@@ -801,6 +853,63 @@ const server = http.createServer(async (req, res) => {
       console.error('intake failed:', e.message);
       res.writeHead(403, { 'Content-Type': 'application/json' });
       return res.end(JSON.stringify({ error: 'not permitted' }));
+    }
+  }
+
+  // ---- the properties panel ---------------------------------------------
+  if (url.pathname.startsWith('/api/admin/')) {
+    try {
+      const identity = await identityFor(req, url);
+      const brand = url.searchParams.get('brand');
+      const what = url.pathname.slice('/api/admin/'.length);
+
+      if (what === 'properties' && req.method === 'GET') {
+        const d = await adminPropertyList(identity, brand, url.searchParams.get('q'));
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        return res.end(JSON.stringify(d));
+      }
+      if (what === 'property' && req.method === 'GET') {
+        const d = await adminProperty(identity, brand, url.searchParams.get('id'));
+        res.writeHead(d ? 200 : 404, { 'Content-Type': 'application/json' });
+        return res.end(JSON.stringify(d || { error: 'not found' }));
+      }
+      if (what === 'apply-fees' && req.method === 'POST') {
+        const b = JSON.parse(await readBody(req) || '{}');
+        const d = await withTx(identity, brand, async (client) => {
+          const changed = (await client.query(
+            'SELECT * FROM api.apply_fee_schedule($1)', [b.property_id])).rows;
+          const prop = (await client.query(
+            'SELECT * FROM api.property_admin WHERE property_id = $1', [b.property_id])).rows[0];
+          const fees = (await client.query(
+            'SELECT * FROM api.property_fee_status WHERE property_id = $1',
+            [b.property_id])).rows[0] || null;
+          return { changed, property: prop, fees };
+        });
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        return res.end(JSON.stringify(d));
+      }
+      if (what === 'property' && req.method === 'POST') {
+        const b = JSON.parse(await readBody(req) || '{}');
+        if (!/^[0-9a-f-]{36}$/i.test(b.property_id || '')) {
+          res.writeHead(400, { 'Content-Type': 'application/json' });
+          return res.end(JSON.stringify({ error: 'bad id' }));
+        }
+        const d = await adminPropertySave(identity, brand, b.property_id, b.patch || {});
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        return res.end(JSON.stringify(d));
+      }
+      res.writeHead(404, { 'Content-Type': 'application/json' });
+      return res.end(JSON.stringify({ error: 'not found' }));
+    } catch (e) {
+      // A refused save and a refused read arrive here alike. The message
+      // from api.property_save is safe to pass on -- "field x is not
+      // editable here" tells the caller what to fix and reveals nothing --
+      // but a permission failure is reported without saying which grant.
+      const editable = /is not editable here|no fee schedule|no programme|no such programme/
+        .test(e.message);
+      console.error('admin failed:', e.message);
+      res.writeHead(editable ? 400 : 403, { 'Content-Type': 'application/json' });
+      return res.end(JSON.stringify({ error: editable ? e.message : 'not permitted' }));
     }
   }
 

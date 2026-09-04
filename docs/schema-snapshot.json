@@ -303,6 +303,95 @@
   },
   {
     "schema": "core",
+    "name": "fee_schedule",
+    "comment": "Append-only. A fee change is a new row with a later effective_from, never an UPDATE -- editing one in place would silently restate every deal that was agreed under it.",
+    "rls": true,
+    "columns": [
+      {
+        "name": "schedule_id",
+        "type": "integer",
+        "nullable": false,
+        "default": "nextval('core.fee_schedule_schedule_id_seq'::regclass)",
+        "key": "PK",
+        "references": "",
+        "comment": ""
+      },
+      {
+        "name": "metro_code",
+        "type": "text",
+        "nullable": false,
+        "default": "",
+        "key": "FK UQ",
+        "references": "core.metro",
+        "comment": ""
+      },
+      {
+        "name": "effective_from",
+        "type": "date",
+        "nullable": false,
+        "default": "",
+        "key": "UQ",
+        "references": "",
+        "comment": ""
+      },
+      {
+        "name": "management_fee_bps",
+        "type": "integer",
+        "nullable": true,
+        "default": "",
+        "key": "CK",
+        "references": "",
+        "comment": ""
+      },
+      {
+        "name": "leasing_fee_monthly",
+        "type": "numeric(10,2)",
+        "nullable": true,
+        "default": "",
+        "key": "",
+        "references": "",
+        "comment": ""
+      },
+      {
+        "name": "monthly_flat_fee",
+        "type": "numeric(10,2)",
+        "nullable": true,
+        "default": "",
+        "key": "",
+        "references": "",
+        "comment": ""
+      },
+      {
+        "name": "recorded_at",
+        "type": "timestamptz",
+        "nullable": false,
+        "default": "now()",
+        "key": "",
+        "references": "",
+        "comment": ""
+      },
+      {
+        "name": "recorded_by",
+        "type": "uuid",
+        "nullable": true,
+        "default": "",
+        "key": "FK",
+        "references": "core.person",
+        "comment": ""
+      },
+      {
+        "name": "note",
+        "type": "text",
+        "nullable": true,
+        "default": "",
+        "key": "",
+        "references": "",
+        "comment": ""
+      }
+    ]
+  },
+  {
+    "schema": "core",
     "name": "market_area",
     "comment": "",
     "rls": true,
@@ -645,6 +734,15 @@
         "key": "",
         "references": "",
         "comment": ""
+      },
+      {
+        "name": "manager_id",
+        "type": "text",
+        "nullable": true,
+        "default": "",
+        "key": "FK",
+        "references": "core.property_manager",
+        "comment": "The firm managing property in this programme. Two Kansas City entries differ only by this column -- which is the whole reason both exist."
       }
     ]
   },
@@ -1166,6 +1264,77 @@
   },
   {
     "schema": "core",
+    "name": "property_change",
+    "comment": "",
+    "rls": true,
+    "columns": [
+      {
+        "name": "change_id",
+        "type": "bigint",
+        "nullable": false,
+        "default": "nextval('core.property_change_change_id_seq'::regclass)",
+        "key": "PK",
+        "references": "",
+        "comment": ""
+      },
+      {
+        "name": "property_id",
+        "type": "uuid",
+        "nullable": false,
+        "default": "",
+        "key": "",
+        "references": "",
+        "comment": ""
+      },
+      {
+        "name": "field",
+        "type": "text",
+        "nullable": false,
+        "default": "",
+        "key": "",
+        "references": "",
+        "comment": ""
+      },
+      {
+        "name": "old_value",
+        "type": "text",
+        "nullable": true,
+        "default": "",
+        "key": "",
+        "references": "",
+        "comment": ""
+      },
+      {
+        "name": "new_value",
+        "type": "text",
+        "nullable": true,
+        "default": "",
+        "key": "",
+        "references": "",
+        "comment": ""
+      },
+      {
+        "name": "actor_id",
+        "type": "uuid",
+        "nullable": true,
+        "default": "",
+        "key": "",
+        "references": "",
+        "comment": ""
+      },
+      {
+        "name": "at",
+        "type": "timestamptz",
+        "nullable": false,
+        "default": "now()",
+        "key": "",
+        "references": "",
+        "comment": ""
+      }
+    ]
+  },
+  {
+    "schema": "core",
     "name": "property_detail",
     "comment": "",
     "rls": true,
@@ -1364,6 +1533,59 @@
         "type": "timestamptz",
         "nullable": false,
         "default": "now()",
+        "key": "",
+        "references": "",
+        "comment": ""
+      }
+    ]
+  },
+  {
+    "schema": "core",
+    "name": "property_manager",
+    "comment": "",
+    "rls": true,
+    "columns": [
+      {
+        "name": "manager_id",
+        "type": "text",
+        "nullable": false,
+        "default": "",
+        "key": "PK",
+        "references": "",
+        "comment": ""
+      },
+      {
+        "name": "name",
+        "type": "text",
+        "nullable": false,
+        "default": "",
+        "key": "",
+        "references": "",
+        "comment": ""
+      },
+      {
+        "name": "active",
+        "type": "boolean",
+        "nullable": false,
+        "default": "true",
+        "key": "",
+        "references": "",
+        "comment": ""
+      },
+      {
+        "name": "established",
+        "type": "text",
+        "nullable": false,
+        "default": "'unconfirmed'::text",
+        "key": "CK",
+        "references": "",
+        "comment": ""
+      },
+      {
+        "name": "note",
+        "type": "text",
+        "nullable": true,
+        "default": "",
         "key": "",
         "references": "",
         "comment": ""
@@ -1572,6 +1794,212 @@
         "default": "now()",
         "key": "",
         "references": "",
+        "comment": ""
+      }
+    ]
+  },
+  {
+    "schema": "core",
+    "name": "property_underwriting",
+    "comment": "",
+    "rls": true,
+    "columns": [
+      {
+        "name": "property_id",
+        "type": "uuid",
+        "nullable": false,
+        "default": "",
+        "key": "FK PK",
+        "references": "core.property",
+        "comment": ""
+      },
+      {
+        "name": "offer_used",
+        "type": "numeric(12,2)",
+        "nullable": true,
+        "default": "",
+        "key": "",
+        "references": "",
+        "comment": ""
+      },
+      {
+        "name": "suggested_offer_low",
+        "type": "numeric(12,2)",
+        "nullable": true,
+        "default": "",
+        "key": "CK",
+        "references": "",
+        "comment": ""
+      },
+      {
+        "name": "suggested_offer_high",
+        "type": "numeric(12,2)",
+        "nullable": true,
+        "default": "",
+        "key": "CK",
+        "references": "",
+        "comment": ""
+      },
+      {
+        "name": "asking_price",
+        "type": "numeric(12,2)",
+        "nullable": true,
+        "default": "",
+        "key": "",
+        "references": "",
+        "comment": ""
+      },
+      {
+        "name": "market_value_after",
+        "type": "numeric(12,2)",
+        "nullable": true,
+        "default": "",
+        "key": "",
+        "references": "",
+        "comment": ""
+      },
+      {
+        "name": "improvements_low",
+        "type": "numeric(12,2)",
+        "nullable": true,
+        "default": "",
+        "key": "CK",
+        "references": "",
+        "comment": ""
+      },
+      {
+        "name": "improvements_high",
+        "type": "numeric(12,2)",
+        "nullable": true,
+        "default": "",
+        "key": "CK",
+        "references": "",
+        "comment": ""
+      },
+      {
+        "name": "closing_costs",
+        "type": "numeric(12,2)",
+        "nullable": true,
+        "default": "",
+        "key": "",
+        "references": "",
+        "comment": ""
+      },
+      {
+        "name": "mortgage_costs",
+        "type": "numeric(12,2)",
+        "nullable": true,
+        "default": "",
+        "key": "",
+        "references": "",
+        "comment": ""
+      },
+      {
+        "name": "other_fees",
+        "type": "numeric(12,2)",
+        "nullable": true,
+        "default": "",
+        "key": "",
+        "references": "",
+        "comment": ""
+      },
+      {
+        "name": "original_listed_on",
+        "type": "date",
+        "nullable": true,
+        "default": "",
+        "key": "",
+        "references": "",
+        "comment": ""
+      },
+      {
+        "name": "down_payment_pct",
+        "type": "numeric(6,4)",
+        "nullable": true,
+        "default": "",
+        "key": "CK",
+        "references": "",
+        "comment": ""
+      },
+      {
+        "name": "interest_rate",
+        "type": "numeric(7,5)",
+        "nullable": true,
+        "default": "",
+        "key": "CK",
+        "references": "",
+        "comment": ""
+      },
+      {
+        "name": "mortgage_term_years",
+        "type": "smallint",
+        "nullable": true,
+        "default": "",
+        "key": "CK",
+        "references": "",
+        "comment": ""
+      },
+      {
+        "name": "rent_upper_monthly",
+        "type": "numeric(10,2)",
+        "nullable": true,
+        "default": "",
+        "key": "CK",
+        "references": "",
+        "comment": ""
+      },
+      {
+        "name": "rent_lower_monthly",
+        "type": "numeric(10,2)",
+        "nullable": true,
+        "default": "",
+        "key": "CK",
+        "references": "",
+        "comment": ""
+      },
+      {
+        "name": "leasing_fee_monthly",
+        "type": "numeric(10,2)",
+        "nullable": true,
+        "default": "",
+        "key": "",
+        "references": "",
+        "comment": ""
+      },
+      {
+        "name": "fee_schedule_id",
+        "type": "integer",
+        "nullable": true,
+        "default": "",
+        "key": "FK",
+        "references": "core.fee_schedule",
+        "comment": "Which version of the programme's fee schedule this property's fees were copied from, and when. Recorded so a later increase is visibly a later increase rather than a discrepancy nobody can explain."
+      },
+      {
+        "name": "fees_applied_at",
+        "type": "timestamptz",
+        "nullable": true,
+        "default": "",
+        "key": "",
+        "references": "",
+        "comment": ""
+      },
+      {
+        "name": "updated_at",
+        "type": "timestamptz",
+        "nullable": false,
+        "default": "now()",
+        "key": "",
+        "references": "",
+        "comment": ""
+      },
+      {
+        "name": "updated_by",
+        "type": "uuid",
+        "nullable": true,
+        "default": "",
+        "key": "FK",
+        "references": "core.person",
         "comment": ""
       }
     ]

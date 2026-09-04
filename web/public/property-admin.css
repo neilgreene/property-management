@@ -1,0 +1,111 @@
+/* =====================================================================
+   property-admin.css  |  the properties panel
+   =====================================================================
+   Laid out to echo the workbook: four blocks in a grid, each with its
+   fields and, beneath them, the figures derived from those fields. The
+   derived rows are visually distinct from the inputs because confusing a
+   number you type with a number the system computes is how a spreadsheet
+   ends up with a hard-coded total. */
+
+#app{display:grid;grid-template-columns:minmax(260px,320px) 1fr;height:calc(100vh - 54px)}
+
+/* ---------- the picker ---------- */
+.picker{border-right:1px solid var(--line);overflow-y:auto;background:var(--card)}
+.pickhead{position:sticky;top:0;background:var(--card);padding:12px 14px 10px;
+  border-bottom:1px solid var(--line);display:grid;gap:6px;z-index:2}
+.pickhead input{width:100%;padding:8px 10px;border:1px solid var(--line);border-radius:7px;
+  font-size:13px;background:var(--bg)}
+.plist{padding:6px}
+.prow{display:grid;gap:1px;width:100%;text-align:left;border:0;background:none;cursor:pointer;
+  padding:9px 10px;border-radius:8px;font:inherit;position:relative}
+.prow:hover{background:var(--accent2)}
+.prow.on{background:var(--accent);color:#fff}
+.prow.on .pmeta,.prow.on .paddr{color:rgba(255,255,255,.85)}
+.pref{font-weight:700;font-size:12px;letter-spacing:.4px}
+.paddr{font-size:13px;color:var(--ink)}
+.pmeta{font-size:11.5px;color:var(--ink2)}
+.ppend{position:absolute;right:8px;top:9px;font-size:10.5px;font-weight:700;
+  background:var(--gatebg);color:var(--gate);border-radius:4px;padding:1px 5px}
+
+/* ---------- the sheet ---------- */
+.sheet{overflow-y:auto;padding:0 0 60px}
+.sheethead{position:sticky;top:0;z-index:3;background:var(--card);
+  border-bottom:1px solid var(--line);padding:13px 20px;
+  display:flex;justify-content:space-between;align-items:center;gap:18px;flex-wrap:wrap}
+.shaddr{font-size:17px;font-weight:700;letter-spacing:-.3px}
+.sheetact{display:flex;align-items:center;gap:10px}
+.metro{display:flex;flex-direction:column;gap:2px;font-size:11px;font-weight:700;
+  letter-spacing:.5px;text-transform:uppercase;color:var(--ink2)}
+.metro select{font:inherit;font-size:13px;font-weight:400;text-transform:none;
+  letter-spacing:0;color:var(--ink);padding:6px 8px;border:1px solid var(--line);
+  border-radius:7px;background:var(--bg);min-width:190px}
+.dirty{font-size:11.5px;font-weight:700;color:#A8410E;background:#FBEDE6;
+  border-radius:5px;padding:3px 8px}
+
+.fees{padding:9px 20px;background:var(--accent2);border-bottom:1px solid var(--line);
+  font-size:12.5px;color:var(--ink)}
+.fees .sm{font-size:11.5px;padding:3px 9px;margin-left:8px}
+.feewarn{background:#FBEDE6;color:#7a3410}
+
+.msg{padding:9px 20px;font-size:12.5px;border-bottom:1px solid var(--line)}
+.msg.good{background:var(--okbg);color:var(--ok)}
+.msg.bad{background:#FBEDE6;color:#8a3a12}
+
+/* Two columns at most, so the blocks land where the workbook puts them:
+   A above B on the left, C above D on the right. A third column would put
+   B beside C and the familiarity is the whole point of the layout. */
+.blocks{display:grid;grid-template-columns:repeat(auto-fit,minmax(420px,1fr));
+  gap:14px;padding:16px 20px;max-width:1180px}
+.block{background:var(--card);border:1px solid var(--line);border-radius:10px;
+  padding:13px 15px 15px}
+.block.wide{margin:0 20px 14px}
+.block h2{margin:0 0 10px;font-size:12px;letter-spacing:.8px;text-transform:uppercase;
+  color:var(--ink2);display:flex;align-items:center;gap:8px}
+.bk{display:inline-grid;place-items:center;width:20px;height:20px;border-radius:5px;
+  background:var(--accent);color:#fff;font-size:11px;font-weight:700}
+
+.fields{display:grid;gap:5px}
+.f{display:grid;grid-template-columns:1fr 148px;align-items:center;gap:10px;
+  padding:3px 0;border-bottom:1px dotted var(--line)}
+.f:last-child{border-bottom:0}
+.lbl{font-size:12.5px;color:var(--ink)}
+.ctl{position:relative;display:flex;align-items:center}
+.ctl input,.ctl select,.ctl textarea{width:100%;font:inherit;font-size:12.5px;
+  padding:5px 8px;border:1px solid var(--line);border-radius:6px;background:var(--bg);
+  text-align:right}
+.ctl textarea{text-align:left;resize:vertical}
+.ctl select{text-align:left}
+.f-text .ctl input,.f-longtext .ctl textarea{text-align:left}
+.unit{position:absolute;right:8px;font-size:11px;color:var(--ink2);pointer-events:none}
+.unit.pre{left:8px;right:auto}
+.f-money .ctl input{padding-left:18px}
+.f-pct .ctl input,.f-bps .ctl input{padding-right:20px}
+/* An edited field is marked until it is saved. Somebody who tabs away and
+   comes back should be able to see what they changed without remembering. */
+.f.changed .ctl input,.f.changed .ctl select,.f.changed .ctl textarea{
+  border-color:#D9A05B;background:#FFFBF5}
+
+.f-longtext{grid-template-columns:1fr}
+.f-longtext .lbl{margin-bottom:3px}
+
+/* Derived: shown, never typed. */
+.derived{margin-top:11px;padding-top:9px;border-top:1px solid var(--line);display:grid;gap:3px}
+.d{display:flex;justify-content:space-between;gap:12px;font-size:12.5px;
+  color:var(--ink2);padding:2px 0}
+.d b{color:var(--ink);font-variant-numeric:tabular-nums}
+.d.strong{font-weight:600}
+.d.strong b{font-size:14px}
+.d.good b{color:var(--ok)}
+.d.bad b{color:#A8410E}
+
+.history{display:grid;gap:4px;max-height:340px;overflow-y:auto}
+.h{display:grid;grid-template-columns:170px 1fr auto;gap:12px;font-size:12px;
+  padding:5px 0;border-bottom:1px dotted var(--line)}
+.hf{font-weight:600}
+.hv{color:var(--ink2)}
+.hw{color:var(--ink2);white-space:nowrap}
+
+@media (max-width:980px){
+  #app{grid-template-columns:1fr;height:auto}
+  .picker{border-right:0;border-bottom:1px solid var(--line);max-height:260px}
+}
