@@ -767,7 +767,19 @@ const server = http.createServer(async (req, res) => {
   if (url.pathname.startsWith('/media/')) {
     const m = /^\/media\/([0-9a-f-]{36})\/([a-z]+)\.svg$/i.exec(url.pathname);
     if (!m) { res.writeHead(404); return res.end('Not found'); }
-    const svg = media.render(m[1], m[2]);
+    // The hero's massing depends on the property type, so look it up.
+    // Read through api.property, which means an id the caller cannot see
+    // simply renders the generic form rather than confirming anything.
+    let ptype = null;
+    if (m[2] === 'hero') {
+      try {
+        const identity = await identityFor(req, url);
+        ptype = (await withTx(identity, null, (c) =>
+          c.query('SELECT property_type FROM api.property WHERE property_id = $1', [m[1]])
+        )).rows[0]?.property_type || null;
+      } catch { /* fall through to the generic form */ }
+    }
+    const svg = media.render(m[1], m[2], ptype);
     if (!svg) { res.writeHead(404); return res.end('Not found'); }
     res.writeHead(200, {
       'Content-Type': 'image/svg+xml',

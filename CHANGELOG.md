@@ -12,6 +12,33 @@ date the work was completed.
 
 ---
 
+## 0.9.3 — 2026-09-04
+
+**A cooler palette, and cards that look like different properties.**
+
+### Changed
+- Palette moved from a neutral ground with amber accents to a light blue one.
+  At card size the warm accents read as brown, and twenty of them in a grid
+  looked tired. The gated state is now a soft steel blue rather than rust —
+  kept clearly lighter and greyer than the interactive accent, because if
+  "locked" and "clickable" look alike the banner stops meaning anything.
+- Listing illustrations redrawn in daylight colours: cool siding, slate roofs,
+  pale interiors with one saturated accent each.
+
+### Added
+- A card hero keyed to **property type** — a duplex has two doors, a condo is
+  a stack — and varied by property id, so a grid of twenty looks like twenty
+  properties rather than one repeated image. Deliberately generic: no street,
+  no number, no surroundings, so it is not location-revealing and is not
+  gated. The real exterior stays behind `reveals_location`.
+
+### Fixed
+- `docs/gen_detail.py` crashed on listings with null sizes — the tracked Irvine
+  address and any unfilled workbook import. It now skips them rather than
+  inventing figures, which is what the rest of the system exists to prevent.
+
+---
+
 ## 0.9.2 — 2026-09-03
 
 **A duplicate-listing bug, found by loading the same workbook twice.**

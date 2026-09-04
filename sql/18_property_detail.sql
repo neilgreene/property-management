@@ -92,6 +92,9 @@ CREATE TABLE core.property_media (
 CREATE INDEX ix_media_property ON core.property_media (property_id, position);
 CREATE UNIQUE INDEX ux_media_primary ON core.property_media (property_id) WHERE is_primary;
 
+-- The card hero is a generic, type-keyed illustration: it shows no street,
+-- no number and no surroundings, so it is not location-revealing and is not
+-- gated. Kept distinct from `front`, which is the actual exterior and is.
 COMMENT ON COLUMN core.property_media.reveals_location IS
     'True for exterior and street views. Such an image is band 2: showing '
     'it to an ungated caller would reopen the address gate through the '

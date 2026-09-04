@@ -93,8 +93,8 @@ function drawMap(rows) {
     // would claim a precision the data does not have.
     if (gated) {
       L.circle([r.lat, r.lng], {
-        radius: 1300, color: '#8a5a1c', weight: 1, dashArray: '4 3',
-        fillColor: '#b9862f', fillOpacity: .1,
+        radius: 1300, color: '#4d6785', weight: 1, dashArray: '4 3',
+        fillColor: '#7f9dbe', fillOpacity: .1,
       }).addTo(layer);
     }
     const mk = L.marker([r.lat, r.lng], {
@@ -173,15 +173,15 @@ function drawFallback(rows) {
     const wpx = 13 + price.length * 6.4;
     return `<g class="fb" data-id="${r.property_id}" style="cursor:pointer">
       ${gated ? `<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="26"
-            fill="#b9862f" fill-opacity=".12" stroke="#8a5a1c" stroke-width="1"
+            fill="#7f9dbe" fill-opacity=".16" stroke="#4d6785" stroke-width="1"
             stroke-dasharray="4 3"/>` : ''}
       <rect x="${(x - wpx / 2).toFixed(1)}" y="${(y - 10).toFixed(1)}"
             width="${wpx.toFixed(1)}" height="20" rx="10"
-            fill="${gated ? '#fffdf8' : '#1f5f8b'}"
-            stroke="${gated ? '#c08f39' : '#ffffff'}" stroke-width="1.6"/>
+            fill="${gated ? '#ffffff' : '#1d6fa8'}"
+            stroke="${gated ? '#8fadc9' : '#ffffff'}" stroke-width="1.6"/>
       <text x="${x.toFixed(1)}" y="${(y + 4).toFixed(1)}" text-anchor="middle"
             font-size="12" font-weight="700" font-family="system-ui,sans-serif"
-            fill="${gated ? '#8a5a1c' : '#ffffff'}">${price}</text>
+            fill="${gated ? '#4d6785' : '#ffffff'}">${price}</text>
       <title>${esc(r.listing_ref)} — ${esc(r.city)}, ${esc(r.state)} · ${usd(r.list_price)}${
         gated ? ' · approximate location' : ''}</title></g>`;
   }).join('');
@@ -189,13 +189,13 @@ function drawFallback(rows) {
   const labels = Object.entries(cities).map(([name, c]) =>
     `<text x="${X(c.lng / c.n).toFixed(1)}" y="${(Y(c.lat / c.n) - 26).toFixed(1)}"
        text-anchor="middle" font-size="13" font-weight="600" font-family="system-ui,sans-serif"
-       fill="#5d6b76" opacity=".85">${esc(name)}</text>`).join('');
+       fill="#5c7a96" opacity=".85">${esc(name)}</text>`).join('');
 
   el.innerHTML = `<svg viewBox="0 0 1000 1000" preserveAspectRatio="xMidYMid meet"
       style="width:100%;height:100%;display:block">
-    <rect width="1000" height="1000" fill="#eef2f4"/>
-    ${[...Array(11)].map((_, i) => `<line x1="${i * 100}" y1="0" x2="${i * 100}" y2="1000" stroke="#dfe6ea" stroke-width="1"/>
-      <line x1="0" y1="${i * 100}" x2="1000" y2="${i * 100}" stroke="#dfe6ea" stroke-width="1"/>`).join('')}
+    <rect width="1000" height="1000" fill="#eaf1f8"/>
+    ${[...Array(11)].map((_, i) => `<line x1="${i * 100}" y1="0" x2="${i * 100}" y2="1000" stroke="#dce7f1" stroke-width="1"/>
+      <line x1="0" y1="${i * 100}" x2="1000" y2="${i * 100}" stroke="#dce7f1" stroke-width="1"/>`).join('')}
     ${labels}${bubbles}
   </svg>
   <div class="nobase">No basemap available — listings plotted to scale</div>`;
@@ -232,7 +232,7 @@ function card(r) {
 
   return `<article class="card" data-id="${r.property_id}">
     <div class="shot">
-      <img loading="lazy" src="/media/${r.property_id}/living.svg" alt="">
+      <img loading="lazy" src="/media/${r.property_id}/hero.svg" alt="">
       <span class="badge">${esc(r.status.replace('_', ' '))}</span>${heart}
     </div>
     <div class="body">

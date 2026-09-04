@@ -49,6 +49,14 @@ props, details, media = [], [], []
 for line in rows:
     (pid, ref, city, state, zipc, ptype, beds, baths, sqft, yb,
      price, gross, opex, hoa) = line.split("|")
+
+    # Skip anything without the facts this generator derives from. The
+    # tracked-but-unverified Irvine listing and any workbook import that
+    # has not been filled in have null sizes on purpose, and inventing
+    # figures for them is exactly what the rest of the system exists to
+    # prevent. They get their detail from the import, not from here.
+    if not (beds and sqft and yb and price and gross):
+        continue
     beds, sqft, yb = int(beds), int(sqft), int(yb)
     baths = float(baths)
     price, gross, opex, hoa = (float(price), float(gross), float(opex), float(hoa))
@@ -119,8 +127,9 @@ for line in rows:
     # flagged and released with the address. The hero shown on the card is
     # a public interior, so every viewer sees a card with a picture.
     shots = [
+        ("hero",     "Property",                        False, True),
         ("front",    "Front elevation from the street", True,  False),
-        ("living",   "Living area",                     False, True),
+        ("living",   "Living area",                     False, False),
         ("kitchen",  "Kitchen",                         False, False),
         ("bed",      "Primary bedroom",                 False, False),
     ]
