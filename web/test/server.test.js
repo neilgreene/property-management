@@ -982,6 +982,23 @@ test('the image copies every module the server imports', async () => {
   }
 });
 
+// The dialog's Create button used to be disabled until the recipient field
+// had three characters in it. A greyed-out control with no stated reason is
+// indistinguishable from a broken one -- press it, nothing happens, and
+// there is nowhere to look for why. It stays live and refuses out loud now,
+// and the server's refusal is unchanged: this is about being told, not
+// about what is allowed.
+test('the server still refuses a document with no recipient', async (t) => {
+  if (!available) return t.skip('no server');
+  const cookie = await staffCookie();
+  const list = await (await fetch(`${base}/api/admin/properties?q=SDI-1009`,
+    { headers: { cookie } })).json();
+  const id = list.rows[0].property_id;
+  const r = await fetch(`${base}/api/share/${id}.pdf?to=ab`, { headers: { cookie } });
+  assert.equal(r.status, 400, 'the browser asking nicely is not the boundary');
+  assert.match((await r.json()).error, /say who this is going to/);
+});
+
 test('the login page is served', async (t) => {
   if (!available) return t.skip('no server');
   const r = await fetch(`${base}/login.html`);

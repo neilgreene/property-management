@@ -12,6 +12,35 @@ date the work was completed.
 
 ---
 
+## 0.9.27 — 2026-09-04
+
+**Share, reachable from the top — and a Create PDF button that answers.**
+
+### Fixed — the button that did nothing
+Create PDF was **disabled** until the recipient field held three characters,
+and said nothing about why. A greyed-out control with no stated reason is
+indistinguishable from a broken one: you press it, nothing happens, and there
+is nowhere to look.
+
+It stays live now and refuses out loud — *"Say who this is going to first."* —
+putting the cursor in the field that fixes it. The server's rule has not
+changed and there is a test holding it: asking politely from a browser was
+never the boundary.
+
+### Fixed — a failed share used to take the page with it
+The download was triggered by navigating the tab to the PDF url. That works
+until the server answers with an error instead of a file, and then the listing
+is replaced by raw JSON. It goes through a hidden iframe now, which takes the
+attachment and stays out of the way either way.
+
+### Added — a share control in the panel header
+Beside close and full-screen, so sharing does not require reading to the bottom
+of the listing first. Sharing is a decision people make at the top of a page,
+having recognised the property — not after scrolling past the roof year. The
+button at the foot stays; both open the same dialog.
+
+---
+
 ## 0.9.26 — 2026-09-04
 
 **Fixed: 0.9.25's web container would not start.**

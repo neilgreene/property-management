@@ -361,7 +361,7 @@ async function openShare(p) {
       <div class="sact">
         <span id="smsg" class="smsg"></span>
         <button id="scancel" class="ghost">Cancel</button>
-        <button id="sgo" class="primary" disabled>Create PDF</button>
+        <button id="sgo" class="primary">Create PDF</button>
       </div>
     </div>`;
   document.body.appendChild(el);
@@ -369,11 +369,15 @@ async function openShare(p) {
 
   const to = el.querySelector('#sto');
   const go = el.querySelector('#sgo');
-  // Three characters, matching what the database will accept, so the button
-  // does not offer to do something the server is about to refuse.
-  const ok = () => { go.disabled = to.value.trim().length < 3; };
-  to.addEventListener('input', ok);
+  const msg = el.querySelector('#smsg');
   to.focus();
+  // NOT DISABLED. It was, until the recipient field had three characters in
+  // it, and a greyed-out button with no stated reason is indistinguishable
+  // from a broken one -- you click it, nothing happens, and there is nowhere
+  // to look for why. It stays live and says what is missing when pressed,
+  // which is the difference between a control that refuses and a control
+  // that appears dead.
+  to.addEventListener('input', () => { msg.textContent = ''; });
 
   el.querySelectorAll('input[name=smask]').forEach((r) =>
     r.addEventListener('change', () => {
@@ -390,15 +394,30 @@ async function openShare(p) {
   });
 
   go.addEventListener('click', () => {
+    const who = to.value.trim();
+    if (who.length < 3) {
+      // Says what, and puts the cursor where it is fixed. The log exists to
+      // answer "who has this", so a document that cannot answer it is not
+      // generated -- but the person deserves to be told that, once.
+      msg.className = 'smsg bad';
+      msg.textContent = 'Say who this is going to first.';
+      to.focus();
+      return;
+    }
     const un = el.querySelector('input[name=smask]:checked').value === '1';
-    const q = new URLSearchParams({ to: to.value.trim() });
+    const q = new URLSearchParams({ to: who });
     if (un) q.set('unmask', '1');
-    // Navigated to rather than fetched, so the browser handles the download
-    // with its own filename and progress. A blob built in script would work
-    // and would also be one more place for the bytes to sit.
-    location.href = `/api/share/${p.property_id}.pdf?${q}`;
-    el.querySelector('#smsg').textContent = 'Preparing…';
-    setTimeout(close, 1200);
+    msg.className = 'smsg';
+    msg.textContent = 'Preparing…';
+    // An iframe rather than location.href. Navigating the tab to a download
+    // works until the server answers with an error instead of a file, and
+    // then it replaces the page with raw JSON and the listing is gone. The
+    // iframe takes the attachment and stays out of the way either way.
+    const f = document.createElement('iframe');
+    f.style.display = 'none';
+    f.src = `/api/share/${p.property_id}.pdf?${q}`;
+    document.body.appendChild(f);
+    setTimeout(() => { f.remove(); close(); }, 2500);
   });
 }
 
@@ -652,6 +671,15 @@ async function openDetail(id) {
   if (b) b.addEventListener('click', () => toggleFavorite(b.dataset.fav, b));
   const sh = $('dshare');
   if (sh) sh.addEventListener('click', () => openShare(p));
+  // The same action, reachable without reading to the bottom of the panel.
+  // A listing is several screens long and sharing is a decision people make
+  // at the top of it, having recognised the property, not after scrolling
+  // past the roof year.
+  const th = $('topshare');
+  if (th) {
+    th.hidden = false;
+    th.onclick = () => openShare(p);
+  }
   const sa = $('seeall');
   if (sa) sa.addEventListener('click', openPhotos);
   // A clicked thumbnail opens that photograph, not the first one.
