@@ -12,6 +12,26 @@ date the work was completed.
 
 ---
 
+## 0.9.6 — 2026-09-04
+
+**A hovered map pin you can read.**
+
+### Fixed
+- Hovering a listing on the map turned the pin's background dark but left the
+  price in the dark slate that `.pin.gated` sets for a white background —
+  1.6:1 contrast, effectively invisible. `.pin.hi` now restates the foreground
+  as white (9.4:1). It sets `border-color` rather than `border`, so a gated pin
+  keeps its dashed edge; that dash is what says the position is approximate.
+  The SVG fallback map already did this correctly, which is why it only showed
+  on the Leaflet map.
+- The web test suite skipped every database test when PostgreSQL was
+  unreachable, and reported `34 tests, 0 fail` with twenty-seven of them never
+  run. That reads as green. The skip is now opt-in — `SDI_TEST_NO_DB=1` for the
+  pure-logic tests on a machine with no database, and a hard failure naming the
+  fix otherwise.
+
+---
+
 ## 0.9.5 — 2026-09-04
 
 **The photographs, at a weight a page can carry.**

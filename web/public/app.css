@@ -116,7 +116,12 @@ main{display:grid;grid-template-columns:minmax(320px,44%) 1fr;
   font-size:12px;font-weight:700;white-space:nowrap;box-shadow:0 1px 4px rgba(0,0,0,.35);
   border:2px solid #fff}
 .pin.gated{background:#fff;color:var(--gate);border:2px dashed #8fadc9}
-.pin.hi{background:#0f4a72;transform:scale(1.12)}
+/* Highlight darkens the background, so it must restate the foreground:
+   .pin.gated sets a dark slate on white, and inheriting that colour onto
+   the dark hover background left the price unreadable. border-color, not
+   border, so a gated pin keeps its dashed edge -- that dash is what says
+   the position is approximate. */
+.pin.hi{background:#0f4a72;color:#fff;border-color:#fff;transform:scale(1.12)}
 
 /* ---------- detail panel ---------- */
 .scrim{position:fixed;inset:0;background:rgba(12,18,24,.42);z-index:1000}

@@ -23,8 +23,23 @@ async function db() {
   return pool;
 }
 
+// Skipping is an escape hatch for running the pure-logic tests on a machine
+// with no PostgreSQL -- but it has to be ASKED for. Skipping silently reports
+// "34 tests, 0 fail" with twenty-seven of them never run, which reads as green
+// and is how a stopped database once looked like a passing suite.
 test('database reachable', async (t) => {
-  try { await db(); } catch (e) { available = false; t.skip(`no database: ${e.message}`); }
+  try {
+    await db();
+  } catch (e) {
+    if (process.env.SDI_TEST_NO_DB !== '1') {
+      throw new Error(
+        `${e.message}\n\n`
+        + 'Start PostgreSQL and run ./db-rebuild.sh, or set SDI_TEST_NO_DB=1 to\n'
+        + 'run only the tests that need no database.');
+    }
+    available = false;
+    t.skip(`no database: ${e.message}`);
+  }
 });
 
 // ---- hashing, no database needed ----------------------------------------
