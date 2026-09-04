@@ -12,6 +12,47 @@ date the work was completed.
 
 ---
 
+## 0.9.12 — 2026-09-04
+
+**A property you can actually look at.**
+
+### Added
+- **Full screen.** A ⤢ button beside the close button widens the detail panel
+  to the whole window. Not simply a wider column: above 1000px the photographs
+  take the left and the figures the right, so the space goes to the pictures
+  rather than to a 1600px line of text. The choice is remembered per browser —
+  somebody who wants the big view wants it for every listing.
+- **See all N photos**, on the lead image. A full-window page of every
+  photograph, captioned, four across, with a *shows the street* badge on
+  anything gated.
+- **A large single-photograph view.** Click any tile — or any image in the
+  panel — for the full file with a caption and an *n of N* counter. Arrow keys
+  move and wrap in both directions.
+- Escape unwinds **one layer at a time**: large view → grid → listing. Closing
+  everything at once loses both the photograph and the listing it came from.
+
+### Notable
+- Photographs are grouped by caption, and the **headings appear only when they
+  group more than one image**. With one photograph per room — every listing
+  today — a heading above each is a full-width divider that forces one tile per
+  row and says nothing the caption does not. They return the moment a listing
+  has several kitchen shots. Grouping is by caption rather than filename
+  because the caption comes from the database and is the field staff will edit;
+  filename sniffing would work for the seeded assets and break for anything
+  served from the media store, where the name is a uuid.
+
+### Fixed
+- `.lightbox{display:flex}` overrode the `hidden` attribute — an author rule
+  setting `display` beats the browser's `[hidden]{display:none}` — leaving a
+  transparent full-window layer over the page that swallowed every click. The
+  listing cards simply stopped responding and nothing looked wrong. Caught by
+  driving the page in a real browser, not by reading it.
+- Section 8 of the Feature Test Plan was stale: it still said three photographs
+  per listing and told the reader to look for the word ILLUSTRATION, which has
+  not been true since the supplied photography landed.
+
+---
+
 ## 0.9.11 — 2026-09-04
 
 **The supplied interiors actually reach the listings.**

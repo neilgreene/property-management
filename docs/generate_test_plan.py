@@ -388,24 +388,73 @@ case("T7.4", "The gate, in the detail panel",
 # ================================================================== 8
 A(para("8.  Photographs", H1))
 
-case("T8.1", "Marcus sees three, Ruth sees four",
+case("T8.1", "Marcus sees four, Ruth sees five",
      ["As Marcus, open any listing and count the photographs.",
       "As Ruth, open the same listing and count again.",
       "Look at what the extra one is."],
-     ["<b>Three</b> &mdash; interiors.",
-      "<b>Four.</b>",
+     ["<b>Four</b> &mdash; the card photograph, living area, kitchen, bedroom.",
+      "<b>Five.</b>",
       "A front elevation."],
      "A photograph of the front of a house identifies it as surely as its street number. "
      "So exterior shots are gated on the same rule as the address, and interiors are not. "
      "Without this the gate would be reopened through the picture gallery.",
      warn=True)
 
-case("T8.2", "They are illustrations, and say so",
-     ["Look at the corner of any image."],
-     ["The word ILLUSTRATION."],
-     "The demo draws its own images rather than using anybody's copyrighted listing "
-     "photography, and they are deliberately not photo-imitations, so nobody mistakes one "
-     "for the actual house.")
+case("T8.2", "Every caption says the photograph is representative",
+     ["Read the caption under any interior.",
+      "Read the caption on the card photograph."],
+     ["<i>&mdash; representative photo, not the actual property</i>.",
+      "The same qualification."],
+     "These are supplied stock photographs, not pictures of these houses. A stock exterior "
+     "shown without qualification reads as a picture of the property, and an investor who "
+     "walks the house and finds a different kitchen stops trusting the numbers too.")
+
+case("T8.3", "Full screen",
+     ["Open a listing and click the <b>&#10530;</b> button beside the close button.",
+      "Look at the layout.",
+      "Close the listing, open another one.",
+      "Click the button again."],
+     ["The panel fills the window.",
+      "Photographs on the left, figures on the right &mdash; not one very wide column of text.",
+      "<b>Still full screen.</b>",
+      "Back to the side panel, and it stays that way."],
+     "The choice is remembered. Somebody who wants the big view wants it for every listing, "
+     "not once. It is stored per browser, so a private window simply starts in the side "
+     "panel.")
+
+case("T8.4", "See all photographs",
+     ["Click <b>See all N photos</b> on the lead image.",
+      "Count the tiles.",
+      "Click any tile.",
+      "Press the right arrow key, then the left twice.",
+      "Press Escape once.",
+      "Press Escape again."],
+     ["A full-window page of every photograph, each captioned.",
+      "The same N as the button said.",
+      "It opens large, with a counter reading <i>n of N</i>.",
+      "It moves forward, then back past the first to the last &mdash; it wraps.",
+      "The large view closes and the grid is still there.",
+      "The grid closes and the listing is still open."],
+     "Escape unwinds one layer at a time. Closing everything at once loses both the "
+     "photograph being looked at and the listing it was opened from.")
+
+case("T8.5", "Headings appear only when they group something",
+     ["With a listing that has one photograph per room, look for headings.",
+      "Ask staff to add a second kitchen photograph, then look again."],
+     ["<b>None</b> &mdash; a plain grid, four across.",
+      "Headings appear: FEATURED, LIVING AREA, KITCHEN, PRIMARY BEDROOM."],
+     "A heading above a single photograph is a full-width divider that forces one tile per "
+     "row and says nothing the caption underneath does not. The headings come back the "
+     "moment they group more than one image. They are built from the caption, which is the "
+     "same field staff will edit, so a photograph labelled in the properties panel appears "
+     "under that heading here with nothing else changing.")
+
+case("T8.6", "A gated photograph is marked as such",
+     ["As Ruth, open the photograph page and find the front elevation."],
+     ["A <i>shows the street</i> badge beside its caption."],
+     "Ruth can see it because her fee agreement is on file. The badge says why it is a "
+     "photograph not everybody gets, which is worth stating on the screen where somebody "
+     "might otherwise copy the link to a person for whom it will 404.")
 
 # ================================================================== 9
 A(PageBreak())

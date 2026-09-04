@@ -139,6 +139,82 @@ main{display:grid;grid-template-columns:minmax(320px,44%) 1fr;
 .gallery .lead{aspect-ratio:16/10}
 .gallery .strip{display:grid;grid-template-columns:repeat(auto-fit,minmax(86px,1fr));gap:3px}
 .gallery .strip img{aspect-ratio:4/3}
+.close.expand{right:54px;font-size:17px}
+
+/* Full screen. The panel is a 680px column by default, which is right for
+   skimming numbers beside the map and wrong for looking at a house. Full
+   screen is not just a wider column: at that width the photographs take
+   the left and the figures the right, so the extra space goes to the
+   pictures rather than to a 1600px line of text nobody can read. */
+.detail.full{width:100%;right:0;left:0}
+.detail.full .gallery .lead{aspect-ratio:3/2}
+/* The close and full-screen buttons float top-right. In the side panel
+   they sit over the photograph; in full screen the figures column starts
+   at the top and the listing reference lands underneath them. */
+.detail.full .dhead{padding-right:84px}
+@media (min-width:1000px){
+  .detail.full #detailbody{display:grid;align-items:start;
+    grid-template-columns:minmax(0,1.15fr) minmax(360px,.85fr)}
+  .detail.full .gallery{position:sticky;top:0}
+  .detail.full .dwrap{padding:24px 34px 60px}
+}
+
+/* The button sits on the lead image rather than beside it: it is about the
+   photographs, and putting it anywhere else means nobody finds it. */
+.seeall{position:absolute;right:14px;bottom:14px;z-index:3;border:0;cursor:pointer;
+  background:rgba(255,255,255,.94);color:var(--ink);font-size:12.5px;font-weight:600;
+  padding:8px 13px;border-radius:7px;box-shadow:0 1px 8px rgba(12,18,24,.3)}
+.seeall:hover{background:#fff}
+.gallery{position:relative}
+
+/* ---------- all photographs ---------- */
+.photos{position:fixed;inset:0;z-index:1200;background:var(--bg);overflow-y:auto}
+.phead{position:sticky;top:0;z-index:2;display:flex;justify-content:space-between;
+  align-items:center;gap:16px;padding:14px 20px;background:var(--card);
+  border-bottom:1px solid var(--line)}
+.phead .close{position:static}
+.phttl{font-weight:700;font-size:15px}
+.phsub{color:var(--ink2);font-size:12.5px}
+/* One grid for the whole page, with the headings spanning it. The first
+   version gave each section its own grid, so a section holding a single
+   photograph rendered one tile and three empty columns -- four rooms
+   became four near-empty rows. `display:contents` on the row lifts the
+   figures into the page grid, so photographs flow densely and the
+   headings still say what they are. */
+.phgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(290px,1fr));
+  gap:8px 12px;padding:18px 22px 60px;max-width:1400px;margin:0 auto;align-items:start}
+.phrow{display:contents}
+.phsec{grid-column:1/-1;font-size:12px;font-weight:700;letter-spacing:.8px;
+  text-transform:uppercase;color:var(--ink2);margin:18px 0 2px}
+.phsec:first-child{margin-top:2px}
+.phrow figure{margin:0;cursor:zoom-in}
+.phrow img{width:100%;aspect-ratio:4/3;object-fit:cover;display:block;border-radius:8px;
+  background:var(--accent2)}
+.phrow figcaption{font-size:11.5px;color:var(--ink2);margin-top:5px}
+.phlock{display:inline-block;font-size:11px;font-weight:700;color:var(--gate);
+  background:var(--gatebg);border:1px solid var(--gateline);border-radius:4px;
+  padding:1px 6px;margin-left:6px}
+
+/* ---------- one photograph, large ---------- */
+/* :not([hidden]) is load-bearing. An author rule setting `display` beats
+   the browser's `[hidden]{display:none}`, so a plain `.lightbox{display:flex}`
+   leaves a transparent full-screen layer over the page swallowing every
+   click -- the listing cards simply stop responding and nothing looks
+   wrong. */
+.lightbox{position:fixed;inset:0;z-index:1300;background:rgba(10,15,20,.94)}
+.lightbox:not([hidden]){display:flex;align-items:center;justify-content:center}
+.lightbox figure{margin:0;max-width:94vw;max-height:92vh;display:flex;
+  flex-direction:column;align-items:center;gap:10px}
+.lightbox img{max-width:94vw;max-height:82vh;object-fit:contain;display:block}
+.lightbox figcaption{color:#e8eef4;font-size:13px;display:flex;gap:14px;align-items:baseline}
+.lbcount{color:#93a4b4;font-variant-numeric:tabular-nums}
+.lbnav{position:absolute;top:50%;transform:translateY(-50%);width:48px;height:76px;
+  border:0;border-radius:8px;background:rgba(255,255,255,.12);color:#fff;font-size:34px;
+  line-height:1;cursor:pointer}
+.lbnav:hover{background:rgba(255,255,255,.24)}
+.lbnav.prev{left:16px}
+.lbnav.next{right:16px}
+
 .dwrap{padding:18px 22px 40px}
 .dhead{display:flex;justify-content:space-between;align-items:flex-start;gap:16px}
 .dprice{font-size:29px;font-weight:700;letter-spacing:-.6px}

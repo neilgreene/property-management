@@ -26,7 +26,8 @@ const FIELDS  = [...NUMERIC, ...TEXTUAL];
 // listings -- so they are carried alongside the form rather than lost.
 const CARRIED = ['max_beds', 'max_baths', 'status', 'state', 'q'];
 
-let state = { rows: [], identity: null, favorites: 0, mode: 'search', carried: {} };
+let state = { rows: [], identity: null, favorites: 0, mode: 'search', carried: {},
+             detail: null, photoIndex: 0 };
 let map = null, layer = null, markers = new Map();
 
 const usd  = (n) => n == null ? '—' : '$' + Math.round(Number(n)).toLocaleString();
@@ -360,6 +361,7 @@ async function openDetail(id) {
       <img class="lead" data-fallback="/media/${p.property_id}/hero.svg"
            src="${esc(lead.url)}" alt="${esc(lead.caption)}">
       <div class="strip">${rest.map((m) => `<img class="thumb" loading="lazy" title="${esc(m.caption)}" data-fallback="/media/${p.property_id}/hero.svg" src="${esc(m.thumb_url || m.url)}" alt="${esc(m.caption)}">`).join('')}</div>
+      <button class="seeall" id="seeall">⊞ See all ${media.length} photo${media.length === 1 ? '' : 's'}</button>
     </div>` : '';
 
   const feats = Array.isArray(p.features) ? p.features : [];
@@ -440,13 +442,129 @@ async function openDetail(id) {
     </div>` : ''}
   </div>`;
 
+  state.detail = { property: p, media };
   $('detail').hidden = false; $('scrim').hidden = false;
   $('detail').scrollTop = 0;
   const b = $('dfav');
   if (b) b.addEventListener('click', () => toggleFavorite(b.dataset.fav, b));
+  const sa = $('seeall');
+  if (sa) sa.addEventListener('click', openPhotos);
+  // A clicked thumbnail opens that photograph, not the first one.
+  $('detailbody').querySelectorAll('.gallery .lead, .gallery .strip img')
+    .forEach((img, i) => {
+      img.style.cursor = 'zoom-in';
+      img.addEventListener('click', () => { openPhotos(); showPhoto(i); });
+    });
 }
 
-function closeDetail() { $('detail').hidden = true; $('scrim').hidden = true; }
+function closeDetail() {
+  $('detail').hidden = true; $('scrim').hidden = true;
+  state.detail = null;
+}
+
+// ---------------------------------------------------------------------
+// full screen
+//
+// The 680px panel is right for reading figures beside the map and wrong
+// for looking at a house. The choice is remembered, because somebody who
+// wants the big view wants it for every listing, not once.
+// ---------------------------------------------------------------------
+function setFull(on) {
+  $('detail').classList.toggle('full', on);
+  const btn = $('expand');
+  btn.setAttribute('aria-pressed', String(on));
+  btn.title = on ? 'Back to the side panel' : 'Full screen';
+  btn.textContent = on ? '⤡' : '⤢';
+  try { localStorage.setItem('sdi.detailFull', on ? '1' : '0'); } catch { /* private window */ }
+}
+
+// ---------------------------------------------------------------------
+// every photograph, grouped
+//
+// Grouped by caption rather than by filename. The caption comes from the
+// database and is the same field a member of staff will edit in the
+// properties panel, so a photograph labelled there appears under that
+// heading here without anything else changing. Filename sniffing would
+// have worked for the seeded assets and broken for anything served out
+// of the media store, where the name is a uuid.
+// ---------------------------------------------------------------------
+function photoLabel(m) {
+  if (m.is_primary) return 'Featured';
+  const c = (m.caption || '').split('—')[0].trim();
+  return c || 'Photograph';
+}
+
+function openPhotos() {
+  const d = state.detail;
+  if (!d || !d.media.length) return;
+  const p = d.property;
+  const gated = !p.address_unlocked;
+
+  const groups = new Map();
+  d.media.forEach((m, i) => {
+    const label = photoLabel(m);
+    if (!groups.has(label)) groups.set(label, []);
+    groups.get(label).push({ m, i });
+  });
+
+  $('phtitle').innerHTML =
+    `<div class="phttl">${esc(p.listing_ref)} — ${esc(p.city)}, ${esc(p.state)}</div>`
+    + `<div class="phsub">${d.media.length} photograph${d.media.length === 1 ? '' : 's'}`
+    + `${gated ? ' · location-revealing images are withheld until the fee agreement is signed' : ''}</div>`;
+
+  // Headings only when they group something. With one photograph per room
+  // -- which is every listing today -- a heading above each is a full-width
+  // divider that forces one tile per row and says nothing the caption
+  // underneath does not already say. The moment a listing has several
+  // kitchen shots the headings earn their place and come back.
+  const worthGrouping = [...groups.values()].some((g) => g.length > 1);
+
+  const tile = ({ m, i }) => `
+      <figure data-i="${i}">
+        <img loading="lazy" src="${esc(m.thumb_url || m.url)}" alt="${esc(m.caption)}"
+             data-fallback="/media/${p.property_id}/hero.svg">
+        <figcaption>${esc(m.caption || '')}${m.reveals_location
+          ? '<span class="phlock">shows the street</span>' : ''}</figcaption>
+      </figure>`;
+
+  $('phgrid').innerHTML = worthGrouping
+    ? [...groups].map(([label, items]) =>
+        `<div class="phsec">${esc(label)}</div>
+         <div class="phrow">${items.map(tile).join('')}</div>`).join('')
+    // Still in group order, so the featured photograph leads and rooms stay
+    // together -- the ordering survives even when the labels are dropped.
+    : `<div class="phrow">${[...groups.values()].flat().map(tile).join('')}</div>`;
+
+  $('phgrid').querySelectorAll('figure').forEach((f) =>
+    f.addEventListener('click', () => showPhoto(Number(f.dataset.i))));
+
+  $('photos').hidden = false;
+  $('photos').scrollTop = 0;
+}
+
+function closePhotos() { $('photos').hidden = true; }
+
+// ---------------------------------------------------------------------
+// one photograph, large
+// ---------------------------------------------------------------------
+function showPhoto(i) {
+  const d = state.detail;
+  if (!d || !d.media.length) return;
+  const n = d.media.length;
+  state.photoIndex = ((i % n) + n) % n;          // wraps in both directions
+  const m = d.media[state.photoIndex];
+  const img = $('lbimg');
+  img.dataset.fallback = `/media/${d.property.property_id}/hero.svg`;
+  delete img.dataset.fellBack;
+  img.src = m.url;                                // the full file, not the thumbnail
+  img.alt = m.caption || '';
+  $('lbcap').textContent = m.caption || '';
+  $('lbcount').textContent = `${state.photoIndex + 1} of ${n}`;
+  $('lightbox').hidden = false;
+  $('lbprev').hidden = $('lbnext').hidden = n < 2;
+}
+
+function closeLightbox() { $('lightbox').hidden = true; }
 
 // ---------------------------------------------------------------------
 // favourites
@@ -582,7 +700,33 @@ $('searchpicker').addEventListener('change', async (e) => {
 
 $('closedetail').addEventListener('click', closeDetail);
 $('scrim').addEventListener('click', closeDetail);
-document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeDetail(); });
+$('expand').addEventListener('click',
+  () => setFull($('expand').getAttribute('aria-pressed') !== 'true'));
+
+$('closephotos').addEventListener('click', closePhotos);
+$('closelb').addEventListener('click', closeLightbox);
+$('lbprev').addEventListener('click', () => showPhoto(state.photoIndex - 1));
+$('lbnext').addEventListener('click', () => showPhoto(state.photoIndex + 1));
+// Clicking the backdrop closes; clicking the photograph itself does not,
+// or every attempt to look closely shuts the viewer.
+$('lightbox').addEventListener('click', (e) => {
+  if (e.target === $('lightbox')) closeLightbox();
+});
+
+// Escape unwinds one layer at a time. Closing everything at once loses the
+// photograph you were looking at and the listing you opened it from.
+document.addEventListener('keydown', (e) => {
+  const lb = !$('lightbox').hidden;
+  if (e.key === 'Escape') {
+    if (lb) closeLightbox();
+    else if (!$('photos').hidden) closePhotos();
+    else closeDetail();
+    return;
+  }
+  if (!lb) return;
+  if (e.key === 'ArrowLeft')  { e.preventDefault(); showPhoto(state.photoIndex - 1); }
+  if (e.key === 'ArrowRight') { e.preventDefault(); showPhoto(state.photoIndex + 1); }
+});
 
 $('signout').addEventListener('click', async () => {
   await fetch('/api/logout', { method: 'POST' });
@@ -598,6 +742,11 @@ async function start() {
   $('signout').hidden = !who.signedIn;
 
   if (!initMap()) $('mapfallback').hidden = false;
+
+  // The full-screen preference persists: somebody who wants the big view
+  // wants it for every listing, not once. A private window with storage
+  // blocked simply starts in the side panel.
+  try { if (localStorage.getItem('sdi.detailFull') === '1') setFull(true); } catch { /* no storage */ }
 
   // Deep links and back-button state: the URL is the criteria.
   const p = new URLSearchParams(location.search);

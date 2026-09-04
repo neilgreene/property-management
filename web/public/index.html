@@ -81,10 +81,34 @@
 </main>
 
 <aside id="detail" class="detail" hidden>
+  <button id="expand" class="close expand" aria-label="Full screen"
+          aria-pressed="false" title="Full screen">⤢</button>
   <button id="closedetail" class="close" aria-label="Close">×</button>
   <div id="detailbody"></div>
 </aside>
 <div id="scrim" class="scrim" hidden></div>
+
+<!-- Every photograph for one listing, grouped by what it shows. Separate
+     from the detail panel because it is a different job: the panel is for
+     reading the numbers, this is for looking at the house. -->
+<section id="photos" class="photos" hidden aria-modal="true" role="dialog"
+         aria-label="All photographs">
+  <header class="phead">
+    <div id="phtitle"></div>
+    <button id="closephotos" class="close" aria-label="Close">×</button>
+  </header>
+  <div id="phgrid" class="phgrid"></div>
+</section>
+
+<div id="lightbox" class="lightbox" hidden aria-modal="true" role="dialog">
+  <button id="lbprev" class="lbnav prev" aria-label="Previous photograph">‹</button>
+  <figure>
+    <img id="lbimg" alt="">
+    <figcaption><span id="lbcap"></span><span id="lbcount" class="lbcount"></span></figcaption>
+  </figure>
+  <button id="lbnext" class="lbnav next" aria-label="Next photograph">›</button>
+  <button id="closelb" class="close" aria-label="Close">×</button>
+</div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
 <script src="/app.js"></script>
