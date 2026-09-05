@@ -39,10 +39,36 @@ const TYPES = {
 const KEYS = new Set(['q', 'city', 'state', 'property_type', 'status',
   'min_price', 'max_price', 'min_beds', 'max_beds', 'min_baths', 'max_baths',
   'min_sqft', 'max_sqft', 'sort',
+  // Operational criteria. These are the questions staff actually have and
+  // could not previously ask: what is flagged, what is underperforming,
+  // what has no photographs, what nobody has sent out, what is still on
+  // an old fee schedule.
+  'flag', 'min_roi', 'max_roi', 'no_photos', 'not_shared_days', 'fees_stale',
   // The map viewport. Not a search intent a person types, but a criterion
   // the server applies, so it passes through the same validator as
   // everything else rather than round the side of it.
   'bbox_n', 'bbox_s', 'bbox_e', 'bbox_w']);
+
+// STAFF ONLY, AND DROPPED RATHER THAN APPLIED for anybody else.
+//
+// Two of these read band 3 figures -- five-year ROI is derived from the
+// offer and the underwriting -- and a filter on a hidden number is an
+// oracle: narrow it repeatedly and the result set tells you the value one
+// bisection at a time. That is the same attack the map viewport had to be
+// designed against.
+//
+// So they are dropped here AND refused underneath: api.property_return
+// and api.share_log return nothing to a caller who may not read them. The
+// second layer is the one that matters, being the one that survives
+// somebody deleting the first by mistake.
+//
+// Dropped and REPORTED, not dropped silently. A saved search made by an
+// admin and later opened by an investor should not quietly return
+// different results with no explanation.
+const STAFF_KEYS = new Set(['flag', 'min_roi', 'max_roi', 'no_photos',
+  'not_shared_days', 'fees_stale']);
+
+const FLAGS = new Set(['critical', 'attention', 'ok']);
 
 const SORTS = new Set(['price_asc', 'price_desc', 'sqft_desc', 'beds_desc', 'cap_desc', 'ref']);
 
@@ -90,6 +116,34 @@ function parse(text, cities = []) {
   // Everything the size rules consumed is removed before price is read.
   let sp = s.replace(new RegExp(`(?:under|below|less than|up to|max|over|above|more than|at least)?\\s*[\\d,]+\\s*\\+?\\s*${SQFT}`, 'g'), ' ');
 
+  // --- rates, BEFORE price and consuming their own text ---------------
+  //
+  // A rate and a price are both "under N", and the money heuristic reads
+  // a bare "under 15" as $15,000 -- so "under 15% roi" parsed as both,
+  // producing a price filter that matches nothing and made the ROI filter
+  // look broken. A lookahead was the first fix and was worse: it also
+  // suppressed the legitimate price in "over 300k best yield", where the
+  // rate word is part of the SORT and nothing to do with the number.
+  //
+  // Matching first and cutting the matched span out of the string the
+  // price rules read is the version that holds. One number, consumed
+  // once, by whichever rule recognised it.
+  const eat = (re, set) => {
+    const mm = re.exec(sp);
+    if (!mm) return false;
+    set(Number(mm[1]));
+    sp = sp.slice(0, mm.index) + ' '.repeat(mm[0].length) + sp.slice(mm.index + mm[0].length);
+    return true;
+  };
+  eat(/\b(?:roi|return)\b[^.]{0,20}?\b(?:under|below|less than|<)\s*(\d+(?:\.\d+)?)\s*%?/,
+      (n) => { out.max_roi = n; })
+    || eat(/\b(?:under|below|less than)\s*(\d+(?:\.\d+)?)\s*%\s*(?:roi|return|yield)?/,
+      (n) => { out.max_roi = n; });
+  eat(/\b(?:roi|return)\b[^.]{0,20}?\b(?:over|above|at least|more than|>)\s*(\d+(?:\.\d+)?)\s*%?/,
+      (n) => { out.min_roi = n; })
+    || eat(/\b(?:over|above|at least|more than)\s*(\d+(?:\.\d+)?)\s*%\s*(?:roi|return|yield)?/,
+      (n) => { out.min_roi = n; });
+
   // --- price ---------------------------------------------------------
   if ((m = new RegExp(`between (${NUM}) (?:and|to|-) (${NUM})`).exec(sp)) ||
       (m = new RegExp(`(${NUM})\\s*(?:-|to)\\s*(${NUM})`).exec(sp))) {
@@ -127,6 +181,27 @@ function parse(text, cities = []) {
     }
   }
 
+  // --- operational, for staff ------------------------------------------
+  // These are parsed for everybody and DROPPED BY interpret() for anyone
+  // who may not use them. Parsing them conditionally would mean the same
+  // sentence parsed two ways depending on who typed it, which is a much
+  // harder thing to reason about than one parse and one gate.
+  if (/\b(critical|urgent|emergenc)/.test(s)) out.flag = 'critical';
+  else if (/\b(attention|needs? (?:doing|chasing)|to chase|chasing)\b/.test(s)) out.flag = 'attention';
+  else if (/\b(clear|nothing outstanding|no (?:open )?(?:issues|problems|flags))\b/.test(s)) out.flag = 'ok';
+  if (/\bflagged\b/.test(s) && !out.flag) out.flag = 'critical';
+
+  if (/\bno (?:photo|photograph|picture|image)/.test(s)
+   || /\b(?:missing|without) (?:photo|photograph|picture|image)/.test(s)) out.no_photos = true;
+  if (/\b(?:stale|old|superseded|outdated) fee/.test(s)
+   || /\bfees? (?:are )?(?:stale|out of date|outdated)\b/.test(s)) out.fees_stale = true;
+
+  // "not shared in 30 days", "nobody has sent in the last 60 days"
+  if ((m = /\bnot (?:been )?(?:shared|sent)\b[^.]{0,20}?(\d+)\s*days?/.exec(s))
+   || (m = /\b(?:no[tb]|never)[^.]{0,30}?(?:shared|sent)[^.]{0,20}?(\d+)\s*days?/.exec(s))) {
+    out.not_shared_days = Number(m[1]);
+  }
+
   // --- ordering ---------------------------------------------------------
   if (/\b(best|highest|top)\s+(yield|cap|cap rate|return)\b/.test(s) || /\bcap rate\b/.test(s)) out.sort = 'cap_desc';
   else if (/\b(cheapest|lowest price|least expensive|budget)\b/.test(s)) out.sort = 'price_asc';
@@ -139,12 +214,33 @@ function parse(text, cities = []) {
 
 // The validator. Everything the parser -- or a model, later -- produces
 // passes through here before it reaches a query or the database.
-function interpret(obj) {
+// `staff` decides whether the operational criteria survive. It defaults
+// to false: a caller that forgets to pass it gets the safe answer rather
+// than the convenient one.
+function interpret(obj, { staff = false } = {}) {
   const out = {};
+  const ignored = [];
+  Object.defineProperty(out, '__ignored', { value: ignored, enumerable: false });
   if (!obj || typeof obj !== 'object') return out;
   for (const [k, v] of Object.entries(obj)) {
     if (!KEYS.has(k)) continue;
+    if (STAFF_KEYS.has(k) && !staff) { ignored.push(k); continue; }
     if (k === 'sort') { if (SORTS.has(v)) out.sort = v; continue; }
+    if (k === 'flag') { if (FLAGS.has(v)) out.flag = v; continue; }
+    // Booleans arrive off a query string as the string "1", and as real
+    // booleans from a saved search. Both mean the same thing.
+    if (k === 'no_photos' || k === 'fees_stale') {
+      if (v === true || v === '1' || v === 1 || v === 'true') out[k] = true;
+      continue;
+    }
+    // A rate is typed as a percentage and stored as a fraction. 15 means
+    // 15%, not 1500%; anything above 1 is read as a percentage, which is
+    // what somebody typing into a box marked ROI will always mean.
+    if (k === 'min_roi' || k === 'max_roi') {
+      const n = Number(v);
+      if (Number.isFinite(n) && n > -10 && n < 1000) out[k] = n > 1 ? n / 100 : n;
+      continue;
+    }
     if (k === 'q' || k === 'city' || k === 'state' || k === 'property_type' || k === 'status') {
       if (typeof v === 'string' && v.length && v.length <= 60) out[k] = v;
       continue;
@@ -184,6 +280,14 @@ function explain(c) {
   else if (c.min_price) bits.push('over ' + money(c.min_price));
   if (c.min_sqft) bits.push(`${Number(c.min_sqft).toLocaleString()}+ sq ft`);
   if (c.max_sqft) bits.push(`under ${Number(c.max_sqft).toLocaleString()} sq ft`);
+  if (c.flag === 'critical')  bits.push('flagged critical');
+  if (c.flag === 'attention') bits.push('needing attention');
+  if (c.flag === 'ok')        bits.push('with nothing outstanding');
+  if (c.min_roi != null) bits.push(`${(c.min_roi * 100).toFixed(1)}%+ five-year ROI`);
+  if (c.max_roi != null) bits.push(`under ${(c.max_roi * 100).toFixed(1)}% five-year ROI`);
+  if (c.no_photos) bits.push('with no photographs');
+  if (c.fees_stale) bits.push('on a superseded fee schedule');
+  if (c.not_shared_days) bits.push(`not shared in ${c.not_shared_days} days`);
   const order = { cap_desc: 'best cap rate first', price_asc: 'cheapest first',
                   price_desc: 'most expensive first', sqft_desc: 'largest first',
                   beds_desc: 'most bedrooms first' }[c.sort];
@@ -191,4 +295,4 @@ function explain(c) {
   return bits.length ? bits.join(', ') : null;
 }
 
-module.exports = { parse, interpret, explain, KEYS, SORTS };
+module.exports = { parse, interpret, explain, KEYS, SORTS, STAFF_KEYS, FLAGS };

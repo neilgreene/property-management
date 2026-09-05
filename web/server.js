@@ -218,14 +218,21 @@ const ALIASES = {
 };
 
 // URLSearchParams -> plain criteria object, canonical names only.
-function criteriaFrom(params) {
+// `staff` decides whether the operational criteria survive interpret().
+// Defaulting it to false means a call site that forgets to pass it gets
+// the safe answer rather than the convenient one.
+function criteriaFrom(params, staff = false) {
   const c = {};
   for (const [k, v] of params) {
     const key = ALIASES[k] || k;
     if (v === '' || v === null) continue;
     c[key] = v;
   }
-  return nlq.interpret(c);
+  return nlq.interpret(c, { staff });
+}
+
+function isStaff(identity) {
+  return identity.role === 'sdi_agent' || identity.role === 'sdi_admin';
 }
 
 const SORTS = {
@@ -342,6 +349,48 @@ function buildListingQuery(criteria) {
                  OR p.listing_ref ILIKE $${args.length} OR p.state ILIKE $${args.length})`);
   }
 
+  // The operational criteria, each joining a view that refuses a caller
+  // who may not read it. A filter on five-year ROI therefore returns
+  // NOTHING for an unauthorised caller rather than returning the answer a
+  // bisection at a time -- the gate is in the join, not only in the
+  // interpret() that dropped the key upstream.
+  if (criteria.flag) {
+    args.push(criteria.flag);
+    where.push(`COALESCE((SELECT f.flag FROM api.property_flag f
+                           WHERE f.property_id = p.property_id), 'ok') = $${args.length}`);
+  }
+  if (criteria.min_roi != null) {
+    args.push(criteria.min_roi);
+    where.push(`(SELECT r.roi_5yr FROM api.property_return r
+                  WHERE r.property_id = p.property_id) >= $${args.length}`);
+  }
+  if (criteria.max_roi != null) {
+    args.push(criteria.max_roi);
+    where.push(`(SELECT r.roi_5yr FROM api.property_return r
+                  WHERE r.property_id = p.property_id) <= $${args.length}`);
+  }
+  if (criteria.no_photos) {
+    // Counted through api.property_media, so "no photographs" means none
+    // THIS CALLER can see -- which for staff is the real answer and for
+    // anyone else would be a different question. Staff-only, so it is the
+    // real answer.
+    where.push(`NOT EXISTS (SELECT 1 FROM api.property_media m
+                             WHERE m.property_id = p.property_id
+                               AND m.url NOT LIKE '/assets/mask/%')`);
+  }
+  if (criteria.fees_stale) {
+    where.push(`EXISTS (SELECT 1 FROM api.property_fee_status s
+                         WHERE s.property_id = p.property_id
+                           AND s.schedule_superseded)`);
+  }
+  if (criteria.not_shared_days != null) {
+    args.push(criteria.not_shared_days);
+    where.push(`COALESCE((SELECT a.last_shared_at FROM api.property_share_age a
+                           WHERE a.property_id = p.property_id),
+                         '-infinity'::timestamptz)
+                < now() - ($${args.length} || ' days')::interval`);
+  }
+
   const sort = SORTS[criteria.sort] || SORTS.ref;
   const sql =
     `SELECT p.property_id, p.listing_ref, p.status, p.city, p.state, p.zip, p.property_type,
@@ -371,7 +420,7 @@ function buildListingQuery(criteria) {
 }
 
 async function listings(identity, params) {
-  const criteria = criteriaFrom(params);
+  const criteria = criteriaFrom(params, isStaff(identity));
   const { sql, args } = buildListingQuery(criteria);
 
   return withTx(identity, params.get('brand'), async (client) => {
@@ -407,6 +456,11 @@ async function listings(identity, params) {
     return {
       identity: identityBlock(identity, { mapAccess, canFavorite: favs !== null }),
       criteria, applied: criteria, sort: criteria.sort || 'ref',
+      // Which criteria were dropped for want of the right to use them.
+      // A saved search made by an admin and later opened by an investor
+      // must not quietly return different results with no explanation.
+      ignored: criteria.__ignored && criteria.__ignored.length
+        ? criteria.__ignored : undefined,
       facets, cities, types, count: rows.length, rows,
     };
   });
@@ -674,8 +728,10 @@ async function savedSearches(identity) {
 
 async function saveSearch(identity, name, criteria) {
   // interpret() again on the way in. The browser already sent canonical
-  // keys, but this is a write, and a write validates its own input.
-  const clean = nlq.interpret(criteria);
+  // keys, but this is a write, and a write validates its own input --
+  // including the right to use the operational criteria. Saving is not a
+  // way to keep a filter somebody would be refused if they asked for it.
+  const clean = nlq.interpret(criteria, { staff: isStaff(identity) });
   return withTx(identity, null, async (client) => {
     const r = await client.query('SELECT api.save_search($1, $2::jsonb) AS id',
                                  [name, JSON.stringify(clean)]);
@@ -693,7 +749,11 @@ async function deleteSearch(identity, id) {
 async function runSearch(identity, id) {
   return withTx(identity, null, async (client) => {
     const r = await client.query('SELECT api.run_saved_search($1) AS criteria', [id]);
-    return { ok: true, criteria: nlq.interpret(r.rows[0].criteria) };
+    // Interpreted against the CURRENT caller, not against whoever saved
+    // it. A search saved by an admin and opened after a role change comes
+    // back without the criteria that role no longer carries.
+    return { ok: true, criteria: nlq.interpret(r.rows[0].criteria,
+                                               { staff: isStaff(identity) }) };
   });
 }
 
@@ -1353,9 +1413,19 @@ const server = http.createServer(async (req, res) => {
       const cities = await withTx(identity, null, async (client) =>
         (await client.query('SELECT DISTINCT city FROM api.property ORDER BY city'))
           .rows.map((r) => r.city));
-      const criteria = nlq.interpret(nlq.parse(String(body.text || '').slice(0, 300), cities));
+      // Parsed for everybody, gated for this caller. Parsing conditionally
+      // would mean the same sentence understood two ways depending on who
+      // typed it, which is far harder to reason about than one parse and
+      // one gate.
+      const criteria = nlq.interpret(
+        nlq.parse(String(body.text || '').slice(0, 300), cities),
+        { staff: isStaff(identity) });
       res.writeHead(200, { 'Content-Type': 'application/json' });
-      return res.end(JSON.stringify({ criteria, explain: nlq.explain(criteria) }));
+      return res.end(JSON.stringify({
+        criteria, explain: nlq.explain(criteria),
+        ignored: criteria.__ignored && criteria.__ignored.length
+          ? criteria.__ignored : undefined,
+      }));
     } catch (e) {
       console.error('parse failed:', e.message);
       res.writeHead(500, { 'Content-Type': 'application/json' });

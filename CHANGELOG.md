@@ -12,6 +12,67 @@ date the work was completed.
 
 ---
 
+## 0.9.30 — 2026-09-05
+
+**The criteria vocabulary, so a search can ask an operational question.**
+
+Step one of three toward an AI search. The model call is the small part; the
+vocabulary it speaks is the work, and it is independently useful without any
+model at all.
+
+### Added — six operational criteria
+`flag`, `min_roi`, `max_roi`, `no_photos`, `not_shared_days`, `fees_stale`.
+Questions staff actually have and could not previously ask:
+
+- *"properties flagged critical"*
+- *"anything needing attention in Cleveland"*
+- *"everything under 15% ROI"*
+- *"listings with no photographs"*
+- *"not been shared in 30 days"*
+- *"houses on a stale fee schedule"*
+
+The rules parser understands all of these today. When a model goes in behind
+`parse()`, these are the keys it will speak — and it cannot invent others,
+because `interpret()` drops what is not on the list.
+
+### Staff only, enforced twice
+Five-year ROI is derived from the offer and the underwriting — band 3. **A
+filter on a hidden number is an oracle**: narrow it repeatedly and the result
+set gives up the value one bisection at a time. Same attack the map viewport
+had to be designed against.
+
+So they are dropped in `interpret()` for a caller who is not staff, **and**
+refused underneath: `api.property_return` and `api.share_log` return nothing to
+a caller who may not read them. The second layer is the one that matters, being
+the one that survives somebody deleting the first by mistake.
+
+Dropped criteria are **reported**, not silently discarded — a saved search made
+by an admin and later opened by an investor must not quietly return different
+results with no explanation. Saved searches are re-interpreted against the
+*current* caller, so saving is not a way to keep a filter you would be refused
+if you asked for it.
+
+### Fixed — a rate parsed as a price
+*"under 15% roi"* matched both the rate rule and the price rule, and the money
+heuristic that reads a bare "under 15" as $15,000 turned it into a filter
+matching nothing — so the **ROI filter looked broken when the price one was
+wrong.**
+
+My first fix was a lookahead, and it was worse: it also killed the legitimate
+price in *"over 300k best yield"*, where the rate word belongs to the sort and
+has nothing to do with the number. Rates are now matched first and **consume
+their own text** before the price rules read the string. One number, consumed
+once, by whichever rule recognised it.
+
+### Added — a test that the two allowlists agree
+The criteria keys are constrained in two places: `KEYS` in `web/nlq.js` and the
+`CHECK` on `core.saved_search`. They disagreed once already — the map viewport
+keys were produced and then violated the constraint the moment somebody saved.
+A test now reads the SQL file and asserts the two lists match, because that
+failure only surfaces on save, long after the code that caused it was written.
+
+---
+
 ## 0.9.29 — 2026-09-05
 
 **The workbook's projection, sections 1, 2, I and II.**

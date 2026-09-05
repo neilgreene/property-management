@@ -1171,6 +1171,99 @@ test('the projection is staff only', async (t) => {
   assert.equal(anon.ok, false);
 });
 
+// ---- the criteria vocabulary -----------------------------------------
+test('the parser and the database agree on which keys exist', async () => {
+  const fs = require('fs');
+  const path = require('path');
+  const nlq = require('../nlq');
+  const sql = fs.readFileSync(
+    path.join(__dirname, '..', '..', 'sql', '50_search_criteria.sql'), 'utf8');
+  // The allowlist in the CHECK constraint, pulled out of the file itself.
+  const block = sql.slice(sql.indexOf('ADD CONSTRAINT saved_search_known_keys'));
+  const inDb = new Set([...block.slice(0, block.indexOf(']')).matchAll(/'([a-z_]+)'/g)]
+    .map((m) => m[1]));
+
+  // The map viewport is produced but never stored -- it is a criterion the
+  // server applies, not an intent somebody saves.
+  const produced = [...nlq.KEYS].filter((k) => !k.startsWith('bbox_'));
+  for (const k of produced) {
+    assert.ok(inDb.has(k),
+      `${k} CAN BE PRODUCED BUT NOT STORED — the CHECK constraint on `
+      + 'core.saved_search would reject it, and only when somebody saves, '
+      + 'long after the code that produced it was written');
+  }
+  for (const k of inDb) {
+    assert.ok(nlq.KEYS.has(k), `${k} is storable but nothing produces it`);
+  }
+});
+
+test('operational criteria are dropped for a caller who may not use them', async (t) => {
+  if (!available) return t.skip('no server');
+  const nlq = require('../nlq');
+  // The parse is the same for everybody; only the gate differs. Parsing
+  // conditionally would mean one sentence understood two ways.
+  const raw = nlq.parse('critical properties under 15% roi with no photographs', []);
+  const asStaff = nlq.interpret(raw, { staff: true });
+  const asBuyer = nlq.interpret(raw, { staff: false });
+  assert.equal(asStaff.flag, 'critical');
+  assert.equal(asStaff.max_roi, 0.15);
+  assert.equal(asStaff.no_photos, true);
+  assert.equal(asBuyer.flag, undefined);
+  assert.equal(asBuyer.max_roi, undefined);
+  assert.deepEqual([...asBuyer.__ignored].sort(), ['flag', 'max_roi', 'no_photos']);
+
+  // Over the wire, and reported rather than silently dropped.
+  const anon = await (await fetch(`${base}/api/listings?flag=critical&max_roi=0.15`)).json();
+  assert.deepEqual(anon.ignored.sort(), ['flag', 'max_roi']);
+  const all = await (await fetch(`${base}/api/listings`)).json();
+  assert.equal(anon.rows.length, all.rows.length,
+    'the dropped filter narrows nothing — it is not applied at all');
+});
+
+test('a rate is not read as a price', async () => {
+  const nlq = require('../nlq');
+  const c = (t) => nlq.interpret(nlq.parse(t, ['Cleveland', 'Tampa']), { staff: true });
+  // "under 15" means $15,000 by the money heuristic, so "under 15% roi"
+  // parsed as BOTH and produced a price filter matching nothing -- which
+  // made the ROI filter look broken rather than the price one wrong.
+  assert.deepEqual(c('under 15% roi'), { max_roi: 0.15 });
+  assert.deepEqual(c('roi below 12'), { max_roi: 0.12 });
+  assert.equal(c('at least 20% return').min_roi, 0.2);
+  // And the fix must not eat a real price when a sort word follows it.
+  assert.equal(c('over 300k best yield').min_price, 300000);
+  assert.equal(c('over 300k best yield').sort, 'cap_desc');
+  assert.equal(c('3 bed under 200k in Cleveland').max_price, 200000);
+});
+
+test('the operational filters actually filter', async (t) => {
+  if (!available) return t.skip('no server');
+  const cookie = await staffCookie();
+  const get = async (qs) => (await fetch(`${base}/api/listings${qs}`,
+    { headers: { cookie } })).json();
+
+  const all = await get('');
+  const crit = await get('?flag=critical');
+  assert.ok(crit.rows.length < all.rows.length, 'critical is a subset');
+  assert.ok(crit.rows.every((r) => r.flag === 'critical'));
+
+  // A property with no photographs at all. Counted through
+  // api.property_media so the mask rows do not count as photographs.
+  const none = await get('?no_photos=1');
+  assert.ok(none.rows.length <= all.rows.length);
+  for (const r of none.rows) assert.ok(!r.primary_image || /mask/.test(r.primary_image));
+
+  // ROI, on the one property that carries underwriting.
+  const low = await get('?max_roi=0.10');
+  const high = await get('?min_roi=0.10');
+  assert.ok(low.rows.length + high.rows.length <= all.rows.length + 1,
+    'the two halves do not overlap by more than the boundary');
+
+  // Never shared is "not shared in N days" too, or the filter misses
+  // exactly the properties somebody is looking for.
+  const stale = await get('?not_shared_days=1');
+  assert.ok(stale.rows.length > 0, 'a property nobody has ever shared counts as stale');
+});
+
 test('the login page is served', async (t) => {
   if (!available) return t.skip('no server');
   const r = await fetch(`${base}/login.html`);
