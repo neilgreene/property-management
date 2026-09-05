@@ -47,6 +47,19 @@ CREATE TABLE core.agent_profile (
     updated_at   timestamptz NOT NULL DEFAULT now()
 );
 
+-- NO CREDIT DATA LIVES HERE, and none should be added.
+--
+-- Credit assessment is the LENDER'S, and it happens outside this system.
+-- Not an oversight and not a gap to fill later: a marketplace that stores
+-- a score, a bureau file, or even a pass/fail derived from one takes on
+-- consumer-credit obligations it otherwise has none of, and puts a field
+-- next to the fair-housing register that would be a proxy for protected
+-- characteristics the moment anybody filtered or sorted on it.
+--
+-- If the pipeline ever needs to know that financing is arranged, that is
+-- a fact about a DEAL -- "lender approved", with a date and who said so --
+-- and not a fact about the person. It goes on the deal, carries no figure,
+-- and nothing derived from a bureau comes with it.
 CREATE TABLE core.customer_profile (
     person_id     uuid PRIMARY KEY REFERENCES core.person(person_id) ON DELETE CASCADE,
     external_ref  text UNIQUE,

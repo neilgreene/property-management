@@ -12,6 +12,27 @@ date the work was completed.
 
 ---
 
+## 0.9.58 — 2026-09-05
+
+**Credit checks are the lender's, and that is now written down.**
+
+Confirmed: no credit assessment happens in this system. Recorded in two places —
+`README.md` beside how contracts work, and as a comment on `core.customer_profile`
+in `sql/55_contracts.sql`, which is where somebody would go to add the columns.
+
+It is a boundary rather than a gap. Storing a score, a bureau file, or even a
+pass/fail derived from one takes on consumer-credit obligations this system
+otherwise has none of, and puts a field next to the fair-housing register that
+becomes a proxy for a protected characteristic the moment anyone filters or sorts
+on it. If the pipeline ever needs to know financing is arranged, that is a fact
+about a *deal* — "lender approved", dated and attributed — carrying no figure and
+nothing derived from a bureau.
+
+No schema change. The point of writing it down is that the next person reads the
+reason before reaching for the columns.
+
+---
+
 ## 0.9.57 — 2026-09-05
 
 **The workspace screens are the properties panel's shape.**

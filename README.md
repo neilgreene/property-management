@@ -582,6 +582,23 @@ deactivated; changing a password revokes every existing session; an unknown
 email and a wrong password return the identical response; and `sdi_app` cannot
 read a password hash.
 
+### Contracts, and what this system does not hold
+
+A customer signs a contract **and** pays its fee. Both, and only then, the
+properties named on that contract open for them — address, exact location and
+photographs. Approval is not a status somebody selects: two CHECK constraints
+make an approved contract without both facts impossible to write, so there is no
+`api.approve_contract()` and no dropdown that opens a gate.
+
+**Credit checks are the lender's and happen outside this system.** No score, no
+bureau file, and no pass/fail derived from one is stored here. That is a
+deliberate boundary rather than a missing feature — holding any of it would take
+on consumer-credit obligations this system otherwise has none of, and would sit a
+field beside the fair-housing register that becomes a proxy for a protected
+characteristic the moment anyone filters or sorts on it. If the pipeline ever
+needs to know financing is arranged, that is a fact about a *deal* — "lender
+approved", dated and attributed — carrying no figure.
+
 ### The front door
 
 `/` is a landing page, not the listings. It says what the marketplace is, what
