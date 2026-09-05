@@ -312,10 +312,14 @@
 /* ---------------------------------------------------------------------
    the property manager, beside the fee line
    --------------------------------------------------------------------- */
-.mgrrow{display:flex;gap:14px;align-items:flex-start}
-.mgrrow .fees{flex:1;min-width:0}
-.mgrcard{flex:0 0 246px;border:1px solid var(--line);border-radius:9px;
-  background:var(--card);padding:11px 13px}
+/* THE MANAGER CARD IS A GRID ITEM, not a floating panel.
+   It was a flex box above the sheet, which put it in the top-right corner
+   on its own and left a hole in the block grid beneath. As the third item
+   in `.blocks` it lands in the first row beside A and C, shares their top
+   edge and their card styling, and wraps into the flow like any other
+   block when the window is too narrow for three columns -- rather than
+   staying pinned somewhere the rest of the layout has to work around. */
+.mgrcard{padding:13px 15px 15px}
 .mgrhead{display:flex;align-items:baseline;gap:7px;flex-wrap:wrap}
 .mgrname{font-weight:700;font-size:13.5px}
 /* Said, not hidden. Nobody has verified these records and the card should
@@ -351,4 +355,11 @@
   border-radius:4px;padding:1px 6px}
 .ntask.late{color:var(--crit);background:var(--critbg)}
 
-@media (max-width:1100px){ .mgrrow{flex-direction:column} .mgrcard{flex:1 1 auto;width:100%} }
+/* Three columns where there is room for them: two full-width blocks for
+   the figures and a narrower one for the manager, who has less to say.
+   Below this the grid falls back to the auto-fit rule above and the card
+   simply takes its turn in the flow. */
+@media (min-width:1320px){
+  .blocks{grid-template-columns:minmax(390px,1fr) minmax(390px,1fr) 262px;
+    max-width:1460px}
+}

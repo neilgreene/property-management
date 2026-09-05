@@ -12,6 +12,22 @@ date the work was completed.
 
 ---
 
+## 0.9.38 — 2026-09-05
+
+**The manager card is a grid item, not a floating panel.**
+
+It was a flex box sitting above the sheet, which put it alone in the top-right
+corner and left a hole in the block grid beneath — the layout had to work
+around it rather than containing it.
+
+It is now the third item in `.blocks`, so it lands in the first row beside
+**A** and **C**, shares their top edge and their card styling, and takes its
+turn in the flow when the window is too narrow for three columns. Verified: A,
+C and the card all start at the same y, and the card wraps below A at 1100px
+instead of staying pinned.
+
+---
+
 ## 0.9.37 — 2026-09-05
 
 **The property manager, beside the property — and a bug that meant changing
