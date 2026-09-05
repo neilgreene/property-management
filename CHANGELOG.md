@@ -12,6 +12,27 @@ date the work was completed.
 
 ---
 
+## 0.9.48 — 2026-09-05
+
+**Two sections were 20px wider than the rest of the sheet.**
+
+`Deciding about using points` and `Mortgage acceleration` were `class="block"`
+where every other standalone section is `class="block wide"` — and `wide` is the
+only thing that supplies the 20px side margin. Without it they ran flush to the
+sheet's edges, so their borders sat outside the line every other card holds.
+
+Measured in Chromium at 1920px rather than inferred: every other section, and
+the block grid above them, spans 536..1900. Those two spanned 516..1920. Now all
+thirteen land on 536..1900.
+
+The regression test asserts the invariant rather than the two section names: a
+bare `class="block"` must never appear. A block is either inside the grid, where
+it carries its placement class or is the manager card, or it stands alone in the
+sheet, where it must be `wide`. Nothing is legitimately neither — which is why
+this was possible to get wrong quietly.
+
+---
+
 ## 0.9.47 — 2026-09-05
 
 **The manager card is dark blue, because it is not property data.**

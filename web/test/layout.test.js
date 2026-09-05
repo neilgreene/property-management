@@ -82,3 +82,32 @@ test('the three-column breakpoint measures the sheet, not the window', () => {
     'the columns no longer add up to the breakpoint — the manager card will be '
     + 'clipped in the range where the sheet is narrower than the tracks');
 });
+
+test('every section standing alone in the sheet has the same side margin', () => {
+  // `wide` is the only thing that gives a top-level section its 20px side
+  // margin. Two sections were missing it and ran flush to the sheet edges,
+  // 20px proud of everything else on the page. Measured in Chromium at
+  // 1920px: every other section, and the block grid, spans 536..1900; those
+  // two spanned 516..1920.
+  //
+  // The invariant is that a bare `class="block"` never appears. A block is
+  // either inside the grid -- where it carries its placement class (bA, bB,
+  // bC, bD) or is the manager card -- or it stands alone in the sheet, where
+  // it must be `wide`. Nothing is legitimately neither.
+  const bare = [...html.matchAll(/class="block"/g)];
+  assert.equal(bare.length, 0,
+    `${bare.length} section(s) use class="block" with nothing after it. Inside `
+    + 'the grid a block carries a placement class; standing alone in the sheet '
+    + 'it needs `wide`, or it runs 20px wider than every other section.');
+
+  // And the sections that should be standing alone still are, so the rule
+  // above cannot be satisfied by deleting them.
+  for (const h of ['Deciding about using points', 'Mortgage acceleration',
+                   'Property ratings', 'Shown to', 'Shared with', 'History']) {
+    const at = html.indexOf(h);
+    assert.ok(at > 0, `the "${h}" section is gone`);
+    const before = html.lastIndexOf('<div class=', at);
+    assert.match(html.slice(before, at), /class="block wide"/,
+      `"${h}" is no longer a full-width section`);
+  }
+});
