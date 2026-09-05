@@ -1482,6 +1482,23 @@ test('the model can only speak the vocabulary the rest of the system knows', asy
     'every field required, so "not mentioned" is an explicit null rather than an omission');
 });
 
+test('a placeholder is not a key', async () => {
+  const llm = require('../llm');
+  // The trap this exists for: "sk-ant-..." pasted out of an instruction is
+  // a non-empty string, so a truthiness check calls it configured. Every
+  // unparseable search then waits out the full timeout before falling back
+  // — for as long as the placeholder stays in the file.
+  for (const notAKey of ['', '   ', 'sk-ant-...', 'changeme', 'your-key-here',
+                         'sk-ant-short', 'sk-ant-api03-...']) {
+    assert.equal(llm.looksLikeKey(notAKey), false, `"${notAKey}" was taken for a key`);
+  }
+  // And a real-shaped one still is, including with stray whitespace from a
+  // copy-paste. Shape only — whether it WORKS is the API's business, and
+  // guessing at that here means rejecting a valid key by regex.
+  assert.equal(llm.looksLikeKey('sk-ant-api03-' + 'x'.repeat(95)), true);
+  assert.equal(llm.looksLikeKey('  sk-ant-api03-' + 'x'.repeat(95) + '  '), true);
+});
+
 test('the model is optional, and its absence is not an error', async (t) => {
   if (!available) return t.skip('no server');
   const llm = require('../llm');

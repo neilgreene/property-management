@@ -87,8 +87,28 @@ const SYSTEM = [
 ].join('\n');
 
 let client = null;
+
+// A KEY THAT IS NOT A KEY IS NOT CONFIGURED. A placeholder left in a
+// config file -- "sk-ant-..." copied from an instruction, or "changeme" --
+// is a non-empty string, so a bare truthiness check calls it configured.
+// The call then fails and the search sits through the whole timeout before
+// falling back, on every unparseable search, for as long as the
+// placeholder is there. Better to recognise it and stay on the rules.
+//
+// Deliberately a shape check and nothing more: whether a well-formed key
+// is VALID is the API's business, and guessing at that here would mean a
+// working key rejected by a regex somebody wrote from memory.
+function looksLikeKey(v) {
+  const k = String(v || '').trim();
+  return k.startsWith('sk-ant-') && k.length > 24 && !k.includes('...');
+}
+
 function configured() {
-  return Boolean(process.env.ANTHROPIC_API_KEY || process.env.ANTHROPIC_AUTH_TOKEN);
+  return looksLikeKey(process.env.ANTHROPIC_API_KEY)
+    // An OAuth token has a different shape entirely, so it only has to be
+    // present and not obviously a placeholder.
+    || (String(process.env.ANTHROPIC_AUTH_TOKEN || '').trim().length > 8
+        && !String(process.env.ANTHROPIC_AUTH_TOKEN).includes('...'));
 }
 
 function getClient() {
@@ -153,4 +173,4 @@ async function parse(text, cities = [], { timeoutMs = TIMEOUT_MS } = {}) {
   }
 }
 
-module.exports = { parse, configured, schema, MODEL, SYSTEM };
+module.exports = { parse, configured, looksLikeKey, schema, MODEL, SYSTEM };

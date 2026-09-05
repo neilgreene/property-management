@@ -12,6 +12,29 @@ date the work was completed.
 
 ---
 
+## 0.9.36 — 2026-09-05
+
+**Fixed: a placeholder in `.env` was treated as a working API key.**
+
+`ANTHROPIC_API_KEY=sk-ant-...` — the literal placeholder, copied out of setup
+instructions — is a non-empty string, so the truthiness check called it
+configured. Every search the rules parser could not handle then made a doomed
+API call and **waited out the full 8-second timeout** before falling back, for
+as long as the placeholder stayed in the file.
+
+The check is now a shape check: `sk-ant-` prefix, long enough, and no `...` in
+it. Deliberately nothing more — whether a well-formed key is *valid* is the
+API's business, and guessing at that here means rejecting a working key by a
+regex somebody wrote from memory.
+
+`.env.example` now says it outright: empty, or a real key. Nothing in between.
+
+My own instructions created this trap by using `sk-ant-...` as the placeholder,
+so the fix is in the code rather than in a warning nobody reads at the moment
+they need it.
+
+---
+
 ## 0.9.35 — 2026-09-05
 
 **Documentation caught up with fourteen releases — including two places where
