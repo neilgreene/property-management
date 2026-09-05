@@ -12,6 +12,96 @@ date the work was completed.
 
 ---
 
+## 0.9.42 — 2026-09-05
+
+**The deployment guide now matches what the deployment actually did.**
+
+Three things in `deploy/README.md` were wrong in the way documentation is
+usually wrong -- true when written, disproved the first time somebody followed
+it on a real machine.
+
+`raw.githubusercontent.com` caches for roughly five minutes. Fetching a file
+moments after pushing a fix to it returns the OLD content, with no error and
+no warning, so a fix that is verifiably in the repository appears not to be.
+The guide now fetches with a cache-buster, and -- because a cache-buster is
+not a guarantee -- states the two `grep`/`file` checks that prove which file
+you got, and gives the `sed` that patches it in place when it is stale. Never
+re-fetch to escape a cache.
+
+`ufw` is not installed on a minimal image. The old text ran it unconditionally.
+It now installs it first, opens 22 before enabling (the classic way to lock
+yourself out of a remote host), and prefers a cloud firewall where there is
+one. It also records the limit that makes host firewalls misleading here:
+**Docker bypasses ufw for published ports**, writing its own iptables rules
+ahead of ufw's. A published port is reachable whether or not ufw has a rule.
+Not publishing it is the control; `ports: !override []` is why path A is safe.
+
+`SDI_INTEGRATION_PASSWORD is not set` looks like a failure and is not. It is
+the worker's login, the worker is behind an unstarted profile, and Compose
+interpolates the whole file whatever the profiles say. Documented as expected,
+along with the trap behind it: role passwords are issued by an init script
+that runs **once**, on an empty volume, so adding the variable later leaves
+the role NOLOGIN until it is altered by hand.
+
+Also recorded: the three Caddy log lines that read as errors during a
+successful first issuance, so nobody stops a working deployment to chase them.
+
+---
+
+## 0.9.41 — 2026-09-05
+
+**Fixed the Caddyfile bind path in the public overlay.**
+
+The overlay mounted `./Caddyfile`. With several `-f` files, Compose resolves
+relative paths against the **first** file's directory -- `/opt/sdi`, not
+`deploy/` where the file lives. So it looked one level too high, found
+nothing, and Docker did what Docker does with a missing bind source: created a
+**directory** at that path. A directory will not mount over a file, and the
+error that surfaces is `mount ... not a directory`, which describes the
+symptom and hides the cause.
+
+Now `./deploy/Caddyfile`, with the reasoning in a comment beside it so the
+next person moving this file does not re-derive it from a mount error.
+
+---
+
+## 0.9.40 — 2026-09-05
+
+**Set the Caddy hostname and contact address for the sdi-prod deployment.**
+
+`172-235-60-70.sslip.io` and `neilgreene0102@gmail.com`. sslip.io resolves the
+IP-shaped name to that IP with nothing to register, which is what makes a
+certificate possible at all: Let's Encrypt will not issue for a bare IP. The
+contact address is not a login and is published nowhere -- it is the only
+channel by which anyone learns a certificate is about to lapse.
+
+---
+
+## 0.9.39 — 2026-09-05
+
+**An internet-facing deployment overlay, and a proxy-aware client address.**
+
+`deploy/docker-compose.public.yml` layers Caddy over the release stack: TLS
+terminated at the proxy with automatic issuance and renewal, http redirected
+to https, HSTS, `nosniff`, `DENY` framing, and a referrer policy strict enough
+that a gated address cannot leak through a `Referer` header to whatever a
+shared PDF points at. Certificates live in a named volume, because re-issuing
+on every restart hits a Let's Encrypt rate limit that locks you out for a week.
+
+The web container **stops publishing a port** (`ports: !override []`). A
+plaintext door beside a locked one is the door that gets used, and without the
+`!override` tag Compose merges the two port lists and leaves it open.
+
+`TRUST_PROXY` makes the sign-in log record the visitor's address rather than
+the proxy's, reading the **last** `X-Forwarded-For` entry -- the one the proxy
+appended, not the ones a caller can invent. Opt-in on purpose: believing that
+header on a directly-exposed server lets anyone claim any address they like.
+
+A bare `:80` vhost answers 404 to anything addressing the IP rather than the
+hostname, because a vhost that answers to any `Host` answers to every scanner.
+
+---
+
 ## 0.9.38 — 2026-09-05
 
 **The manager card is a grid item, not a floating panel.**

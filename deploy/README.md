@@ -21,10 +21,17 @@ it because it is a real name.
 ```bash
 cd /opt/sdi
 mkdir -p deploy
-curl -fsSLo deploy/Caddyfile \
-  https://raw.githubusercontent.com/neilgreene/property-management/claude/postgres-web-access-jznei0/deploy/Caddyfile
-curl -fsSLo deploy/docker-compose.public.yml \
-  https://raw.githubusercontent.com/neilgreene/property-management/claude/postgres-web-access-jznei0/deploy/docker-compose.public.yml
+BR=claude/postgres-web-access-jznei0
+RAW=https://raw.githubusercontent.com/neilgreene/property-management/$BR/deploy
+curl -fsSL -H 'Cache-Control: no-cache' -o deploy/Caddyfile              "$RAW/Caddyfile?$(date +%s)"
+curl -fsSL -H 'Cache-Control: no-cache' -o deploy/docker-compose.public.yml "$RAW/docker-compose.public.yml?$(date +%s)"
+
+# VERIFY BEFORE STARTING. raw.githubusercontent.com caches for around
+# five minutes, so a fetch made soon after a push can return the OLD
+# file with no error and no warning. The cache-buster above usually
+# defeats it; this check is what proves it did.
+grep Caddyfile deploy/docker-compose.public.yml   # must say ./deploy/Caddyfile
+file deploy/Caddyfile                             # must say ASCII text
 
 # The hostname and the contact address are already set for
 # 172.235.60.70. Change the hostname only when a domain replaces it.
@@ -34,6 +41,35 @@ curl -fsSLo deploy/docker-compose.public.yml \
 docker compose -f docker-compose.yml \
                -f deploy/docker-compose.public.yml up -d
 ```
+
+If `grep` shows `./Caddyfile` without the `deploy/`, the fetch was stale.
+Do not re-fetch -- patch it, which is faster and certain:
+
+```bash
+rmdir Caddyfile 2>/dev/null   # Docker creates a DIRECTORY at a missing
+                              # bind source, and a directory will not
+                              # mount over a file. That is the whole
+                              # cause of `mount ... not a directory`.
+sed -i 's|\./Caddyfile:/etc/caddy/Caddyfile|./deploy/Caddyfile:/etc/caddy/Caddyfile|' \
+  deploy/docker-compose.public.yml
+```
+
+Watch the proxy until it says so:
+
+```bash
+docker compose -f docker-compose.yml -f deploy/docker-compose.public.yml logs -f proxy
+```
+
+`"msg":"certificate obtained successfully"` is the line that means it
+worked. Three log lines look like failures and are not:
+
+- `server is listening only on the HTTP port, so no automatic HTTPS` --
+  the `:80` catch-all that answers 404 to anything addressing the bare
+  IP. Deliberate.
+- `failed to sufficiently increase receive buffer size` -- a kernel UDP
+  buffer hint. HTTP/3 works regardless.
+- `open /data/caddy/acme/.../neilgreene0102@gmail.com.json: no such
+  file` -- there is no ACME account yet, on the run that creates one.
 
 Ports 80 and 443 must be open to the internet: Let's Encrypt validates
 over 80 and the site serves on 443. The web container stops publishing a
@@ -75,11 +111,35 @@ must not die with a database rebuild.
 something is how it ends up reachable from outside; use
 `docker compose exec db psql` instead.
 
-**A firewall, if the host has no cloud-level one:**
+**`SDI_INTEGRATION_PASSWORD is not set` is expected.** It is the
+worker's database login, and the worker sits behind a compose profile
+that is not started. Compose interpolates the whole file at parse time
+whatever the profiles say, so it warns about a service that will not
+run. Nothing is broken. Set it in `.env` before enabling
+`COMPOSE_PROFILES=worker`, and note that role passwords are handed out
+by a database init script that runs **once**, at first start on an empty
+volume -- adding the variable later leaves `sdi_integration` NOLOGIN
+until you `ALTER ROLE` it by hand or rebuild the volume.
+
+**A firewall.** A cloud-level one is better than a host one, because it
+drops traffic before it reaches the host: on Linode, Cloud Firewall with
+inbound `22/tcp`, `80,443/tcp` accepted and a default inbound policy of
+Drop. That is the whole job -- skip the rest of this section.
+
+Only if there is no cloud firewall, on the host. `ufw` is not installed
+on a minimal image (`ufw: command not found`), so install it first:
 
 ```bash
-ufw allow 22/tcp
+apt-get update && apt-get install -y ufw
+ufw allow 22/tcp          # BEFORE enabling, or you lock yourself out
 ufw allow 80,443/tcp      # path A
 # ufw allow 3099/tcp      # path B instead
 ufw --force enable
 ```
+
+And know its limit: **Docker bypasses ufw for published ports.** It
+writes its own iptables rules in the `DOCKER` chain, ahead of ufw's, so
+a `ports:` entry is reachable from the internet whether or not ufw has a
+rule for it. ufw protects the host's own services; it does not protect
+containers. Not publishing a port is what protects a container -- which
+is why path A gives the web container `ports: !override []`.
