@@ -999,6 +999,59 @@ test('the server still refuses a document with no recipient', async (t) => {
   assert.match((await r.json()).error, /say who this is going to/);
 });
 
+// The lead photograph on a detail panel is media[0]. That query had no
+// ORDER BY, and api.property_media is a UNION whose order is therefore
+// arbitrary -- so a signed-in staff member opening SDI-1009 got a generated
+// line drawing as the main image with the real photograph demoted into the
+// strip below it.
+test('the lead photograph is the primary one, not whichever row came back first', async (t) => {
+  if (!available) return t.skip('no server');
+  const cookie = await staffCookie();
+  const list = await (await fetch(`${base}/api/admin/properties?q=SDI-1009`,
+    { headers: { cookie } })).json();
+  const id = list.rows[0].property_id;
+
+  const d = await (await fetch(`${base}/api/property?id=${id}`,
+    { headers: { cookie } })).json();
+  assert.ok(d.media.length > 1, 'the fixture has several photographs');
+  assert.equal(d.media[0].is_primary, true,
+    'THE LEAD IMAGE WAS NOT THE PRIMARY ONE — media[0] is what the panel '
+    + 'shows large, so this query must order rather than hope');
+
+  // And it agrees with the card, which picks its image with its own
+  // ORDER BY. Two orderings that can disagree is how a listing shows one
+  // picture on the card and a different one when opened.
+  const rows = (await (await fetch(`${base}/api/listings`,
+    { headers: { cookie } })).json()).rows;
+  const card = rows.find((r) => r.property_id === id);
+  const lead = d.media[0];
+  assert.equal(card.primary_image, lead.thumb_url || lead.url,
+    'the card image and the lead image are chosen the same way');
+});
+
+// /?fav=1 became a page people arrive on directly when the rail gained a
+// Favourites entry. Before that, favourites could only be reached by
+// toggling -- so a listings load had always happened first and the browser
+// still had an identity in hand. Landing on it cold, the reply carried
+// none, canFavorite was false, and the heart buttons were not drawn on the
+// one page where every row is a favourite.
+test('the favourites reply carries its own identity', async (t) => {
+  if (!available) return t.skip('no server');
+  const cookie = await staffCookie();
+  const d = await (await fetch(`${base}/api/favorites`, { headers: { cookie } })).json();
+  assert.ok(d.identity, 'a payload that can be the first one loaded must say who is asking');
+  assert.equal(d.identity.signedIn, true);
+  assert.equal(d.identity.canFavorite, true,
+    'THE HEARTS WOULD NOT BE DRAWN — this is the page where every row is one');
+  assert.ok(d.rows.every((r) => r.is_favorite === true));
+
+  // And it is the same shape the listings page gets, because both are built
+  // by one function now.
+  const l = await (await fetch(`${base}/api/listings`, { headers: { cookie } })).json();
+  assert.deepEqual(Object.keys(d.identity).sort(), Object.keys(l.identity).sort(),
+    'one identity block, two payloads, so they cannot drift');
+});
+
 test('the login page is served', async (t) => {
   if (!available) return t.skip('no server');
   const r = await fetch(`${base}/login.html`);

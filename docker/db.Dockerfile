@@ -58,6 +58,7 @@ COPY sql/44_profile.sql          /docker-entrypoint-initdb.d/44_profile.sql
 COPY sql/45_note_summary.sql     /docker-entrypoint-initdb.d/45_note_summary.sql
 COPY sql/46_note_severity.sql    /docker-entrypoint-initdb.d/46_note_severity.sql
 COPY sql/47_share.sql            /docker-entrypoint-initdb.d/47_share.sql
+COPY sql/48_mfa.sql              /docker-entrypoint-initdb.d/48_mfa.sql
 
 # Application roles take their credentials from the environment at first
 # start, not from anything baked in. See the script for why a build-time flag

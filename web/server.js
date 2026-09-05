@@ -405,9 +405,7 @@ async function listings(identity, params) {
     const mapAccess = (await client.query('SELECT api.map_access() AS ok')).rows[0].ok;
 
     return {
-      identity: { label: identity.label, role: identity.role, note: identity.note,
-                  signedIn: identity.key === 'session', mapAccess, canFavorite: favs !== null &&
-                    (identity.role === 'sdi_investor' || identity.role === 'sdi_admin') },
+      identity: identityBlock(identity, { mapAccess, canFavorite: favs !== null }),
       criteria, applied: criteria, sort: criteria.sort || 'ref',
       facets, cities, types, count: rows.length, rows,
     };
@@ -522,7 +520,19 @@ async function propertyDetail(identity, id, brand) {
     if (!r.rows.length) return null;
     const m = await client.query(
       'SELECT media_id, url, thumb_url, caption, position, is_primary, reveals_location '
-      + 'FROM api.property_media WHERE property_id = $1', [id]);
+      // ORDERED, EXPLICITLY. This had no ORDER BY and took whatever order
+      // the view happened to return -- and api.property_media is a UNION
+      // (real rows, plus the synthetic mask row), so that order is
+      // arbitrary and changes with the plan. The browser uses media[0] as
+      // the lead photograph, so the panel was showing whichever row came
+      // back first: on SDI-1009 a generated line drawing, with the real
+      // photograph demoted into the thumbnail strip beneath it.
+      //
+      // The same ordering as api.property_card uses to pick the card
+      // image. Those two disagreeing is how a listing shows one picture on
+      // the card and a different one when you open it.
+      + 'FROM api.property_media WHERE property_id = $1'
+      + ' ORDER BY is_primary DESC, position', [id]);
     // Public notes travel with the listing. They are band 1, like the
     // description -- the row policy has already decided which the caller
     // may see, so nothing is filtered again here.
@@ -547,12 +557,33 @@ async function setFavorite(identity, id, on) {
   });
 }
 
+// What the browser needs to know about who is asking. Built in ONE place
+// because two payloads carry it: the listings page and the favourites page.
+// The favourites reply used to omit it entirely, which was invisible while
+// favourites could only be reached by toggling -- a listings load had always
+// happened first and the browser still had the old copy. The moment
+// /?fav=1 became a link people could arrive on directly, that first load
+// carried no identity at all and the heart buttons stopped being drawn.
+function identityBlock(identity, { mapAccess = false, canFavorite = true } = {}) {
+  return {
+    label: identity.label, role: identity.role, note: identity.note,
+    signedIn: identity.key === 'session',
+    mapAccess,
+    canFavorite: canFavorite
+      && (identity.role === 'sdi_investor' || identity.role === 'sdi_admin'),
+  };
+}
+
 async function favorites(identity, brand) {
   return withTx(identity, brand, async (client) => {
     const r = await client.query(
       'SELECT * FROM api.my_favorite ORDER BY saved_at DESC');
     for (const row of r.rows) row.is_favorite = true;
-    return { count: r.rows.length, rows: r.rows };
+    const mapAccess = (await client.query('SELECT api.map_access() AS ok')).rows[0].ok;
+    return {
+      count: r.rows.length, rows: r.rows,
+      identity: identityBlock(identity, { mapAccess }),
+    };
   });
 }
 

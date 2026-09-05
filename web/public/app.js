@@ -531,7 +531,12 @@ async function load(push = true) {
   const data = await (await fetch(url)).json();
   if (state.mode === 'favorites') {
     data.count = data.rows.length;
-    data.identity = state.identity;
+    // The favourites reply carries its own identity now. It used to be
+    // patched in from whatever the last listings load left behind, which
+    // was empty when /?fav=1 was the page somebody arrived on -- and an
+    // empty identity means canFavorite is false, so the heart buttons were
+    // not drawn on the one page where every row is a favourite.
+    data.identity = data.identity || state.identity;
     state.favorites = data.rows.length;
     $('favcount').textContent = data.rows.length;
     paintRailCount(data.rows.length);
@@ -892,6 +897,14 @@ $('reset').addEventListener('click', () => {
 
 $('favtoggle').addEventListener('click', () => {
   state.mode = state.mode === 'favorites' ? 'search' : 'favorites';
+  // Keep the address bar honest. The rail decides which entry is active by
+  // comparing the current path AND query, so a mode that lives only in a
+  // variable leaves the menu pointing at the wrong place -- and the page
+  // stops being linkable or survivable across a refresh.
+  const u = new URL(location.href);
+  if (state.mode === 'favorites') u.searchParams.set('fav', '1');
+  else u.searchParams.delete('fav');
+  history.replaceState(null, '', u);
   setMode(); load(false);
 });
 
@@ -1000,6 +1013,14 @@ async function start() {
   if (map && box.every(Number.isFinite) && p.get('bbox_s') !== null) {
     map.fitBounds(L.latLngBounds([box[0], box[1]], [box[2], box[3]]), { animate: false });
   }
+
+  // ?fav=1 IS THE MODE, not just a link the rail happens to point at.
+  // The rail's Favourites entry navigates here, and nothing read the
+  // parameter -- so clicking it produced the full listing page with
+  // Favourites highlighted in the menu, which reads as the filter being
+  // broken rather than absent. Read before the first load, so the initial
+  // query is the right one instead of being corrected a moment later.
+  if (p.get('fav') === '1') state.mode = 'favorites';
 
   await load(false);
   // canFavorite arrives with the listings payload, so these come after.

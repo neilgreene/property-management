@@ -12,6 +12,44 @@ date the work was completed.
 
 ---
 
+## 0.9.28 — 2026-09-05
+
+**Three bugs a signed-in user hits immediately.**
+
+### Fixed — the lead photograph was a line drawing
+Opening a listing showed the generated illustration as the main image, with
+the real photograph demoted into the thumbnail strip beneath it.
+
+The detail query had **no `ORDER BY` at all**, and `api.property_media` is a
+`UNION` (real rows plus the synthetic mask row), so the order it returns is
+arbitrary and moves with the query plan. The browser uses `media[0]` as the
+lead, so the panel showed whichever row came back first. It now orders the
+same way `api.property_card` picks the card image — those two disagreeing is
+how a listing shows one picture on the card and a different one when opened.
+
+### Fixed — Favourites in the rail showed every property
+The rail's Favourites entry navigates to `/?fav=1`, and **nothing read that
+parameter**. The mode lived only in a variable set by a toggle button, so
+clicking Favourites produced the full listing page with Favourites highlighted
+in the menu — which reads as the filter being broken rather than absent.
+
+The parameter is read before the first load, so the initial query is the right
+one rather than being corrected a moment later. Toggling also keeps the address
+bar honest now, since the rail decides its active entry by comparing path *and*
+query.
+
+### Fixed — no heart buttons on the favourites page
+A consequence of the above, and invisible until it wasn't. Favourites could
+previously only be reached by toggling, so a listings load had always happened
+first and the browser still had an identity in hand. The moment `/?fav=1`
+became a link people arrive on directly, that first reply carried no identity,
+`canFavorite` was false, and the hearts were not drawn on the one page where
+every row is a favourite.
+
+Both payloads now build that block with one function, so they cannot drift.
+
+---
+
 ## 0.9.27 — 2026-09-04
 
 **Share, reachable from the top — and a Create PDF button that answers.**
