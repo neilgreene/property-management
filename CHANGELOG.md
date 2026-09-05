@@ -12,6 +12,31 @@ date the work was completed.
 
 ---
 
+## 0.9.55 — 2026-09-05
+
+**A photograph on the sign-in page, and a slot to swap it.**
+
+The drawn street was clearly a drawing. It is now one of the twenty-five
+photographs already supplied for this product — a real row of houses, real
+street, real people — cropped to the panel. Nothing new to licence: these are
+the same images already published on the listing cards.
+
+The page tries `/assets/login.jpg`, then `.png`, then `.webp`, and falls back to
+the drawing if none is there. So replacing it is dropping a file in
+`web/public/assets/`, with no build step and no configuration — and deleting it
+brings the drawing back rather than a broken-image icon, because the `<img>`
+stays hidden until one actually loads. Verified both ways.
+
+Fixed aspect ratio with `object-fit: cover`, so a photograph of a different
+shape is cropped rather than squashed and the panel does not jump between the
+two.
+
+I could not fetch a stock photograph from here to compare against: the egress
+proxy refuses Wikimedia Commons, Unsplash and Picsum at the gateway, and a
+picture I cannot licence is not one to ship. Hence the slot.
+
+---
+
 ## 0.9.54 — 2026-09-05
 
 **An AND gate, not an OR gate.**

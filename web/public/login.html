@@ -40,7 +40,12 @@
   /* A picture, not a page of prose. A login screen is a door; nobody
      reads the wall beside it, and text here only delays the one thing
      the visitor came to do. */
-  .art svg{display:block;width:100%;height:auto;border-radius:14px}
+  .art svg,.art .hero{display:block;width:100%;border-radius:14px}
+  .art svg{height:auto}
+  /* A fixed ratio so the panel does not jump between the drawing and a
+     photograph of some other shape, and `cover` so a wide or tall one is
+     cropped rather than squashed. */
+  .art .hero{aspect-ratio:520/400;object-fit:cover}
 
   .card{background:var(--card);border:1px solid var(--line);border-radius:11px;
     padding:22px 22px 20px;box-shadow:var(--shadow)}
@@ -80,6 +85,13 @@
         <span class="mark">SDI</span>
         <span class="brandtxt">Investment Property Marketplace</span>
       </div>
+
+      <!-- A PHOTOGRAPH IF THERE IS ONE, the drawing otherwise.
+           Drop a file at web/public/assets/login.jpg (or .png/.webp) and it
+           takes over; delete it and the drawing comes back. No build step
+           and no config, because the alternative is a page that shows a
+           broken image on any deployment where somebody forgot the file. -->
+      <img id="hero" class="hero" alt="" hidden>
 
       <!-- Drawn, not photographed: an inline SVG needs no asset, no
            licence and no network round trip, stays sharp at any size, and
@@ -194,6 +206,19 @@
 </div>
 
 <script>
+// Try a photograph, in the formats somebody is likely to have to hand. The
+// drawing is what is already on screen, so a miss costs nothing and there
+// is never a broken-image icon: the <img> stays hidden until one loads.
+(function () {
+  const img = document.getElementById('hero');
+  const svg = document.querySelector('.art svg');
+  const tries = ['/assets/login.jpg', '/assets/login.png', '/assets/login.webp'];
+  let i = 0;
+  img.addEventListener('load', () => { img.hidden = false; if (svg) svg.remove(); });
+  img.addEventListener('error', () => { if (i < tries.length) img.src = tries[i++]; });
+  img.src = tries[i++];
+})();
+
 // Which build is running. Not gated -- an anonymous visitor reporting a
 // problem needs to be able to say which version they were looking at.
 fetch('/api/whoami').then((r) => r.json()).then((j) => {
