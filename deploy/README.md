@@ -102,10 +102,32 @@ without TLS. Take it back out the moment there is a certificate.
 
 ## Either way
 
-**Media lives on the OS disk.** `SDI_MEDIA_DIR=/opt/sdi/media` in `.env`,
-a host directory rather than a named volume — `docker compose down -v`
-destroys named volumes, and a schema change needs `down -v`. Photographs
-must not die with a database rebuild.
+**Media lives on a host path, and the path is per-host.** Set
+`SDI_MEDIA_DIR` in `.env` — `/opt/sdi/media` on the OS disk, or a separate
+filesystem such as `/mnt/sdi-media`. It is *expected* to differ between
+machines and there is nothing to keep in step: the container always sees
+`/srv/media` whatever the host path is, and the database stores paths
+relative to that. Moving the store is this one line plus moving the files.
+**Do not symlink one host's path to match another's** — it makes two
+machines look identical while adding a resolution step that can break, and
+the variable exists precisely so they need not match.
+
+A host directory rather than a named volume on purpose: `docker compose
+down -v` destroys named volumes, and a schema change needs `down -v`.
+Photographs must not die with a database rebuild.
+
+Two things a separate filesystem needs:
+
+```bash
+chown -R 1000:1000 /mnt/sdi-media   # the web container runs as `node`
+grep sdi-media /etc/fstab           # must be there
+```
+
+**The fstab line is not optional.** If that filesystem is not mounted at
+boot, Docker bind-mounts the empty mountpoint directory underneath it
+instead — silently, with no error and no failed container — and every
+photograph appears to have vanished while the database still lists them.
+Nothing about that failure points at the mount.
 
 **The database publishes no port.** It never has. Adding one to debug
 something is how it ends up reachable from outside; use

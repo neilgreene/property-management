@@ -12,6 +12,38 @@ date the work was completed.
 
 ---
 
+## 0.9.44 — 2026-09-05
+
+**The media path is per-host, and the documentation now says so.**
+
+A second deployment put its media on a separate filesystem at a different path
+from the first, and the obvious-looking fix was to symlink one to match the
+other. Nothing needs to match. The container always sees `/srv/media`, the
+database stores paths relative to that, and `SDI_MEDIA_DIR` is the one line
+that differs between machines — which is what the variable is for. A symlink
+would make two hosts look identical while adding a resolution step that can
+break, and hide the fact that the store had moved at all.
+
+`SDI_MEDIA_DIR` was not in `.env.example`, so the only mention of it was a
+comment inside a compose file and one hard-coded path in the deployment guide,
+written as though it were the answer everywhere. Both now say it is per-host.
+
+Two operational facts recorded with it, because neither is discoverable from a
+failure:
+
+**Ownership.** The web container runs as `node`, uid 1000. A fresh filesystem
+owned by root gives a write failure with nothing in it about which uid was
+being refused.
+
+**fstab.** If a separate filesystem is not mounted at boot, Docker bind-mounts
+the empty mountpoint directory underneath it instead — silently, with no error
+and no failed container — and every photograph appears to have vanished while
+the database still lists them. Nothing about that failure points at the mount,
+which is exactly why it is worth a line in `.env.example` next to the setting
+that causes it.
+
+---
+
 ## 0.9.43 — 2026-09-05
 
 **A front door, and a block grid that holds its shape.**
