@@ -23,7 +23,18 @@
   const day = (t) => !t ? '—'
     : new Date(t).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
 
-  const state = { view: null, rows: [], sel: null, who: null, lookups: {} };
+  const state = { view: null, rows: [], sel: null, who: null, lookups: {}, q: '' };
+
+  // Every word has to appear somewhere in the row. Typed against what is
+  // already loaded rather than a round trip: these lists are tens of rows,
+  // not thousands, and a request per keystroke for that is waste.
+  function matches(row, q) {
+    if (!q) return true;
+    const hay = Object.values(row)
+      .filter((v) => v != null && typeof v !== 'object')
+      .join(' ').toLowerCase();
+    return q.toLowerCase().split(/\s+/).filter(Boolean).every((w) => hay.includes(w));
+  }
 
   // ------------------------------------------------------------------
   async function api(path, body) {
@@ -73,7 +84,9 @@
     customers: {
       title: 'Customers',
       load: () => api('customers'),
-      row: (c) => `<div class="ctop"><span class="cname">${esc(c.full_name)}</span>
+      // "Ruiz, Dana" -- a list of customers is looked up by surname, so the
+      // database sorts on it and the row leads with it.
+      row: (c) => `<div class="ctop"><span class="cname">${esc(c.sort_name || c.full_name)}</span>
           ${c.approved_contracts > 0
             ? `<span class="stage approved">${c.unlocked_properties} unlocked</span>` : ''}
           ${c.signed ? '<span class="pill">fee agreement signed</span>' : ''}</div>
@@ -87,7 +100,7 @@
     'my-customers': {
       title: 'My customers',
       load: () => api('my-customers'),
-      row: (c) => `<div class="ctop"><span class="cname">${esc(c.full_name)}</span>
+      row: (c) => `<div class="ctop"><span class="cname">${esc(c.sort_name || c.full_name)}</span>
           ${c.contracts_awaiting_payment > 0
             ? `<span class="stage awaiting">${c.contracts_awaiting_payment} awaiting payment</span>` : ''}
           ${c.contracts_awaiting_signature > 0
@@ -207,6 +220,17 @@
             <label>Budget to<input id="f_hi" type="number" step="1000"
               value="${c.budget_high == null ? '' : c.budget_high}"></label>
           </div>
+        </div>
+
+        <div class="dsec">Contact</div>
+        <div class="dfields">
+          <div class="dpair">
+            <label>Mobile<input id="f_mobile" value="${esc(c.phone_mobile || '')}"></label>
+            <label>Home<input id="f_phome" value="${esc(c.phone_home || '')}"></label>
+          </div>
+          <label>Work<input id="f_pwork" value="${esc(c.phone_work || '')}"></label>
+          <label>Home address<textarea id="f_haddr">${esc(c.home_address || '')}</textarea></label>
+          <label>Work address<textarea id="f_waddr">${esc(c.work_address || '')}</textarea></label>
           <label>Notes<textarea id="f_notes">${esc(c.notes || '')}</textarea></label>
         </div>
         <div class="dact"><button class="primary" id="save">Save</button></div>
@@ -230,6 +254,11 @@
       head: c.full_name,
       sub: c.email + (c.phone ? ' · ' + c.phone : ''),
       body: `${facts([
+          ['Mobile', c.phone_mobile ? esc(c.phone_mobile) : null],
+          ['Home', c.phone_home ? esc(c.phone_home) : null],
+          ['Work', c.phone_work ? esc(c.phone_work) : null],
+          ['Home address', c.home_address ? esc(c.home_address) : null],
+          ['Work address', c.work_address ? esc(c.work_address) : null],
           ['Target', c.target_metro],
           ['Budget', c.budget_low || c.budget_high
             ? money(c.budget_low) + ' – ' + money(c.budget_high) : null],
@@ -442,13 +471,19 @@
   }
 
   async function saveCustomer(c) {
+    const v = (id) => $(id).value.trim();
     await act(() => api('save-customer', {
       person_id: c.person_id,
       agent_id: $('f_agent').value || null,
       target_metro: $('f_metro').value || null,
       budget_low: $('f_lo').value,
       budget_high: $('f_hi').value,
-      notes: $('f_notes').value.trim(),
+      notes: v('f_notes'),
+      home_address: v('f_haddr'),
+      work_address: v('f_waddr'),
+      phone_home: v('f_phome'),
+      phone_work: v('f_pwork'),
+      phone_mobile: v('f_mobile'),
     }), 'Saved.', true);
   }
 
@@ -530,19 +565,12 @@
 
     if (v.grid) {
       $('list').className = 'pgrid';
-      $('list').innerHTML = rows.length ? rows.map(v.card).join('')
-        : '<p class="cempty">Nothing yet. A property appears here once a contract '
-          + 'naming it has been signed and paid.</p>';
+      draw();
       return;
     }
 
     $('list').className = 'crmlist';
-    $('list').innerHTML = rows.length
-      ? rows.map((r) => `<button class="crow" data-k="${esc(keyOf(r))}">${v.row(r)}</button>`).join('')
-      : '<p class="cempty">Nothing here yet.</p>';
-
-    $('list').querySelectorAll('.crow').forEach((el, i) =>
-      el.addEventListener('click', () => openDetail(rows[i], keyOf(rows[i]))));
+    draw();
 
     // Re-open what was open, so an action that reloads the list does not
     // shut the panel the reader was working in.
@@ -551,6 +579,36 @@
       if (i >= 0) openDetail(rows[i], keep); else closeDetail();
     }
     wireHead();
+  }
+
+  // Draws whatever survives the search box. Separate from load() so typing
+  // re-renders without re-fetching.
+  function draw() {
+    const v = VIEWS[state.view];
+    const shown = state.rows.filter((r) => matches(r, state.q));
+    $('count').textContent = state.q
+      ? `${shown.length} of ${state.rows.length}`
+      : (state.rows.length === 1 ? '1 row' : `${state.rows.length} rows`);
+
+    if (v.grid) {
+      $('list').innerHTML = shown.length ? shown.map(v.card).join('')
+        : `<p class="cempty">${state.q ? 'Nothing matches \u201c' + esc(state.q) + '\u201d.'
+          : 'Nothing yet. A property appears here once a contract naming it has '
+            + 'been signed and paid.'}</p>`;
+      return;
+    }
+
+    $('list').innerHTML = shown.length
+      ? shown.map((r) => `<button class="crow" data-k="${esc(keyOf(r))}">${v.row(r)}</button>`).join('')
+      : `<p class="cempty">${state.q ? 'Nothing matches \u201c' + esc(state.q) + '\u201d.'
+        : 'Nothing here yet.'}</p>`;
+
+    $('list').querySelectorAll('.crow').forEach((el, i) =>
+      el.addEventListener('click', () => openDetail(shown[i], keyOf(shown[i]))));
+    if (state.sel != null) {
+      $('list').querySelectorAll('.crow').forEach((el) =>
+        el.classList.toggle('on', el.dataset.k === String(state.sel)));
+    }
   }
 
   function wireHead() {
@@ -615,6 +673,7 @@
 
     $('app').hidden = false;
     $('closedetail').addEventListener('click', closeDetail);
+    $('q').addEventListener('input', () => { state.q = $('q').value.trim(); draw(); });
     await load(view);
   }
 

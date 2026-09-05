@@ -12,6 +12,44 @@ date the work was completed.
 
 ---
 
+## 0.9.56 — 2026-09-05
+
+**The workspace screens sit where Properties sits, and can be searched.**
+
+**The layout was an inherited grid, not a centring problem.** `app.css` sets
+`main{display:grid;grid-template-columns:minmax(320px,44%) 1fr}` for the
+listings page — the map beside the results. `crm.html` uses `<main>` too and
+inherited it, so the heading occupied a 44% column and the whole list was pushed
+into the second one. Measured after the fix: the title and the list both start
+at the same x, hard against the rail.
+
+**A search box**, one per screen, filtering what is already loaded rather than
+asking the server again — these lists are tens of rows, and a request per
+keystroke for that is waste. Every word has to appear somewhere in the row, so
+`ozanne 317` narrows the way you would expect, and the count reads "1 of 7"
+while a search is running.
+
+**Customers sort and read by surname** — "Ruiz, Dana". `core.sort_name()` takes
+the last whitespace-separated token as the surname. That is right for these
+names and wrong for compound surnames, family-name-first orders and single-word
+names; it is a display convenience over one `full_name` column, and when it
+matters the fix is to store the parts separately rather than guess harder.
+
+**Contact details on the customer**: home and work addresses, and home, work and
+mobile numbers. They live on `core.customer_profile`, not `core.person` —
+`person.phone` is the account holder's own number, shown on their profile page
+and in the rail, while these are the CRM's record of a customer and arrive from
+GoHighLevel with everything else. One of the two will be wrong first, and
+keeping them apart means it is always clear which somebody edited.
+
+An agent sees the same details on their read-only view of a customer, since
+"how do I reach them" is most of what that screen is for.
+
+Verified in a browser: left-justified, ordering, search narrowing 7 to 1, and a
+work number saved and still there after a reload.
+
+---
+
 ## 0.9.55 — 2026-09-05
 
 **A photograph on the sign-in page, and a slot to swap it.**
