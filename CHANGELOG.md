@@ -12,6 +12,52 @@ date the work was completed.
 
 ---
 
+## 0.9.53 — 2026-09-05
+
+**The panels, and a menu that depends on who you are.**
+
+Step two of three. Seven screens behind one page, `crm.html?view=…`, because
+they differ in their columns and their actions but not in their shape — four
+near-identical HTML files would be four places to fix the next layout bug. The
+rail still links to each by name.
+
+| Role | Menu |
+|---|---|
+| Customer | Browse · Favourites · **My contracts · My properties** |
+| Agent | Browse · Favourites · **My customers** |
+| Admin | Browse · Favourites · Properties · **Contracts · Opportunities · Customers · Agents** · Intake review |
+
+The rail hides what you have no use for. It does not enforce anything: every
+screen refuses at the database for anybody it is not for, so a url typed by hand
+gets the same answer as a hidden link.
+
+`sec.is_internal()` is admin, not staff-in-general, so every function from 56 is
+closed to agents — right for the administrative lists, wrong for the one question
+an agent has. `api.my_customers()` and `api.my_customer_contracts()` are that
+question, scoped to rows where the caller is the named agent, and they show the
+two chases separately: sent-but-unsigned, and signed-but-unpaid. The second is
+the more urgent one — the customer has agreed and the property is still shut.
+
+`api.my_properties()` reads `api.property_card`, so the address and photograph
+arrive filtered by exactly the rules that filter them everywhere else. The gate
+is not re-implemented for this screen, which is the only way to be sure the two
+agree.
+
+The sixteen endpoints are a table rather than sixteen if-blocks — the only thing
+that varies is the statement and where its arguments come from, and written out
+long it was sixteen places to forget the transaction wrapper.
+
+Verified in Chromium as all three roles: the menus above, and every screen
+loading rows and opening its detail panel — admin 4 contracts / 7 customers / 2
+agents / 2 opportunities, agent 2 customers, customer 2 contracts and 2
+properties.
+
+**The schema-list test earned itself back on its first outing**, failing the
+moment `60_my_properties.sql` and `61_agent_views.sql` were added and before
+anything else noticed.
+
+---
+
 ## 0.9.52 — 2026-09-05
 
 **A picture on the login page, a collapsible menu, and the warning text gone.**

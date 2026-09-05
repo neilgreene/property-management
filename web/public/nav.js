@@ -14,13 +14,43 @@
 // clear about, because a menu that looks like the permission model is how
 // somebody later decides a check is redundant.
 (function () {
+  // WHAT THE RAIL SHOWS DEPENDS ON WHO IS ASKING, and that is a courtesy
+  // rather than a control: every screen listed here refuses at the
+  // database for anybody it is not for, so a guessed url gets the same
+  // answer as a hidden link. `roles` says who has a use for the entry.
   const ITEMS = [
     { href: '/',                    label: 'Browse',        icon: '⌕', group: 'main' },
     { href: '/?fav=1',              label: 'Favourites',    icon: '♥', group: 'main',
       id: 'railfav', signedInOnly: true },
-    { href: '/property-admin.html', label: 'Properties',    icon: '⌂', group: 'admin' },
-    { href: '/admin.html',          label: 'Intake review', icon: '⇥', group: 'admin' },
+
+    // A customer's own two screens. Their contracts, and the properties
+    // those contracts have opened.
+    { href: '/crm.html?view=my-contracts',  label: 'My contracts',  icon: '§',
+      group: 'mine', roles: ['investor'] },
+    { href: '/crm.html?view=my-properties', label: 'My properties', icon: '⌂',
+      group: 'mine', roles: ['investor'] },
+
+    // An agent's book. Scoped to their own customers by the database, not
+    // by this list.
+    { href: '/crm.html?view=my-customers',  label: 'My customers',  icon: '☺',
+      group: 'mine', roles: ['agent'] },
+
+    { href: '/property-admin.html',         label: 'Properties',    icon: '⌂',
+      group: 'admin', roles: ['admin'] },
+    { href: '/crm.html?view=contracts',     label: 'Contracts',     icon: '§',
+      group: 'admin', roles: ['admin'] },
+    { href: '/crm.html?view=opportunities', label: 'Opportunities', icon: '◇',
+      group: 'admin', roles: ['admin'] },
+    { href: '/crm.html?view=customers',     label: 'Customers',     icon: '☺',
+      group: 'admin', roles: ['admin'] },
+    { href: '/crm.html?view=agents',        label: 'Agents',        icon: '⚑',
+      group: 'admin', roles: ['admin'] },
+    { href: '/admin.html',                  label: 'Intake review', icon: '⇥',
+      group: 'admin', roles: ['admin'] },
   ];
+
+  // The section heading over each group, where it has one.
+  const GROUPS = [['main', null], ['mine', 'Mine'], ['admin', 'Admin']];
   // No Profile entry. The footer already carries the signed-in person's
   // photograph and name and links to the same page, and a second door to
   // one room makes the rail longer without making anything reachable.
@@ -85,7 +115,6 @@
   async function build() {
     let who = { signedIn: false };
     try { who = await (await fetch('/api/whoami')).json(); } catch { /* offline */ }
-    const staff = who.signedIn && (who.role === 'sdi_admin' || who.role === 'sdi_agent');
     const here = (location.pathname.replace(/index\.html$/, '') || '/') + location.search;
 
     // Matched on path AND query, because Browse is "/" and Favourites is
@@ -99,8 +128,11 @@
                ${i.id === 'railfav' ? '<b class="rcount" hidden></b>' : ''}</a>`;
     };
 
+    // sdi_admin / sdi_investor / sdi_agent -> admin / investor / agent
+    const role = String(who.role || '').replace('sdi_', '');
     const show = (g) => ITEMS.filter((i) => i.group === g
-      && !(i.signedInOnly && !who.signedIn));
+      && !(i.signedInOnly && !who.signedIn)
+      && (!i.roles || i.roles.includes(role)));
 
     const rail = document.createElement('nav');
     rail.className = 'rail';
@@ -108,10 +140,12 @@
     rail.innerHTML = `
       <a class="rbrand" href="/"><span class="mark">SDI</span></a>
 
-      <div class="rgroup">${show('main').map(link).join('')}</div>
-
-      ${staff ? `<div class="rsec">Admin</div>
-        <div class="rgroup">${show('admin').map(link).join('')}</div>` : ''}
+      ${GROUPS.map(([g, heading]) => {
+        const items = show(g);
+        if (!items.length) return '';
+        return (heading ? `<div class="rsec">${esc(heading)}</div>` : '')
+          + `<div class="rgroup">${items.map(link).join('')}</div>`;
+      }).join('')}
 
       <div class="rfoot">
         ${who.signedIn ? `

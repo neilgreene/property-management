@@ -1,0 +1,102 @@
+/* =====================================================================
+   crm.css  |  agents, customers, opportunities, contracts
+   =====================================================================
+   Deliberately the same vocabulary as the properties panel: cards on the
+   page background, a list beside a detail panel, the same chips. Two
+   different-looking admin screens in one product is two things to learn. */
+#app{padding:18px 22px 60px;max-width:1460px}
+.denied{max-width:520px;margin:80px auto;background:var(--card);border-radius:12px;
+  padding:26px 28px;box-shadow:var(--shadow)}
+.denied h2{margin:0 0 8px;font-size:18px}
+.denied p{margin:0 0 16px;color:var(--ink2);font-size:14px}
+
+.crmhead{display:flex;align-items:baseline;gap:14px;flex-wrap:wrap;margin:0 0 14px}
+.crmhead h1{margin:0;font-size:19px;letter-spacing:-.01em}
+.crmact{margin-left:auto;display:flex;gap:8px;flex-wrap:wrap}
+
+.crmwrap{display:grid;gap:16px;grid-template-columns:minmax(0,1fr)}
+@media (min-width:1150px){
+  /* The detail panel is a column, not an overlay: comparing a row against
+     its detail is the normal action here, and an overlay hides the list
+     you are comparing it to. */
+  .crmwrap.open{grid-template-columns:minmax(0,1fr) 420px}
+}
+
+/* ---------- the list ---------- */
+.crmlist{display:grid;gap:8px;align-content:start}
+.crow{display:grid;gap:2px;background:var(--card);border:1px solid var(--line);
+  border-radius:10px;padding:11px 14px;cursor:pointer;text-align:left;
+  font:inherit;color:inherit;width:100%}
+.crow:hover{border-color:var(--accent)}
+.crow.on{border-color:var(--accent);box-shadow:0 0 0 1px var(--accent) inset}
+.ctop{display:flex;align-items:baseline;gap:9px;flex-wrap:wrap}
+.cname{font-weight:700;font-size:14px}
+.cref{font-size:11.5px;font-weight:700;letter-spacing:.4px;color:var(--mut);
+  font-variant-numeric:tabular-nums}
+.cmeta{font-size:12.5px;color:var(--ink2);display:flex;gap:14px;flex-wrap:wrap;
+  margin-top:3px}
+.cmeta b{font-weight:600;color:var(--ink);font-variant-numeric:tabular-nums}
+.cempty{color:var(--mut);font-size:13.5px;padding:18px 2px}
+
+/* Stage, in the one place it means something. Colour carries the
+   difference between "waiting on them" and "waiting on us". */
+.stage{font-size:10.5px;font-weight:700;letter-spacing:.4px;text-transform:uppercase;
+  border-radius:5px;padding:2px 7px;white-space:nowrap}
+.stage.approved{color:var(--ok);background:var(--okbg)}
+.stage.draft{color:var(--mut);background:var(--bg);border:1px solid var(--line)}
+.stage.awaiting{color:var(--attn);background:var(--attnbg)}
+.stage.ended{color:var(--crit);background:var(--critbg)}
+
+.pill{font-size:11px;font-weight:600;color:var(--gate);background:var(--gatebg);
+  border:1px solid var(--gateline);border-radius:5px;padding:1px 7px}
+
+/* ---------- the detail ---------- */
+.crmdetail{position:relative;background:var(--card);border:1px solid var(--line);
+  border-radius:12px;padding:16px 18px 20px;align-self:start;
+  box-shadow:var(--shadow)}
+.crmdetail .close{position:absolute;top:8px;right:10px;border:0;background:none;
+  font-size:20px;line-height:1;color:var(--mut);cursor:pointer;padding:2px 6px}
+.crmdetail .close:hover{color:var(--ink)}
+.dhead{font-size:16px;font-weight:700;margin:0 6px 2px 0;padding-right:28px}
+.dsub{font-size:12.5px;color:var(--ink2);margin:0 0 14px}
+.dsec{font-size:10.5px;font-weight:700;letter-spacing:1px;text-transform:uppercase;
+  color:var(--mut);margin:18px 0 8px}
+.dfields{display:grid;gap:9px}
+.dfields label{display:grid;gap:3px;font-size:11.5px;color:var(--ink2);font-weight:600}
+.dfields input,.dfields select,.dfields textarea{font:inherit;font-size:13px;
+  padding:7px 9px;border:1px solid var(--line);border-radius:7px;background:var(--bg);
+  color:var(--ink);width:100%}
+.dfields textarea{resize:vertical;min-height:56px}
+.dpair{display:grid;grid-template-columns:1fr 1fr;gap:9px}
+.dfacts{display:grid;grid-template-columns:auto 1fr;gap:3px 12px;font-size:12.5px;
+  margin:0}
+.dfacts dt{color:var(--mut)}
+.dfacts dd{margin:0;font-variant-numeric:tabular-nums}
+.dact{display:flex;gap:8px;flex-wrap:wrap;margin-top:14px}
+
+/* the properties on a contract or an opportunity */
+.plist{display:grid;gap:5px;margin-top:2px}
+.pitem{display:flex;align-items:center;gap:9px;font-size:12.5px;
+  background:var(--bg);border-radius:7px;padding:6px 9px}
+.pitem .ref{font-weight:700;font-variant-numeric:tabular-nums}
+.pitem .rm{margin-left:auto;border:0;background:none;color:var(--mut);cursor:pointer;
+  font-size:15px;line-height:1;padding:0 3px}
+.pitem .rm:hover{color:var(--crit)}
+.pitem .lock{margin-left:auto;font-size:11px;color:var(--ok);font-weight:600}
+
+/* the history of a contract */
+.hist{display:grid;gap:6px;font-size:12.5px}
+.hrow{display:flex;gap:10px;align-items:baseline}
+.hrow .hev{font-weight:700;min-width:96px}
+.hrow .hwhen{color:var(--mut);font-size:11.5px;margin-left:auto;white-space:nowrap}
+
+/* the properties a customer has unlocked */
+.pgrid{display:grid;gap:12px;grid-template-columns:repeat(auto-fill,minmax(268px,1fr))}
+.pcard{background:var(--card);border:1px solid var(--line);border-radius:11px;
+  overflow:hidden;display:grid}
+.pcard img{width:100%;height:150px;object-fit:cover;display:block;background:var(--accent2)}
+.pcard .pb{padding:11px 13px 13px;display:grid;gap:3px}
+.pcard .price{font-size:16px;font-weight:700}
+.pcard .addr{font-size:12.5px;color:var(--ink2)}
+.pcard .nums{font-size:12px;color:var(--mut);display:flex;gap:12px;margin-top:4px}
+.pcard .nums b{color:var(--ink);font-variant-numeric:tabular-nums}

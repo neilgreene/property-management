@@ -69,6 +69,8 @@ COPY sql/55_contracts.sql        /docker-entrypoint-initdb.d/55_contracts.sql
 COPY sql/56_contract_api.sql     /docker-entrypoint-initdb.d/56_contract_api.sql
 COPY sql/57_contract_actions.sql /docker-entrypoint-initdb.d/57_contract_actions.sql
 COPY sql/58_contract_seed.sql    /docker-entrypoint-initdb.d/58_contract_seed.sql
+COPY sql/60_my_properties.sql    /docker-entrypoint-initdb.d/60_my_properties.sql
+COPY sql/61_agent_views.sql      /docker-entrypoint-initdb.d/61_agent_views.sql
 
 # Application roles take their credentials from the environment at first
 # start, not from anything baked in. See the script for why a build-time flag

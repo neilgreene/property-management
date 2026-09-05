@@ -1,0 +1,46 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>SDI — Workspace</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="stylesheet" href="/app.css">
+<link rel="stylesheet" href="/nav.css">
+<link rel="stylesheet" href="/crm.css">
+
+<header class="bar">
+  <div class="brand"><span class="mark">SDI</span> <span class="brandtxt" id="viewname">Workspace</span></div>
+  <div class="who">
+    <span id="whoami" class="chip">…</span>
+    <a id="signin" class="ghost" href="/login.html">Sign in</a>
+    <button id="signout" class="ghost" hidden></button>
+  </div>
+</header>
+
+<div id="denied" class="denied" hidden>
+  <h2>Not available</h2>
+  <p id="deniedwhy"></p>
+  <a class="ghost" href="/login.html">Sign in</a>
+</div>
+
+<!-- One shell, one script. The four administrative lists and the three
+     personal ones differ in their columns and their actions, not in their
+     shape, and four near-identical HTML files would be four places to fix
+     the next layout bug. The rail still links to each by name. -->
+<main id="app" hidden>
+  <section class="crmhead">
+    <h1 id="title">…</h1>
+    <div class="crmact" id="headact"></div>
+  </section>
+
+  <p id="msg" class="msg" hidden></p>
+
+  <section class="crmwrap" id="wrap">
+    <div class="crmlist" id="list"></div>
+    <aside class="crmdetail" id="detail" hidden>
+      <button class="close" id="closedetail" aria-label="Close">×</button>
+      <div id="detailbody"></div>
+    </aside>
+  </section>
+</main>
+
+<script src="/crm.js"></script>
+<script src="/nav.js"></script>

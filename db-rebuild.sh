@@ -34,6 +34,7 @@ for f in 01_schema 02_policies 03_views 04_seed \
          43_property_notes 44_profile 45_note_summary 46_note_severity \
          47_share 48_mfa 49_projection 50_search_criteria 51_customer_workflow 52_search_screening 53_workbook_extras 54_manager_contact \
          55_contracts 56_contract_api 57_contract_actions 58_contract_seed \
+         60_my_properties 61_agent_views \
          99_local_logins; do
     printf '    %s\n' "$f"
     psql -d "$DB" -q -v ON_ERROR_STOP=1 -f "sql/$f.sql"

@@ -1537,6 +1537,112 @@ const server = http.createServer(async (req, res) => {
   // The text never reaches SQL. It becomes a criteria object, the object
   // is validated against a fixed key set, and the caller gets back both
   // the criteria and a sentence saying what was understood.
+  // ---- agents, customers, opportunities, contracts ----------------------
+  //
+  // Sixteen endpoints that all do the same thing: run one api function with
+  // arguments taken from the query string or the body. Written out as
+  // sixteen if-blocks it was sixteen places to forget the transaction
+  // wrapper, so it is a table instead -- the only thing that varies between
+  // them is the statement and where its arguments come from.
+  //
+  // NOTHING HERE DECIDES WHO MAY DO WHAT. Every one of these functions is
+  // SECURITY DEFINER and checks for itself; the web tier cannot widen that
+  // by calling the wrong one, because there is no wrong one to call.
+  const CRM = {
+    // reads
+    'agents':                { m: 'GET',  q: 'SELECT * FROM api.agents()' },
+    'customers':             { m: 'GET',  q: 'SELECT * FROM api.customer_list()' },
+    'opportunities':         { m: 'GET',  q: 'SELECT * FROM api.opportunities($1)',
+                               a: (u) => [u.searchParams.get('person') || null] },
+    'opportunity-properties':{ m: 'GET',  q: 'SELECT * FROM api.opportunity_properties($1)',
+                               a: (u) => [u.searchParams.get('id')] },
+    'contracts':             { m: 'GET',  q: 'SELECT * FROM api.contracts($1)',
+                               a: (u) => [u.searchParams.get('person') || null] },
+    'contract-properties':   { m: 'GET',  q: 'SELECT * FROM api.contract_properties($1)',
+                               a: (u) => [u.searchParams.get('id')] },
+    'contract-history':      { m: 'GET',  q: 'SELECT * FROM api.contract_history($1)',
+                               a: (u) => [u.searchParams.get('id')] },
+    'acquisition-stages':    { m: 'GET',  q: 'SELECT * FROM api.acquisition_stages()' },
+    // the customer's own
+    'my-contracts':          { m: 'GET',  q: 'SELECT * FROM api.my_contracts()' },
+    'my-properties':         { m: 'GET',  q: 'SELECT * FROM api.my_properties()' },
+    // the agent's own book. Not the administrative lists with a filter --
+    // sec.is_internal() is admin, so those are closed to an agent
+    // entirely. This is a different question scoped to the caller.
+    'my-customers':          { m: 'GET',  q: 'SELECT * FROM api.my_customers()' },
+    'my-customer-contracts': { m: 'GET',  q: 'SELECT * FROM api.my_customer_contracts($1)',
+                               a: (u) => [u.searchParams.get('person') || null] },
+
+    // writes
+    'save-agent':      { m: 'POST', q: 'SELECT api.save_agent($1,$2,$3,$4,$5)',
+                         a: (u, b) => [b.person_id, b.licence_no || null,
+                                       b.brokerage || null, b.metro_code || null,
+                                       b.notes || null] },
+    'save-customer':   { m: 'POST', q: 'SELECT api.save_customer($1,$2,$3,$4,$5,$6)',
+                         a: (u, b) => [b.person_id, b.agent_id || null,
+                                       b.target_metro || null,
+                                       b.budget_low === '' ? null : b.budget_low,
+                                       b.budget_high === '' ? null : b.budget_high,
+                                       b.notes || null] },
+    'create-opportunity': { m: 'POST', q: 'SELECT api.create_opportunity($1,$2,$3,$4) AS id',
+                            a: (u, b) => [b.person_id, b.title, b.agent_id || null,
+                                          b.notes || null] },
+    'opportunity-add':    { m: 'POST', q: 'SELECT api.add_opportunity_property($1,$2)',
+                            a: (u, b) => [b.opportunity_id, b.property_id] },
+    'opportunity-remove': { m: 'POST', q: 'SELECT api.remove_opportunity_property($1,$2)',
+                            a: (u, b) => [b.opportunity_id, b.property_id] },
+    'close-opportunity':  { m: 'POST', q: 'SELECT api.close_opportunity($1,$2)',
+                            a: (u, b) => [b.opportunity_id, b.status] },
+    'create-contract':    { m: 'POST', q: 'SELECT api.create_contract($1,$2,$3,$4) AS id',
+                            a: (u, b) => [b.person_id,
+                                          b.fee_amount === '' ? null : b.fee_amount,
+                                          b.opportunity_id || null, b.notes || null] },
+    'contract-add':       { m: 'POST', q: 'SELECT api.add_contract_property($1,$2)',
+                            a: (u, b) => [b.contract_id, b.property_id] },
+    'contract-remove':    { m: 'POST', q: 'SELECT api.remove_contract_property($1,$2)',
+                            a: (u, b) => [b.contract_id, b.property_id] },
+    'send-contract':      { m: 'POST', q: 'SELECT api.send_contract($1)',
+                            a: (u, b) => [b.contract_id] },
+    'sign-contract':      { m: 'POST', q: 'SELECT api.sign_contract($1) AS stage',
+                            a: (u, b) => [b.contract_id] },
+    'record-payment':     { m: 'POST', q: 'SELECT api.record_payment($1,$2) AS stage',
+                            a: (u, b) => [b.contract_id, b.payment_ref || null] },
+    'end-contract':       { m: 'POST', q: 'SELECT api.end_contract($1,$2,$3)',
+                            a: (u, b) => [b.contract_id, b.status, b.reason || null] },
+  };
+
+  if (url.pathname.startsWith('/api/crm/')) {
+    const what = url.pathname.slice('/api/crm/'.length);
+    const spec = Object.prototype.hasOwnProperty.call(CRM, what) ? CRM[what] : null;
+    if (!spec || spec.m !== req.method) {
+      res.writeHead(404, { 'Content-Type': 'application/json' });
+      return res.end(JSON.stringify({ error: 'not found' }));
+    }
+    try {
+      const identity = await identityFor(req, url);
+      const brand = url.searchParams.get('brand');
+      const body = req.method === 'POST' ? JSON.parse(await readBody(req) || '{}') : {};
+      const args = spec.a ? spec.a(url, body) : [];
+      const d = await withTx(identity, brand, (c) => c.query(spec.q, args));
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      return res.end(JSON.stringify(spec.m === 'GET' ? d.rows : (d.rows[0] || { ok: true })));
+    } catch (e) {
+      // The refusals these functions raise are written for the person who
+      // triggered them -- "this contract is approved", "a contract with no
+      // properties unlocks nothing" -- so they are worth passing through.
+      // Anything else is not.
+      const plain = new RegExp([
+        'staff only', 'not your contract', 'no such', 'not an agent',
+        'not a customer', 'contracts are held', 'unlocks nothing',
+        'is approved', 'is declined', 'is withdrawn', 'has not been sent',
+        'needs a title', 'unknown ', 'ends declined',
+      ].join('|')).test(e.message);
+      console.error('crm failed:', what, e.message);
+      res.writeHead(plain ? 400 : 403, { 'Content-Type': 'application/json' });
+      return res.end(JSON.stringify({ error: plain ? e.message : 'not permitted' }));
+    }
+  }
+
   if (url.pathname === '/api/parse' && req.method === 'POST') {
     try {
       const identity = await identityFor(req, url);
