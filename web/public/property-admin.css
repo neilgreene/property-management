@@ -326,22 +326,56 @@
    columns -- rather than staying pinned somewhere the rest of the layout
    has to work around. It is placed by the wide-screen rule at the foot of
    this file, not by its position in the markup. */
-.mgrcard{padding:13px 15px 15px}
+/* DARK, BECAUSE IT IS NOT PROPERTY DATA.
+   A, B, C and D are facts about the house, all typed into the same kind of
+   white card. The manager is a person you contact, and its buttons DO
+   something rather than record something. Styled like the blocks it read
+   as a fifth panel of figures, and the one control on the sheet that
+   reaches outside the building sat in the same visual register as a
+   bedroom count.
+   Contrast measured, not eyeballed, against #13395c: white text 11.9:1,
+   labels 6.7:1, the muted note 5.4:1, button text 9.6:1 -- all past the
+   4.5:1 needed for body text -- and the button border 3.4:1, past the 3:1
+   a control outline needs. */
+:root{
+  --mgrbg:#13395c;      /* the card itself */
+  --mgrink:#fff;        /* names and values */
+  --mgrink2:#a9c6e0;    /* field labels */
+  --mgrmut:#93b3d0;     /* the caveat under the buttons */
+  --mgrline:#5b8cc4;    /* button outlines */
+  --mgrhov:#1d4d78;     /* button hover */
+}
+.mgrcard{padding:13px 15px 15px;background:var(--mgrbg);border-color:var(--mgrbg);
+  color:var(--mgrink)}
 .mgrhead{display:flex;align-items:baseline;gap:7px;flex-wrap:wrap}
-.mgrname{font-weight:700;font-size:13.5px}
+.mgrname{font-weight:700;font-size:13.5px;color:var(--mgrink)}
 /* Said, not hidden. Nobody has verified these records and the card should
-   not let them pass as fact. */
+   not let them pass as fact. Amber still, because it means the same thing
+   here as everywhere else on the sheet -- but restated for the dark ground,
+   where the light-background pair would have been unreadable.
+   A SOLID warm fill rather than a translucent amber: translucent, the blue
+   beneath it mixes in and the chip comes out olive, which is not a warning
+   colour. Opaque, it stays amber and reads at 7.1:1. */
 .mgrunc{font-size:10px;font-weight:700;letter-spacing:.4px;text-transform:uppercase;
-  color:var(--attn);background:var(--attnbg);border-radius:4px;padding:1px 5px}
-.mgrperson{font-size:12.5px;color:var(--ink2);margin-top:2px}
+  color:#ffd48a;background:#553f16;border-radius:4px;padding:1px 5px}
+.mgrperson{font-size:12.5px;color:var(--mgrink2);margin-top:2px}
 .mgrfacts{display:grid;grid-template-columns:auto 1fr;gap:2px 10px;margin:9px 0 0;
   font-size:12px}
-.mgrfacts dt{color:var(--mut)}
-.mgrfacts dd{margin:0;font-variant-numeric:tabular-nums;overflow-wrap:anywhere}
-.mgrreach{margin:8px 0 0;font-size:11.5px;color:var(--ink2);font-style:italic}
+.mgrfacts dt{color:var(--mgrink2)}
+.mgrfacts dd{margin:0;font-variant-numeric:tabular-nums;overflow-wrap:anywhere;
+  color:var(--mgrink)}
+.mgrreach{margin:8px 0 0;font-size:11.5px;color:var(--mgrink2);font-style:italic}
 .mgract{display:flex;gap:6px;flex-wrap:wrap;margin-top:10px}
-.mgract .ghost.sm{text-decoration:none;display:inline-flex;align-items:center}
+/* The shared .ghost is white-on-white by design and disappears here, so the
+   card restates it rather than leaving the buttons invisible. */
+.mgract .ghost.sm{text-decoration:none;display:inline-flex;align-items:center;
+  background:transparent;border-color:var(--mgrline);color:#dce9f5}
+.mgract .ghost.sm:hover{background:var(--mgrhov);border-color:#88b0dc;color:#fff}
+.mgract .ghost.sm:focus-visible{outline:2px solid #fff;outline-offset:1px}
 .mgrnote{margin-top:9px}
+/* .muted is an ink colour for a white card; on this one it would be close
+   to invisible. */
+.mgrcard .muted,.mgrnote{color:var(--mgrmut)}
 
 /* the follow-up dialog */
 .scrim2{position:fixed;inset:0;background:rgba(11,22,34,.45);z-index:2000;

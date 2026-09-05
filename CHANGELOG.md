@@ -12,6 +12,36 @@ date the work was completed.
 
 ---
 
+## 0.9.47 — 2026-09-05
+
+**The manager card is dark blue, because it is not property data.**
+
+A, B, C and D are facts about the house, all typed into the same white card. The
+manager is a person you contact, and the card's buttons *do* something rather
+than record something. Styled like the blocks, it read as a fifth panel of
+figures — and the one control on the sheet that reaches outside the building sat
+in the same visual register as a bedroom count.
+
+It is now `#13395c` with white text. Contrast was measured rather than eyeballed:
+white 11.9:1, field labels 6.7:1, the caveat under the buttons 5.4:1, button text
+9.6:1 — all past the 4.5:1 body text needs — and the button outline 3.4:1, past
+the 3:1 a control needs. The first border colour tried came out at 2.1:1 and was
+replaced.
+
+Two things the dark ground broke, both fixed rather than left:
+
+The shared `.ghost` button is white-on-white by design, so the action buttons
+vanished. The card restates them with a light outline and its own hover.
+
+The **unconfirmed** chip stays amber, because it means the same thing here as
+everywhere else on the sheet — but it now uses a solid warm fill instead of a
+translucent one. Translucent, the blue underneath mixed in and the chip came out
+olive, which is not a warning colour. Opaque it stays amber, and reads at 7.1:1.
+
+Rendered in Chromium and looked at, not inferred from the stylesheet.
+
+---
+
 ## 0.9.46 — 2026-09-05
 
 **Five settings the app reads were never passed to the container.**
