@@ -12,6 +12,71 @@ date the work was completed.
 
 ---
 
+## 0.9.51 — 2026-09-05
+
+**Agents, customers, opportunities and contracts — and a contract is what
+unlocks a property.**
+
+Step one of three: the data model and the rules. Panels come next.
+
+Agents and customers are not new entities. `core.person` already holds both,
+as roles `agent` and `investor`; a second table answering "who is this" would
+be the first thing to rot. `core.agent_profile` and `core.customer_profile`
+carry only what a person row does not.
+
+`core.opportunity` is a customer's shortlist and links many properties to them.
+It is deliberately distinct from `core.deal`, which is one property in one
+pipeline stage — closing a property should not close the conversation.
+
+`core.contract` is the new thing. A customer may hold several; each covers one
+or more properties.
+
+**Approval is not a decision anybody makes.** The customer signs the agreement
+and pays the fee, and whichever of those happens second approves the contract —
+which is what opens the address and the photographs, *for the properties named
+on that contract and no others*. There is deliberately no
+`api.approve_contract()`: a gate an administrator can open by picking a value
+from a dropdown is not a gate. Two CHECK constraints make an approved contract
+without both facts impossible to write at all — by the panel, by a migration,
+or by anybody at a psql prompt.
+
+That constraint immediately caught a flaw in my own code. `record_payment()`
+set `paid_at` in one statement and the status in another, so the row passed
+through *signed and paid but still sent* — a state I had just declared
+impossible. A CHECK is evaluated per statement, not at commit, and Postgres
+cannot defer one. The answer was to stop creating the state rather than weaken
+what the table promises, so signing and paying each do their half and the
+approval in a single UPDATE.
+
+Two refusals worth naming. A property cannot be added to an approved contract —
+that would unlock it with no signature and no payment behind it, changing the
+set the customer agreed to after the fact. And an empty contract cannot be
+sent, because it unlocks nothing.
+
+**The old blanket rule still applies alongside this one.** A signed investor
+still sees every address, as before. That is deliberate and reversible:
+nothing that worked stops working, and every existing test still passes. One
+marked line in `sec.can_see_address()` makes contracts the only route.
+
+Every table carries a nullable unique `external_ref`, because customers, agents
+and opportunities arrive from GoHighLevel later and a GHL id should be writable
+against a row that already exists rather than needing a migration.
+
+`sql/59_contract_tests.sql` asserts the negative cases, which are the ones that
+matter: signing alone unlocks nothing, an approved contract unlocks nothing it
+does not name, one customer cannot see another's contracts, and a draft is not
+shown to the customer at all.
+
+**And a fourth list, because three was one too many.** Adding a schema file
+means editing `run.sh`, `db-rebuild.sh` and `docker/db.Dockerfile`, and that has
+been got wrong before — `run.sh` once stopped at 45 while the directory had
+reached 48, so a fresh database silently lacked three schemas.
+`web/test/schema-lists.test.js` now reads the directory and checks all three,
+including that they stay in dependency order and that test walkthroughs are
+never baked into the published image.
+
+---
+
 ## 0.9.50 — 2026-09-05
 
 **The Portainer guide now covers the media store, which it never mentioned.**

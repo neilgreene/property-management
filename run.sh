@@ -19,7 +19,9 @@ for f in sql/01_schema.sql sql/02_policies.sql sql/03_views.sql \
          sql/39_underwriting.sql sql/40_property_admin.sql \
          sql/41_property_manager.sql sql/42_underwriting_seed.sql \
          sql/43_property_notes.sql sql/44_profile.sql sql/45_note_summary.sql \
-         sql/46_note_severity.sql sql/47_share.sql sql/48_mfa.sql sql/49_projection.sql sql/50_search_criteria.sql sql/51_customer_workflow.sql sql/52_search_screening.sql sql/53_workbook_extras.sql sql/54_manager_contact.sql; do
+         sql/46_note_severity.sql sql/47_share.sql sql/48_mfa.sql sql/49_projection.sql sql/50_search_criteria.sql sql/51_customer_workflow.sql sql/52_search_screening.sql sql/53_workbook_extras.sql sql/54_manager_contact.sql \
+         sql/55_contracts.sql sql/56_contract_api.sql sql/57_contract_actions.sql \
+         sql/58_contract_seed.sql; do
   echo "loading $f"; psql -d "$DB" -v ON_ERROR_STOP=1 -q -f "$f"
 done
 # Demo logins for both roles. Same file docker-compose loads, so the two
@@ -36,6 +38,7 @@ psql -d "$DB" -f sql/14_pipeline_tests.sql
 psql -d "$DB" -f sql/23_listing_sync_tests.sql
 psql -d "$DB" -f sql/27_governance_tests.sql
 psql -d "$DB" -f sql/29_intake_tests.sql
+psql -d "$DB" -f sql/59_contract_tests.sql
 # --- GHL integration worker -------------------------------------------
 # Test-only fixture role; see worker/test/bootstrap.sql for why it exists.
 psql -d "$DB" -q -f worker/test/bootstrap.sql
