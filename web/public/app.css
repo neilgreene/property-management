@@ -53,7 +53,18 @@ h1{font-size:19px;margin:0}
 .parsed{padding:8px 18px;background:var(--accent2);color:var(--accent);
   border-bottom:1px solid #cfe0ec;font-size:13px}
 .parsed b{font-weight:700}
-.parsed .note{color:#4a6f88;font-weight:400}
+/* A CLASS-NAME COLLISION, and it predates the refusal message that made
+   it visible. `.note` further down this file is the detail panel's gate
+   NOTICE -- a bordered, padded block with its own background and a 14px
+   vertical margin. This rule only ever overrode the colour, so the run-on
+   half of every parse explanation has been rendering as a floating block
+   inside the banner since the box was written; with a one-line message it
+   read as an odd inline chip and nobody looked twice.
+   Reset explicitly rather than relying on the cascade: two unrelated
+   things sharing a name is the actual fault, and the reset is what stops
+   the next property added to `.note` leaking in here too. */
+.parsed .note{color:#4a6f88;font-weight:400;
+  background:none;border:0;border-radius:0;padding:0;margin:0;display:inline}
 
 /* ---------- filters ---------- */
 .filters{display:flex;flex-wrap:wrap;align-items:flex-end;gap:12px;
@@ -346,3 +357,8 @@ table.fin .sub{color:var(--mut);font-size:12px;font-weight:400}
    it reads as part of the panel's controls rather than as content. */
 .close.share{right:96px;font-size:16px}
 .smsg.bad{color:var(--crit);font-weight:600}
+/* A refused search is not an error and must not look like one. It is a
+   considered "no" with a reason, so it reads as the system explaining
+   itself rather than failing. */
+.parsed.refused{background:var(--attnbg);border-color:var(--attnline);color:var(--attn)}
+.parsed.refused .note{color:var(--ink2)}

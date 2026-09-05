@@ -12,6 +12,64 @@ date the work was completed.
 
 ---
 
+## 0.9.32 — 2026-09-05
+
+**A search that would steer is refused, with a reason.**
+
+Step two of three toward a search box with a model behind it — and the step
+that has to exist first.
+
+### Why the existing validator does not cover this
+`nlq.interpret()` guards the **shape** of the criteria: a key not on the
+allowlist is dropped, so a parser cannot invent a column to filter on. That is
+a real protection and it is the wrong one for this problem.
+
+Ask any parser — rules or model — for *"a good school district"* or *"a nice
+family neighbourhood"* and it returns `{ city: 'X', min_beds: 4 }`: entirely
+legal keys, passing every check, and a proxy filter all the same. **The
+steering is in the request**, upstream of anything an output validator can
+see. A model makes this worse rather than better; it is far more willing than
+a regex to turn a vibe into a location.
+
+The Fair Housing Act does not require that anyone intended it.
+
+### What was built
+`gov.prohibited_phrase` — natural-language phrasings mapped to the dimensions
+already in `gov.prohibited_dimension`. The register stays the single source, so
+adding a dimension and its phrasings extends the guard everywhere at once. A
+lexicon compiled into JavaScript would be a second list to forget.
+
+`api.screen_search_text()` runs **before** the parse. A match refuses with
+**422** — the request was understood perfectly well, it is being declined —
+and names what was matched and which basis it protects. Not a silent drop:
+somebody asking for a good school district is usually asking in good faith and
+deserves to be told what this system will not rank on, and what it offers
+instead.
+
+Coverage spans schools, composite desirability, crime indices, familial status,
+source of income, religion, race, national origin, language and area income.
+
+Tests assert both directions — eight steering phrasings refused, and five
+ordinary searches **not** refused. A screening layer that over-refuses gets
+switched off, so *"a safety deposit box"* must not trip on "safe".
+
+### Fixed — a class-name collision that predates this
+`.note` is the detail panel's gate **notice**: a bordered, padded block with its
+own background and a 14px margin. `.parsed .note` only ever overrode the
+colour — so the trailing half of every parse explanation has been rendering as
+a floating block inside the search banner since that box was written. With a
+one-line message it read as an odd inline chip and nobody looked twice; the
+longer refusal made it unmissable. Reset explicitly, because two unrelated
+things sharing a name is the actual fault.
+
+### Fixed — a withdrawn deal stayed in the customer's list
+`api.my_deal` returned closed deals, so a property withdrawn from a customer
+kept appearing to them. Staff still see it in `api.property_interest`, which is
+the audit record of what was shown to whom — the two views want different
+answers here, which is the point of them being two views.
+
+---
+
 ## 0.9.31 — 2026-09-05
 
 **Showing a property to a customer — and the gate that nearly opened.**

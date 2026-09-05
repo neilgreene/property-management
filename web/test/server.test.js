@@ -1383,6 +1383,79 @@ test('only staff may show a property to somebody', async (t) => {
   assert.equal(r.ok, false);
 });
 
+// ---- fair-housing screening ------------------------------------------
+// THE POINT THE OUTPUT VALIDATOR MISSES. nlq.interpret() guards the SHAPE
+// of the criteria -- a key not on the allowlist is dropped. "A good school
+// district" produces a city and a bedroom count: entirely legal keys,
+// passing every check, and a proxy filter all the same. The steering is in
+// the request, upstream of anything the output validator can see.
+test('a search that would steer is refused, with a reason', async (t) => {
+  if (!available) return t.skip('no server');
+  const ask = (text) => jsonPost('/api/parse', { text });
+
+  const steering = [
+    ['houses in a good school district', 'school_rating'],
+    ['best schools in Columbus',          'school_rating'],
+    ['nice family friendly neighborhood', 'familial_status'],
+    ['somewhere safe with low crime',     'crime_index'],
+    ['up and coming area',                'neighbourhood_desirability'],
+    ['affluent area under 400k',          'area_median_income_as_ranking'],
+    ['4 bed house near a church',         'religious_institution_proximity'],
+    ['no section 8',                      'source_of_income'],
+  ];
+  for (const [text] of steering) {
+    const r = await ask(text);
+    assert.equal(r.status, 422,
+      `"${text}" WAS NOT REFUSED — the output validator cannot catch this, `
+      + 'because the criteria it produces are entirely legal');
+    const d = await r.json();
+    assert.equal(d.refused, true);
+    assert.ok(d.matched.length, 'and says what it matched');
+    assert.ok(d.matched[0].basis, 'and which protected basis it protects');
+    assert.equal(d.criteria, undefined, 'nothing is parsed once it is refused');
+  }
+});
+
+test('an ordinary search is not refused', async (t) => {
+  if (!available) return t.skip('no server');
+  const ask = (text) => jsonPost('/api/parse', { text });
+  // The guard is worthless if it fires on the searches people actually
+  // run -- and a screening layer that over-refuses gets switched off.
+  const fine = [
+    '3 bed duplex in Cleveland under 200k',
+    'duplexes with the best cap rate in Tampa',
+    'single family homes over 1500 sq ft',
+    'cheapest condos in Columbus',
+    'a safety deposit box is not a match',
+  ];
+  for (const text of fine) {
+    const r = await ask(text);
+    assert.equal(r.status, 200, `"${text}" was refused and should not have been`);
+    assert.equal((await r.json()).refused, undefined);
+  }
+});
+
+test('the screening reads the register, not a list in the code', async (t) => {
+  if (!available) return t.skip('no server');
+  const d = await db();
+  // Every phrase points at a registered dimension: the register stays the
+  // single source, so adding a dimension and its phrasings extends the
+  // guard everywhere at once.
+  const orphans = await d.query(
+    `SELECT p.phrase FROM gov.prohibited_phrase p
+      WHERE NOT EXISTS (SELECT 1 FROM gov.prohibited_dimension x
+                         WHERE x.dimension = p.dimension)`);
+  assert.equal(orphans.rows.length, 0);
+  // And the dimensions that are hardest to catch have phrasings at all.
+  const covered = await d.query(
+    `SELECT DISTINCT dimension FROM gov.prohibited_phrase`);
+  const have = new Set(covered.rows.map((r) => r.dimension));
+  for (const must of ['school_rating', 'crime_index', 'neighbourhood_desirability',
+                      'familial_status', 'source_of_income']) {
+    assert.ok(have.has(must), `${must} has no phrasings, so nothing catches it`);
+  }
+});
+
 test('the login page is served', async (t) => {
   if (!available) return t.skip('no server');
   const r = await fetch(`${base}/login.html`);

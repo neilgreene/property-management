@@ -1454,12 +1454,33 @@ const server = http.createServer(async (req, res) => {
       const cities = await withTx(identity, null, async (client) =>
         (await client.query('SELECT DISTINCT city FROM api.property ORDER BY city'))
           .rows.map((r) => r.city));
+      // SCREENED BEFORE PARSED. The output validator guards the shape of
+      // the criteria; this guards the request. "A good school district"
+      // parses to entirely legal keys -- a city and a bedroom count --
+      // and is steering all the same, so the only place to catch it is
+      // before anything has been turned into a filter.
+      const text = String(body.text || '').slice(0, 300);
+      const screened = await withTx(identity, null, (client) =>
+        client.query('SELECT * FROM api.screen_search_text($1)', [text]));
+      if (screened.rows.length) {
+        // 422, not 400: the request was understood perfectly well. It is
+        // being declined, and the caller is told exactly why and what
+        // they can ask for instead.
+        res.writeHead(422, { 'Content-Type': 'application/json' });
+        return res.end(JSON.stringify({
+          refused: true,
+          matched: screened.rows.map((r) => ({
+            phrase: r.matched, basis: r.basis, kind: r.kind })),
+          error: 'This search cannot be run.',
+        }));
+      }
+
       // Parsed for everybody, gated for this caller. Parsing conditionally
       // would mean the same sentence understood two ways depending on who
       // typed it, which is far harder to reason about than one parse and
       // one gate.
       const criteria = nlq.interpret(
-        nlq.parse(String(body.text || '').slice(0, 300), cities),
+        nlq.parse(text, cities),
         { staff: isStaff(identity) });
       res.writeHead(200, { 'Content-Type': 'application/json' });
       return res.end(JSON.stringify({

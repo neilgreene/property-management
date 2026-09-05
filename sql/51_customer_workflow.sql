@@ -80,6 +80,13 @@ JOIN core.pipeline_stage s
   ON s.pipeline_code = d.pipeline_code AND s.stage_code = d.stage_code
 JOIN api.property p ON p.property_id = d.property_id
 WHERE d.investor_id = sec.actor_id()
+  -- A withdrawn deal leaves the customer's own list. They were shown a
+  -- property and it was taken back; continuing to list it is confusing,
+  -- and clicking it would be worse. Staff keep seeing it in
+  -- api.property_interest, which is the audit record of what was shown to
+  -- whom -- the two views want different answers here and that is the
+  -- point of them being two views.
+  AND NOT s.is_lost
 ORDER BY s.position, d.opened_at DESC;
 
 GRANT SELECT ON api.my_deal TO sdi_investor, sdi_agent, sdi_admin;

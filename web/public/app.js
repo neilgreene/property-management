@@ -859,10 +859,30 @@ $('ask').addEventListener('submit', async (e) => {
   const text = $('asktext').value.trim();
   const box = $('parsed');
   if (!text) { box.hidden = true; return; }
-  const d = await (await fetch('/api/parse', {
+  const r = await fetch('/api/parse', {
     method: 'POST', headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ text }),
-  })).json();
+  });
+  const d = await r.json().catch(() => ({}));
+
+  // Refused, and explained. Somebody asking for a good school district is
+  // almost always asking in good faith, so this says what the system will
+  // not rank on and what it offers instead -- rather than returning
+  // nothing and letting them conclude the search box is broken.
+  if (d.refused) {
+    const bases = [...new Set(d.matched.map((m) => m.basis))];
+    box.hidden = false;
+    box.className = 'parsed refused';
+    box.innerHTML = `Searching on <b>${esc(d.matched.map((m) => m.phrase).join('”, “'))}</b>
+      is something this marketplace does not do.
+      <span class="note">Ranking homes that way steers buyers by
+      ${esc(bases.join(' and '))}, which the Fair Housing Act prohibits
+      whether or not anyone intends it. Search on the things that are
+      actually about the property — beds, price, size, type, city, and
+      yield.</span>`;
+    return;
+  }
+  box.className = 'parsed';
   if (!d.explain) {
     box.hidden = false;
     box.innerHTML = `Nothing recognised in “${esc(text)}”. <span class="note">Try “3 bed duplex in Cleveland under 200k”.</span>`;
