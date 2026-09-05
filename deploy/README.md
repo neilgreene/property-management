@@ -123,11 +123,39 @@ chown -R 1000:1000 /mnt/sdi-media   # the web container runs as `node`
 grep sdi-media /etc/fstab           # must be there
 ```
 
-**The fstab line is not optional.** If that filesystem is not mounted at
-boot, Docker bind-mounts the empty mountpoint directory underneath it
-instead — silently, with no error and no failed container — and every
-photograph appears to have vanished while the database still lists them.
-Nothing about that failure points at the mount.
+**The fstab line is not optional** — but on its own it does not close the
+hole, because it will carry `nofail`, and it should. Without `nofail` a
+volume that fails to attach makes the machine fail to boot and takes SSH
+with it, which is far worse than missing photographs. With it, an absent
+volume simply stops being an error: the host boots, the mount point stays
+an empty directory on the OS disk, Docker bind-mounts that without
+complaint, and there is no failed container and no warning anywhere.
+Uploads land on the wrong disk and every existing photograph is missing
+from the application while the database still lists all of them. It looks
+like data loss. Nothing about it points at a mount.
+
+So keep `nofail`, and close it a layer up — with a file that exists only
+on the volume:
+
+```bash
+touch /mnt/sdi-media/.sdi-media-volume
+chown 1000:1000 /mnt/sdi-media/.sdi-media-volume
+echo 'SDI_MEDIA_SENTINEL=.sdi-media-volume' >> /opt/sdi/.env
+```
+
+The web tier now refuses to start when that file is not there, and says
+why:
+
+```
+FATAL: the media store at /srv/media has no .sdi-media-volume.
+The filesystem holding the photographs is almost certainly not mounted...
+```
+
+The container will restart-loop, which is the point: a stopped service is
+a smaller harm than one quietly writing to the wrong disk, and five
+seconds of logs beats a bug report about missing photographs weeks later.
+Leave `SDI_MEDIA_SENTINEL` empty on a host with nothing mounted; start-up
+then says the check is off rather than saying nothing.
 
 **The database publishes no port.** It never has. Adding one to debug
 something is how it ends up reachable from outside; use

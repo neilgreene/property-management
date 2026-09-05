@@ -1879,7 +1879,70 @@ async function assertNoProhibitedFilters() {
   console.log(`fair-housing register: ${banned.length} dimensions, none exposed as filters`);
 }
 
+// ---------------------------------------------------------------------
+// The media store is actually mounted
+//
+// A separate filesystem for the photographs is mounted with `nofail`, and
+// that is the right choice on a remote host: without it, a volume that
+// fails to attach makes the machine fail to boot and takes SSH with it.
+// The cost is that an absent volume stops being an error. The host boots,
+// the mount point stays an empty directory on the OS disk, and Docker
+// bind-mounts THAT without complaining -- no failed container, no warning,
+// nothing in `docker compose ps` to look at. Uploads succeed onto the
+// wrong disk, and every photograph already taken is missing from the
+// application while the database still lists every one of them.
+//
+// Nothing in that failure points at a mount. It looks like data loss.
+//
+// So: a file that exists only on the volume. If it is not there, whatever
+// is behind that path is not the store, and starting up means quietly
+// writing to the wrong disk. Refusing to start is the smaller harm, and
+// the same trade the fair-housing check above makes.
+//
+// Opt-in, because it is a deployment fact rather than a code fact: a
+// developer running against ./media has nothing mounted and nothing to
+// assert. Where it is NOT set this says so out loud rather than staying
+// quiet -- the whole failure being guarded against is one that stays quiet.
+function assertMediaStoreMounted() {
+  const name = (process.env.SDI_MEDIA_SENTINEL || '').trim();
+  if (!name) {
+    console.log('media store: no sentinel configured (SDI_MEDIA_SENTINEL unset) '
+      + '-- an unmounted store would not be detected');
+    return;
+  }
+
+  // Operator configuration rather than caller input, but the same
+  // containment rule as every other path in this file: a sentinel that
+  // resolves outside the root proves nothing about the root.
+  const full = path.resolve(MEDIA_ROOT, name);
+  if (!full.startsWith(MEDIA_ROOT + path.sep)) {
+    console.error(`FATAL: SDI_MEDIA_SENTINEL (${name}) resolves outside the media `
+      + `root ${MEDIA_ROOT}. It has to name a file ON the store to say anything `
+      + 'about the store.');
+    process.exit(1);
+  }
+
+  if (!fs.existsSync(full)) {
+    console.error(`FATAL: the media store at ${MEDIA_ROOT} has no ${name}.`);
+    console.error('The filesystem holding the photographs is almost certainly not '
+      + 'mounted, and what is behind that path is the bare mount point on the OS '
+      + 'disk. Starting now would write new uploads to the wrong disk and show '
+      + 'every existing photograph as missing.');
+    console.error(`Check the mount first. If the store is genuinely correct and `
+      + `new, mark it: touch <store>/${name}`);
+    process.exit(1);
+  }
+
+  console.log(`media store: ${MEDIA_ROOT} carries ${name}`);
+}
+
 const PORT = process.env.PORT || 3000;
+
+// Before the database check, which retries for about two minutes. This one
+// is local and instant, and there is no reason to spend two minutes on the
+// database before reporting a fault visible immediately.
+assertMediaStoreMounted();
+
 assertNoProhibitedFilters().then(() => {
   server.listen(PORT, () => console.log(`SDI marketplace on http://localhost:${PORT}`));
 });

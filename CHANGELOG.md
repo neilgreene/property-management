@@ -12,6 +12,46 @@ date the work was completed.
 
 ---
 
+## 0.9.45 — 2026-09-05
+
+**The web tier refuses to start on a media store that is not mounted.**
+
+Putting the photographs on a separate filesystem introduced a failure mode with
+no symptom. The fstab entry carries `nofail`, and it should: without it a volume
+that fails to attach makes the machine fail to boot and takes SSH with it, which
+is far worse than missing photographs. But `nofail` means an absent volume stops
+being an error. The host boots, the mount point stays an empty directory on the
+OS disk, Docker bind-mounts that without complaint, and there is no failed
+container and no warning anywhere to look at. New uploads land on the wrong
+disk. Every photograph already taken is missing from the application while the
+database still lists every one of them.
+
+It looks like data loss, and nothing about it points at a mount.
+
+`SDI_MEDIA_SENTINEL` names a file that exists only on the volume. Missing, the
+server prints what is wrong and what is probably causing it, and exits. The
+container then restart-loops, which is the intent: a stopped service is a
+smaller harm than one quietly writing to the wrong disk, and it is the same
+trade the fair-housing check has always made. The check runs *before* the
+database check, which retries for about two minutes — there is no reason to
+spend two minutes on the database before reporting a fault that is visible
+immediately.
+
+Opt-in, because it is a deployment fact rather than a code fact: a developer
+running against `./media` has nothing mounted and nothing to assert. But where
+it is not set, start-up **says so** rather than staying quiet, since the failure
+being guarded against is precisely one that stays quiet.
+
+A sentinel that resolves outside the media root is refused rather than accepted,
+because a file elsewhere on the OS disk would satisfy the check while the store
+was absent — which is the exact condition being tested for.
+
+`web/test/media-mount.test.js` spawns the real server and reads its exit code
+for all four cases. The behaviour under test is refusing to start, which no unit
+test of a function can demonstrate.
+
+---
+
 ## 0.9.44 — 2026-09-05
 
 **The media path is per-host, and the documentation now says so.**
