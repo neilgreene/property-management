@@ -29,7 +29,9 @@ curl -fsSLo deploy/docker-compose.public.yml \
 # The hostname and the contact address are already set for
 # 172.235.60.70. Change the hostname only when a domain replaces it.
 
-docker compose -f docker-compose.release.yml \
+# Both -f files, every time. Run from /opt/sdi -- the paths inside the
+# overlay resolve against the FIRST file's directory, not their own.
+docker compose -f docker-compose.yml \
                -f deploy/docker-compose.public.yml up -d
 ```
 

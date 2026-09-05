@@ -40,7 +40,14 @@ services:
       - "443:443"
       - "443:443/udp"
     volumes:
-      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      # RELATIVE TO THE PROJECT DIRECTORY, which with several -f files is
+      # the directory of the FIRST one -- /opt/sdi, not this file's own
+      # directory. `./Caddyfile` looked one level too high, found nothing,
+      # and Docker created a DIRECTORY at that path, which then failed to
+      # mount over a file. Docker creating a missing bind source as a
+      # directory is what turns a wrong path into a confusing error rather
+      # than a clear one.
+      - ./deploy/Caddyfile:/etc/caddy/Caddyfile:ro
       # Certificates and keys. A named volume on purpose: losing these
       # means re-issuing on every restart, and Let's Encrypt rate-limits
       # that hard enough to lock you out for a week.
