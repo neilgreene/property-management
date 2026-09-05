@@ -12,6 +12,65 @@ date the work was completed.
 
 ---
 
+## 0.9.34 — 2026-09-05
+
+**The rest of the workbook: section 3, points, and mortgage acceleration.**
+
+### Added — section 3, ratings
+Square feet, bedrooms, bathrooms, year built and year-5 cash flow against the
+suggested minimums, each marked favorable or insufficient. Thresholds are held
+per property so changing what "favorable" means for one deal does not restate
+every other.
+
+**The schools row is deliberately not there.** `gov.prohibited_dimension`
+registers `school_rating` as a fair-housing proxy — ratings track the
+demographics of a catchment, so a sortable score is steering, and a composite
+verdict partly derived from one is the same thing laundered.
+
+Anything the intake sheet carried is read back out of the **raw payload**, shown
+to staff as prose beside a note saying why it is not scored, and is never a
+column, never in the verdict, and never something anyone can sort on. A test
+asserts the row is absent and the invariant is still clean.
+
+### Added — deciding about using points
+Financed amount, point cost, both rates, both payments, the monthly gap and the
+break-even in months and years. Reconciles to your sheet: **$206,500 financed,
+$2,065 for one point, 6.490% against 6.87%, $1,304 against $1,355** — all exact
+or within a dollar. Break-even lands at 39.7 months against the sheet's 40.2;
+the sheet divides by a rounded gap, so the daylight is arithmetic rather than
+disagreement.
+
+The rate without the point is an **argument with a default**, not a constant
+buried in the maths — it is an assumption about the market, and the default
+happens to land exactly on your 6.87%.
+
+### Added — mortgage acceleration
+Extra payment, years to payoff, interest over the full term against interest
+paid accelerated, and the saving. **The schedule is walked month by month
+rather than solved**: an extra payment made once a year is not a level annuity,
+and every closed form that looks like it applies quietly assumes it is.
+
+The extra payment defaults to the property's own five-year average cash flow
+from section 1 — the money the house throws off, put back into the house — so
+it moves when the assumptions do rather than being entered twice.
+
+### Changed — "section 8" is no longer refused outright
+Wrong for an investor audience. A tenanted voucher property has a
+government-backed rent stream, which is a real underwriting fact somebody may
+legitimately search for. What is prohibited is the **exclusionary** direction —
+and in a growing number of states source-of-income discrimination is illegal on
+its own account.
+
+*"section 8 tenant in place"* now searches. *"no section 8"*, *"no vouchers"*,
+*"not section 8"* and *"excluding section 8"* are refused. Tested both ways.
+
+### Fixed
+`FM999.9` leaves a bare trailing point on a whole number, so 2 bathrooms
+rendered as `2.`. Stripped, rather than forcing a decimal nobody wrote — 2
+reads as 2, 2.5 reads as 2.5.
+
+---
+
 ## 0.9.33 — 2026-09-05
 
 **A model behind the search box — step three of three.**

@@ -347,6 +347,7 @@ async function openProperty(id) {
   state.customers = d.customers || [];
   state.stages = d.stages || [];
   renderInterest(d.interest || []);
+  renderWorkbook(d.ratings || [], d.schoolNote, d.points, d.acceleration);
   renderHistory(d.history);
   redraw();
   document.querySelectorAll('.prow').forEach((el) =>
@@ -473,8 +474,59 @@ function renderShares(rows) {
     : '<div class="muted">Not shared yet.</div>';
 }
 
+const rate = (v) => v == null ? '—' : (Number(v) * 100).toFixed(3) + '%';
 const roi = (v) => v == null ? '—' : (Number(v) * 100).toFixed(1) + '%';
 const pctIn  = (v) => v == null ? '' : (Number(v) * 100).toFixed(2).replace(/\.00$/, '') + '%';
+
+// ---------------------------------------------------------------------
+// section 3, points, and acceleration
+// ---------------------------------------------------------------------
+function renderWorkbook(ratings, schoolNote, points, accel) {
+  $('ratings').innerHTML = ratings.length ? `<table class="rtab">
+    <tr><th>Item</th><th>Suggested (min.)</th><th>This property</th><th></th></tr>
+    ${ratings.map((r) => `<tr>
+      <td>${esc(r.item)}</td><td>${esc(r.suggested)}</td><td>${esc(r.actual)}</td>
+      <td class="${r.favorable ? 'fav' : 'insuf'}">${
+        r.favorable ? 'Favorable' : 'Insufficient'}</td>
+    </tr>`).join('')}
+  </table>` : '<div class="muted">Needs figures before this can be scored.</div>';
+
+  // Shown, and shown APART. Never joined into the table above, because a
+  // verdict partly derived from it is a laundered version of the same thing.
+  $('schoolnote').hidden = !schoolNote;
+  if (schoolNote) {
+    $('schoolnote').innerHTML = `<b>From the intake sheet:</b> schools ${esc(schoolNote)}
+      — recorded, not scored.`;
+  }
+
+  $('points').innerHTML = points ? `<table class="ctab">
+    <tr><td>Financed amount</td><td>${usd(points.financed)}</td><td>${usd(points.financed)}</td></tr>
+    <tr><td>Points</td><td>${pctIn(points.points_pct)}</td><td>0%</td></tr>
+    <tr><td>Points cost</td><td>${usd(points.points_cost)}</td><td>$0</td></tr>
+    <tr><td>Interest rate</td><td>${rate(points.rate_with)}</td><td>${rate(points.rate_without)}</td></tr>
+    <tr><td>Monthly payment</td><td>${usd2(points.payment_with)}</td><td>${usd2(points.payment_without)}</td></tr>
+    <tr class="gap"><td>Gap</td><td></td><td>${usd2(points.monthly_gap)}</td></tr>
+    <tr class="be"><td>Break-even</td><td colspan="2">${
+      points.breakeven_months == null ? 'never — the point buys nothing'
+      : esc(points.breakeven_months) + ' months, or ' + esc(points.breakeven_years) + ' years'}</td></tr>
+  </table>
+  <p class="muted small">Staying in the mortgage longer than the break-even means
+    the point saves money. Selling or refinancing before it means skip the point.</p>`
+    : '<div class="muted">Needs financing terms.</div>';
+
+  $('accel').innerHTML = accel ? `<table class="ctab">
+    <tr><td>Extra payment, per year</td><td>${usd(accel.extra_annual)}</td></tr>
+    <tr><td>Per month</td><td>${usd(accel.extra_monthly)}</td></tr>
+    <tr><td>Years to payoff</td><td>${esc(accel.years_to_payoff)}</td></tr>
+    <tr><td>Interest over the full term</td><td>${usd(accel.interest_full)}</td></tr>
+    <tr><td>Interest paid, accelerated</td><td>${usd(accel.interest_early)}</td></tr>
+    <tr class="be"><td>Interest saved</td><td>${usd(accel.interest_saved)}</td></tr>
+  </table>
+  <p class="muted small">Putting the property's own cash flow back into the
+    principal once a year. The figure is the five-year average from section 1,
+    so it moves when the assumptions do.</p>`
+    : '<div class="muted">Needs financing terms.</div>';
+}
 
 // ---------------------------------------------------------------------
 // who this property has been shown to

@@ -1530,6 +1530,126 @@ test('screening runs before the model is ever consulted', async (t) => {
   assert.equal(d.source, undefined, 'nothing was parsed, by rules or model');
 });
 
+// ---- the rest of the workbook ----------------------------------------
+test('section 3 scores the property and leaves schools out of it', async (t) => {
+  if (!available) return t.skip('no server');
+  const cookie = await staffCookie();
+  const list = await (await fetch(`${base}/api/admin/properties?q=SDI-1009`,
+    { headers: { cookie } })).json();
+  const d = await (await fetch(`${base}/api/admin/property?id=${list.rows[0].property_id}`,
+    { headers: { cookie } })).json();
+
+  const items = d.ratings.map((r) => r.item);
+  assert.deepEqual(items, ['Square feet', 'Bedrooms', 'Bathrooms', 'Year built',
+                           'Average cash flow (year 5)']);
+  // THE ROW THAT IS NOT THERE. Ranking on school ratings is steering, and
+  // a composite verdict partly derived from one is the same thing
+  // laundered -- gov.prohibited_dimension says both.
+  assert.ok(!items.some((i) => /school/i.test(i)),
+    'SCHOOLS APPEARED IN THE SCORED TABLE');
+  for (const r of d.ratings) {
+    assert.equal(typeof r.favorable, 'boolean');
+    assert.ok(r.suggested && r.actual, 'every row shows the threshold and the value');
+  }
+  // 2 baths reads as "2", not "2." -- FM999.9 leaves a bare trailing point.
+  const baths = d.ratings.find((r) => r.item === 'Bathrooms');
+  assert.ok(!/\.$/.test(baths.actual), `bathrooms rendered as "${baths.actual}"`);
+
+  // And the invariant that enforces it is still clean.
+  const inv = await (await db()).query('SELECT * FROM api.security_invariants()');
+  assert.equal(inv.rows.length, 0);
+});
+
+test('the points calculation reconciles to the workbook', async (t) => {
+  if (!available) return t.skip('no server');
+  const cookie = await staffCookie();
+  const list = await (await fetch(`${base}/api/admin/properties?q=SDI-1009`,
+    { headers: { cookie } })).json();
+  const d = await (await fetch(`${base}/api/admin/property?id=${list.rows[0].property_id}`,
+    { headers: { cookie } })).json();
+  const p = d.points;
+
+  assert.equal(Number(p.financed), 206500, 'sheet: $206,500 financed');
+  assert.equal(Number(p.points_cost), 2065, 'sheet: 1 point = $2,065');
+  assert.ok(Math.abs(Number(p.rate_without) - 0.0687) < 0.0001,
+    'sheet: 6.87% without the point');
+  assert.ok(Math.abs(Number(p.payment_with) - 1304) < 1, 'sheet: $1,304');
+  assert.ok(Math.abs(Number(p.payment_without) - 1355) < 2, 'sheet: $1,355');
+  // Break-even is the point cost over what it saves each month. The sheet
+  // says 40.2 months; it divides by a rounded gap, so a shade of daylight
+  // between the two is arithmetic, not disagreement.
+  assert.ok(Math.abs(Number(p.breakeven_months) - 40.2) < 1.5,
+    `break-even ${p.breakeven_months} months against the sheet's 40.2`);
+  assert.ok(Math.abs(Number(p.breakeven_years) - Number(p.breakeven_months) / 12) < 0.1);
+});
+
+test('acceleration walks the schedule rather than solving it', async (t) => {
+  if (!available) return t.skip('no server');
+  const cookie = await staffCookie();
+  const list = await (await fetch(`${base}/api/admin/properties?q=SDI-1009`,
+    { headers: { cookie } })).json();
+  const id = list.rows[0].property_id;
+  const d = await (await fetch(`${base}/api/admin/property?id=${id}`,
+    { headers: { cookie } })).json();
+  const a = d.acceleration;
+
+  // The sheet pays off in 21 years putting its own cash flow back in.
+  assert.ok(Math.abs(Number(a.years_to_payoff) - 21) < 1.5,
+    `payoff in ${a.years_to_payoff} years against the sheet's 21`);
+  assert.ok(Number(a.interest_early) < Number(a.interest_full),
+    'paying early costs less interest, or the walk is wrong');
+  assert.ok(Math.abs(Number(a.interest_saved)
+    - (Number(a.interest_full) - Number(a.interest_early))) < 0.02);
+  // The extra payment is the projection's own five-year average, so the
+  // two move together rather than being entered twice.
+  const p5 = d.projection.find((r) => r.years === 5);
+  assert.ok(Math.abs(Number(a.extra_annual) - Number(p5.avg_cash_per_year)) < 0.02,
+    'the extra payment IS the five-year average cash flow, not a second copy of it');
+
+  // With no extra payment the walk must land on the full term, or the
+  // loop is shortening the loan for a reason other than the extra.
+  // The function is staff-gated, so the actor has to be set -- an
+  // unauthenticated connection correctly gets no rows at all.
+  const pool = await db();
+  const c = await pool.connect();
+  let zero;
+  try {
+    await c.query('BEGIN');
+    await c.query("SELECT set_config('app.actor_id', $1, true)", [JESS]);
+    zero = (await c.query('SELECT * FROM api.property_acceleration($1, 0)', [id])).rows[0];
+    await c.query('ROLLBACK');
+  } finally { c.release(); }
+  assert.ok(zero, 'the function answers a staff caller');
+  assert.equal(Number(zero.years_to_payoff), 30);
+  // Nothing extra saves nothing. The walk and core.total_interest are two
+  // independent methods -- month-by-month accrual against a closed form --
+  // and agreeing within a few dollars over 360 payments is the real check
+  // here: it is $3 on $263,000, which is accumulated rounding on a payment
+  // fixed to the cent, not a disagreement about the arithmetic.
+  assert.ok(Math.abs(Number(zero.interest_saved)) < 5,
+    `the walk and the closed form differ by ${zero.interest_saved} over 30 years`);
+});
+
+test('a voucher property can be searched for; excluding one cannot', async (t) => {
+  if (!available) return t.skip('no server');
+  const ask = (text) => jsonPost('/api/parse', { text });
+  // An investor legitimately needs to know whether a property is IN the
+  // programme -- a tenanted HCV property has a government-backed rent
+  // stream. What is prohibited is the exclusionary direction, and in a
+  // growing number of states source-of-income discrimination is illegal
+  // on its own account.
+  assert.equal((await ask('section 8 tenant in place')).status, 200,
+    'a legitimate underwriting question was refused');
+  assert.equal((await ask('duplexes with section 8 tenants in Cleveland')).status, 200);
+
+  for (const bad of ['no section 8', 'no vouchers', 'not section 8',
+                     'excluding section 8']) {
+    const r = await ask(bad);
+    assert.equal(r.status, 422, `"${bad}" was not refused`);
+    assert.equal((await r.json()).matched[0].basis, 'source of income');
+  }
+});
+
 test('the login page is served', async (t) => {
   if (!available) return t.skip('no server');
   const r = await fetch(`${base}/login.html`);

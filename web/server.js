@@ -559,6 +559,14 @@ async function adminProperty(identity, brand, id) {
     const customers = (await client.query('SELECT * FROM api.customers()')).rows;
     const stages = (await client.query(
       'SELECT * FROM api.acquisition_stages()')).rows;
+    const ratings = (await client.query(
+      'SELECT * FROM api.property_ratings($1) ORDER BY sort_order', [id])).rows;
+    const schoolNote = (await client.query(
+      'SELECT api.property_school_note($1) AS n', [id])).rows[0].n;
+    const points = (await client.query(
+      'SELECT * FROM api.property_points($1)', [id])).rows[0] || null;
+    const acceleration = (await client.query(
+      'SELECT * FROM api.property_acceleration($1)', [id])).rows[0] || null;
     const projection = (await client.query(
       'SELECT * FROM api.property_projection($1)', [id])).rows;
     const benchmark = (await client.query(
@@ -566,7 +574,8 @@ async function adminProperty(identity, brand, id) {
     const assumptions = (await client.query(
       'SELECT * FROM api.property_assumptions($1)', [id])).rows[0] || null;
     return { property: r.rows[0], history, metros, fees, notes, flag, shares,
-             projection, benchmark, assumptions, interest, customers, stages };
+             projection, benchmark, assumptions, interest, customers, stages,
+             ratings, schoolNote, points, acceleration };
   });
 }
 
