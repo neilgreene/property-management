@@ -221,6 +221,64 @@ reach it:
 
 ---
 
+## 7a. The media store, and a Portainer trap
+
+`SDI_MEDIA_DIR` is the host path holding uploaded photographs. **Set it to an
+absolute path**, in Portainer's environment panel:
+
+```
+SDI_MEDIA_DIR=/mnt/cephfs/sdi-media
+```
+
+Both compose files default it to `./media` when it is unset, and that default
+is wrong for either way of running this — differently in each case, which is
+why it is worth stating twice.
+
+**Under Portainer** a relative bind mount is the failure described in §2: a Git
+stack on Portainer CE cannot populate one, because relative-path volumes are a
+Business Edition feature. The symptom is not an error. It is photographs that
+upload successfully and are not there afterwards.
+
+**Under plain `docker compose`** a relative path does resolve — against the
+project directory, which is the directory of the FIRST `-f` file. So it works,
+and quietly puts the media store inside your checkout rather than on the volume
+you mounted for it.
+
+The path is **per-host** and expected to differ between machines. The container
+always sees `/srv/media` whatever the host path is, and the database stores
+paths relative to that, so there is nothing to keep in step between nodes and
+no reason to symlink one to match another.
+
+It must be writable by uid 1000 — the web container runs as `node`.
+
+**On a separate filesystem — CephFS, NFS, a mounted volume — set
+`SDI_MEDIA_SENTINEL` too.** It names a file that exists only on the mounted
+store, and the web tier refuses to start when it is missing:
+
+```
+SDI_MEDIA_SENTINEL=.sdi-media-volume
+```
+
+Create it once, while the mount is definitely up:
+
+```bash
+touch /mnt/cephfs/sdi-media/.sdi-media-volume
+chown 1000:1000 /mnt/cephfs/sdi-media/.sdi-media-volume
+```
+
+Without it, a store that fails to mount is invisible: the path still exists as
+an empty directory underneath the mount point, Docker binds that without
+complaint, uploads land on the wrong disk, and every existing photograph is
+missing from the application while the database still lists all of them. It
+looks like data loss and nothing about it points at a mount. A network
+filesystem has more ways to be absent than a local disk, which is why this
+matters more here than on a single-machine deployment.
+
+Leave `SDI_MEDIA_SENTINEL` empty where nothing is mounted; start-up then says
+the check is off rather than saying nothing.
+
+---
+
 ## 8. Updating
 
 **From published images:** bump `SDI_VERSION`, or if you are tracking

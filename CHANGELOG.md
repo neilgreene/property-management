@@ -12,6 +12,34 @@ date the work was completed.
 
 ---
 
+## 0.9.50 — 2026-09-05
+
+**The Portainer guide now covers the media store, which it never mentioned.**
+
+`docs/DEPLOYMENT.md` had nothing at all about `SDI_MEDIA_DIR`, and 0.9.46 turned
+that gap into a live trap: it added a media volume to `docker-compose.yml`,
+which had none before, defaulting to the relative path `./media`. §2 of that
+same document explains that a Git stack on Portainer CE **cannot populate a
+relative bind mount** — it is a Business Edition feature. So the file now
+carried a default that the deployment path the file is about cannot honour.
+
+The symptom would not have been an error. It is photographs that upload
+successfully and are not there afterwards.
+
+The `./media` default is wrong under either way of running this, differently in
+each case: under Portainer it cannot be populated at all, and under plain
+`docker compose` it resolves against the project directory and quietly puts the
+store inside the checkout instead of on the volume mounted for it.
+
+New §7a says to set an absolute path, that the path is per-host and needs no
+symlinking between nodes, and that it must be writable by uid 1000. It also
+carries `SDI_MEDIA_SENTINEL`, which matters more on a Portainer node than on
+the single-machine deployment where it was introduced: the store there is
+CephFS or NFS, and a network filesystem has more ways to be absent than a local
+disk.
+
+---
+
 ## 0.9.49 — 2026-09-05
 
 **Less disclaimer.**
