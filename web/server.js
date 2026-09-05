@@ -494,7 +494,19 @@ async function adminProperty(identity, brand, id) {
     // log nobody passes is an audit log nobody reads.
     const shares = (await client.query(
       'SELECT * FROM api.share_log WHERE property_id = $1 LIMIT 40', [id])).rows;
-    return { property: r.rows[0], history, metros, fees, notes, flag, shares };
+    // Sections 1, 2, I and II of the workbook. Computed in the database
+    // rather than mirrored into the browser like the single-year figures
+    // are: a twenty-year amortisation implemented twice is two answers
+    // waiting to disagree, and this one is not cheap enough to be worth
+    // recomputing on every keystroke anyway.
+    const projection = (await client.query(
+      'SELECT * FROM api.property_projection($1)', [id])).rows;
+    const benchmark = (await client.query(
+      'SELECT * FROM api.property_benchmark($1)', [id])).rows[0] || null;
+    const assumptions = (await client.query(
+      'SELECT * FROM api.property_assumptions($1)', [id])).rows[0] || null;
+    return { property: r.rows[0], history, metros, fees, notes, flag, shares,
+             projection, benchmark, assumptions };
   });
 }
 
@@ -1260,6 +1272,28 @@ const server = http.createServer(async (req, res) => {
             flag: (await client.query(
               'SELECT * FROM api.property_flag WHERE property_id = $1',
               [b.property_id])).rows[0] || null,
+          };
+        });
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        return res.end(JSON.stringify(d));
+      }
+      if (what === 'assumptions' && req.method === 'POST') {
+        const b = JSON.parse(await readBody(req) || '{}');
+        const d = await withTx(identity, brand, async (client) => {
+          await client.query('SELECT api.save_assumptions($1, $2::jsonb)',
+            [b.property_id, JSON.stringify(b.patch || {})]);
+          // The projection is returned with the assumptions that produced
+          // it, in one transaction. Saving and then re-reading in a second
+          // round trip is how a screen ends up showing last year's figures
+          // beside this year's inputs.
+          return {
+            assumptions: (await client.query(
+              'SELECT * FROM api.property_assumptions($1)',
+              [b.property_id])).rows[0] || null,
+            projection: (await client.query(
+              'SELECT * FROM api.property_projection($1)', [b.property_id])).rows,
+            benchmark: (await client.query(
+              'SELECT * FROM api.property_benchmark($1)', [b.property_id])).rows[0] || null,
           };
         });
         res.writeHead(200, { 'Content-Type': 'application/json' });

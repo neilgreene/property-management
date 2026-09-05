@@ -343,6 +343,7 @@ async function openProperty(id) {
   renderMetro();
   renderNotes(d.notes || [], d.flag);
   renderShares(d.shares || []);
+  renderProjection(d.projection || [], d.benchmark, d.assumptions);
   renderHistory(d.history);
   redraw();
   document.querySelectorAll('.prow').forEach((el) =>
@@ -467,6 +468,97 @@ function renderShares(rows) {
       <span class="swhen">${esc(when(r2.created_at))}</span>
     </div>`).join('')
     : '<div class="muted">Not shared yet.</div>';
+}
+
+const roi = (v) => v == null ? '—' : (Number(v) * 100).toFixed(1) + '%';
+const pctIn  = (v) => v == null ? '' : (Number(v) * 100).toFixed(2).replace(/\.00$/, '') + '%';
+
+// ---------------------------------------------------------------------
+// sections 1, 2, I and II
+// ---------------------------------------------------------------------
+const ASSUMPTIONS = [
+  ['revenue_growth', 'Annual revenue increase', 'pct'],
+  ['expense_growth', 'Annual operating expense increase', 'pct'],
+  ['appreciation',   'Annual appreciation', 'pct'],
+  ['land_pct',       'Land value', 'pct'],
+  ['selling_costs',  'Commissions and settlement costs', 'pct'],
+  ['tax_ordinary',   'Federal tax — ordinary income', 'pct'],
+  ['tax_capital',    'Federal tax — capital gains', 'pct'],
+  ['tax_state',      'State tax on total gain', 'pct'],
+];
+const DEFAULTS = { revenue_growth: 0.03, expense_growth: 0.02, appreciation: 0.04,
+  land_pct: 0.25, selling_costs: 0.075, tax_ordinary: 0.25, tax_capital: 0.15,
+  tax_state: 0.10 };
+
+function renderProjection(rows, bench, assume) {
+  state.assumptions = assume || { ...DEFAULTS };
+  $('oop').textContent = usd(state.property.cash_outlay);
+
+  // A row per measure and a column per horizon, matching the sheet. The
+  // reader is comparing five years against twenty, which is a comparison
+  // along a row -- transposing it would put the comparison in a column and
+  // make the table harder to read for no reason but tidiness.
+  if (!rows.length) {
+    $('projection').innerHTML = '<div class="muted">Needs an after-improvement '
+      + 'value and financing terms before this can be projected.</div>';
+  } else {
+    const R = [
+      ['Net cash flow',           (r) => usd(r.cumulative_cash)],
+      ['Equity increase',         (r) => usd(r.equity_increase)],
+      ['Total gain',              (r) => usd(r.total_gain), 'tot'],
+      ['Average cash flow / year',  (r) => usd(r.avg_cash_per_year), 'sub'],
+      ['Average cash flow / month', (r) => usd(r.avg_cash_per_month)],
+      ['Average gain / year',       (r) => usd(r.avg_gain_per_year)],
+      ['Annual ROI',              (r) => roi(r.annual_roi), 'sub'],
+      ['Projected property value',(r) => usd(r.projected_value), 'val'],
+    ];
+    $('projection').innerHTML = `<table class="ptab">
+      <tr><th>Years</th>${rows.map((r) => `<th>${r.years}</th>`).join('')}</tr>
+      ${R.map(([label, f, cls]) => `<tr class="${cls || ''}">
+        <td>${esc(label)}</td>${rows.map((r) => `<td>${f(r)}</td>`).join('')}
+      </tr>`).join('')}
+    </table>`;
+  }
+
+  $('benchmark').innerHTML = bench ? `
+    <div class="bcell"><span>Price per square foot</span><b>${usd2(bench.price_per_sqft)}</b></div>
+    <div class="bcell"><span>Rent per square foot</span><b>${usd2(bench.rent_per_sqft)}</b></div>
+    <div class="bcell"><span>Cash flow per square foot</span><b>${usd2(bench.cash_per_sqft)}</b></div>`
+    : '<div class="muted">Needs a square footage.</div>';
+
+  $('assumptions').innerHTML = ASSUMPTIONS.map(([k, label]) => `
+    <label class="f a" data-k="${k}">
+      <span>${esc(label)}</span>
+      <input id="a_${k}" type="text" inputmode="decimal"
+             value="${pctIn(state.assumptions[k] ?? DEFAULTS[k])}">
+    </label>`).join('');
+  ASSUMPTIONS.forEach(([k]) => {
+    $('a_' + k).addEventListener('change', () => saveAssumption(k, $('a_' + k).value));
+  });
+}
+
+// Percentages are typed as percentages. A field showing 0.03 when the
+// sheet says 3% is a field somebody will eventually type 3 into.
+// ROI arrives as a fraction. The file already has pct1 for basis points
+// and pctIn for editable rates; a third is cheaper than overloading either
+// and getting a hundredfold error that still looks like a percentage.
+
+async function saveAssumption(k, raw) {
+  const n = Number(String(raw).replace(/[%\s,]/g, ''));
+  if (!Number.isFinite(n)) { $('a_' + k).value = pctIn(state.assumptions[k]); return; }
+  const r = await fetch('/api/admin/assumptions', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ property_id: state.property.property_id,
+                           patch: { [k]: n / 100 } }),
+  });
+  const d = await r.json();
+  if (!r.ok) {
+    $('msg').hidden = false; $('msg').className = 'msg bad';
+    $('msg').textContent = d.error || 'That assumption could not be saved.';
+    return;
+  }
+  $('msg').hidden = true;
+  renderProjection(d.projection, d.benchmark, d.assumptions);
 }
 
 async function noteAction(payload) {

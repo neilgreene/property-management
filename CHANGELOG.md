@@ -12,6 +12,70 @@ date the work was completed.
 
 ---
 
+## 0.9.29 — 2026-09-05
+
+**The workbook's projection, sections 1, 2, I and II.**
+
+### Added — the twenty-year projection
+The panel now carries the deal-attractiveness table across five, ten, fifteen
+and twenty years: net cash flow, equity increase, total gain, the averages, and
+annual ROI, with projected property value underneath.
+
+**It is reconciled against the sheet, not inferred from the labels.** Projected
+value matches to the cent on all four horizons; equity increase matches to
+within $20 (my rounded payment); ROI lands within 0.1pt. Three things it would
+have been easy to get wrong, each worth more than a rounding:
+
+- **Appreciation compounds on the after-improvement value**, not the offer and
+  not total cost. A property bought under market shows that uplift on day one,
+  not smeared across twenty years.
+- **ROI is against cash out of pocket**, not total cost. Measuring against the
+  financed total quietly divides by three and still reads plausibly.
+- **Vacancy and management are percentages of rent**, so they grow with revenue
+  rather than expenses. Treating them as flat costs understates them every year
+  after the first by exactly the amount rent has risen.
+
+Revenue and expenses drift apart on purpose — 3% against 2% — and that gap is
+most of why year twenty differs from year one.
+
+### Added — benchmark indicators, and the assumptions behind everything
+Price, rent and cash flow per square foot, on **year one** as the workbook
+heads them. Both formulas verified exactly against your sheet's own square
+footage: $295,000 ÷ 1,632 = **$180.76**, and $2,175 ÷ 1,632 = **$1.33**.
+
+That second one settled a question: **rent is taken at the middle of the
+range**, exactly as improvements are costed at the middle of theirs. $1.33/sqft
+is the midpoint of $2,100–$2,250, and neither end of it.
+
+Sections I and II are editable per property and take effect immediately —
+revenue and expense growth, appreciation, land value, selling costs and the
+three tax rates. Held per property so revising the house view does not restate
+a deal already agreed under the old one. Vacancy and the management fee are
+deliberately *not* there: the property already carries them, and a second copy
+is a second answer.
+
+### Not built, deliberately — the schools row of section 3
+`gov.prohibited_dimension` registers **school_rating** as a fair-housing proxy:
+ratings track the demographics of a catchment, so offering one as a ranking
+axis is steering, and the Act does not require that anyone intended it. The
+same register covers composite FAVORABLE/INSUFFICIENT scores derived from it.
+`api.security_invariants()` fails the build if either becomes a column in
+`core` or `api`.
+
+Jessica considering schools while underwriting is legitimate; offering it to a
+buyer as something to sort on is not — and these figures are headed for
+customer-facing screens. When section 3 is built it will read the figure from
+the raw intake payload rather than promoting it to a column, so it can never
+become a filter by accident.
+
+### Fixed
+`pct` does not exist in the panel — it has `pct1` for basis points and `pctIn`
+for editable rates. ROI arrives as a fraction and needed its own helper;
+overloading either would have produced a hundredfold error that still looked
+like a percentage.
+
+---
+
 ## 0.9.28 — 2026-09-05
 
 **Three bugs a signed-in user hits immediately.**

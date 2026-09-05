@@ -1,13 +1,10 @@
 -- =====================================================================
 -- 48_mfa.sql  |  a phone number, and a second factor
 -- =====================================================================
--- THE PHONE NUMBER IS OPTIONAL AND IS NOT A FACTOR. It is here so an
--- agent can be reached about a property, and that is all it is for. It
--- is deliberately NOT what the second factor is delivered to: a number
--- is transferable by anyone who can talk a carrier into a SIM swap, and
--- a factor that moves with a phone call is not a factor. Saying so here
--- because "we have their number, why not text them a code" is the most
--- natural next thought anybody will have about this column.
+-- Two unrelated things share this file only because they both touch
+-- core.person. The phone number is contact information -- optional, so an
+-- agent can be reached about a property. It has nothing to do with the
+-- second factor below and is not used by it.
 --
 -- THE SECOND FACTOR IS TOTP (RFC 6238). Verified by arithmetic against
 -- a shared secret, needing no provider, no delivery and no network.
@@ -44,8 +41,7 @@ BEGIN;
 ALTER TABLE core.person ADD COLUMN phone text;
 
 COMMENT ON COLUMN core.person.phone IS
-    'Optional contact number. NOT an authentication factor and not a '
-    'delivery channel for one -- see the header of 48_mfa.sql.';
+    'Optional contact number, so a person can be reached about a property.';
 
 -- ---------------------------------------------------------------------
 -- The enrolment

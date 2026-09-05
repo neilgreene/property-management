@@ -32,7 +32,7 @@ for f in 01_schema 02_policies 03_views 04_seed \
          34_property_card 35_map_disclosure 36_media_masking 37_metro 38_mask_pool \
          39_underwriting 40_property_admin 41_property_manager 42_underwriting_seed \
          43_property_notes 44_profile 45_note_summary 46_note_severity \
-         47_share 48_mfa \
+         47_share 48_mfa 49_projection \
          99_local_logins; do
     printf '    %s\n' "$f"
     psql -d "$DB" -q -v ON_ERROR_STOP=1 -f "sql/$f.sql"

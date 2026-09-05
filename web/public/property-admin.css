@@ -249,3 +249,30 @@
 .share.un .stag{color:var(--crit)}
 .sto{font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .sby,.swhen{font-size:11.5px;color:var(--ink2)}
+
+/* ---------------------------------------------------------------------
+   sections 1 and 2
+   --------------------------------------------------------------------- */
+.oop{display:inline-flex;align-items:baseline;gap:9px;font-size:13px;font-weight:600;
+  border:2px solid var(--crit);border-radius:8px;padding:6px 14px;margin-bottom:12px}
+.oop b{font-size:17px;color:var(--crit)}
+.ptab{width:100%;border-collapse:collapse;font-size:13px}
+.ptab th{text-align:right;font-size:12px;color:var(--ink2);padding:5px 10px;
+  border-bottom:1px solid var(--line)}
+.ptab th:first-child{text-align:left}
+.ptab td{padding:5px 10px;text-align:right;font-variant-numeric:tabular-nums}
+.ptab td:first-child{text-align:left;color:var(--ink2)}
+/* The two rows people actually read are given the weight to be found at a
+   glance; the rest are the workings that justify them. */
+.ptab tr.tot td{background:var(--ink);color:#fff;font-weight:700}
+.ptab tr.tot td:first-child{color:rgba(255,255,255,.85)}
+.ptab tr.sub td{font-weight:700;border-top:1px solid var(--line)}
+.ptab tr.val td{background:#f2e6cf;font-weight:700;font-style:italic}
+.ptab tr.val td:first-child{font-style:normal}
+
+.bench{display:flex;gap:26px;flex-wrap:wrap}
+.bcell{display:grid;gap:2px}
+.bcell span{font-size:12px;color:var(--ink2)}
+.bcell b{font-size:16px;font-variant-numeric:tabular-nums}
+.y1{font-style:normal;font-size:12px;font-weight:400;color:var(--mut)}
+.f.a input{max-width:110px}

@@ -1052,6 +1052,125 @@ test('the favourites reply carries its own identity', async (t) => {
     'one identity block, two payloads, so they cannot drift');
 });
 
+// ---- projection ------------------------------------------------------
+// Reconciled against Jessica's sheet, not against my own arithmetic. The
+// two figures that must be exact are the ones every other line is built
+// from: appreciation compounds on the AFTER-IMPROVEMENT value, and equity
+// is value less loan balance less the equity that was there on day one.
+test('the projection reconciles to the workbook', async (t) => {
+  if (!available) return t.skip('no server');
+  const cookie = await staffCookie();
+  const list = await (await fetch(`${base}/api/admin/properties?q=SDI-1009`,
+    { headers: { cookie } })).json();
+  const d = await (await fetch(`${base}/api/admin/property?id=${list.rows[0].property_id}`,
+    { headers: { cookie } })).json();
+
+  assert.equal(d.projection.length, 4, 'five, ten, fifteen and twenty years');
+  const by = Object.fromEntries(d.projection.map((r) => [r.years, r]));
+
+  // 300,000 x 1.04^n, to the cent.
+  for (const [yr, want] of [[5, 364996], [10, 444073], [15, 540283], [20, 657337]]) {
+    assert.ok(Math.abs(Number(by[yr].projected_value) - want) < 1,
+      `projected value at ${yr} years: got ${by[yr].projected_value}, sheet says ${want}`);
+  }
+  for (const [yr, want] of [[5, 78211], [10, 175554], [15, 297009], [20, 448955]]) {
+    assert.ok(Math.abs(Number(by[yr].equity_increase) - want) < 20,
+      `equity increase at ${yr} years: got ${by[yr].equity_increase}, sheet says ${want}`);
+  }
+
+  // Total gain is the two of them added, and the averages are it divided.
+  for (const r of d.projection) {
+    assert.ok(Math.abs(Number(r.total_gain)
+      - (Number(r.cumulative_cash) + Number(r.equity_increase))) < 0.02);
+    assert.ok(Math.abs(Number(r.avg_gain_per_year) - Number(r.total_gain) / r.years) < 0.02);
+    assert.ok(Math.abs(Number(r.avg_cash_per_month)
+      - Number(r.avg_cash_per_year) / 12) < 0.02);
+  }
+
+  // ROI IS AGAINST CASH OUT OF POCKET, not total cost. Measuring against
+  // the financed total would quietly divide by three and read plausibly.
+  const outlay = Number(d.property.cash_outlay);
+  assert.ok(outlay > 0);
+  for (const r of d.projection) {
+    assert.ok(Math.abs(Number(r.annual_roi) - Number(r.avg_gain_per_year) / outlay) < 0.0002,
+      'ROI is average gain per year over cash out of pocket');
+  }
+});
+
+test('the benchmarks are per square foot, on year one', async (t) => {
+  if (!available) return t.skip('no server');
+  const cookie = await staffCookie();
+  const list = await (await fetch(`${base}/api/admin/properties?q=SDI-1009`,
+    { headers: { cookie } })).json();
+  const id = list.rows[0].property_id;
+  const d = await (await fetch(`${base}/api/admin/property?id=${id}`,
+    { headers: { cookie } })).json();
+  const sqft = Number(d.property.sqft);
+  assert.ok(Math.abs(Number(d.benchmark.price_per_sqft)
+    - Number(d.property.offer_used) / sqft) < 0.02);
+  // Rent is taken at the MIDDLE of the range, the same way improvements
+  // are costed at the middle of theirs -- $1.33/sqft on 1,632 sqft is
+  // $2,175, which is the midpoint of 2,100-2,250 and neither end.
+  const mid = (Number(d.property.rent_lower_monthly)
+             + Number(d.property.rent_upper_monthly)) / 2;
+  assert.ok(Math.abs(Number(d.benchmark.rent_per_sqft) - mid / sqft) < 0.02,
+    'rent per square foot is taken at the midpoint of the range');
+});
+
+test('an assumption changes the projection and is kept per property', async (t) => {
+  if (!available) return t.skip('no server');
+  const cookie = await staffCookie();
+  const list = await (await fetch(`${base}/api/admin/properties?q=SDI-1009`,
+    { headers: { cookie } })).json();
+  const id = list.rows[0].property_id;
+  // The house view is asserted on a property nobody customises, rather
+  // than on this one: any earlier test -- or a browser session -- that
+  // touched an assumption here would leave a row behind and make the
+  // assertion pass or fail for a reason nobody could see.
+  const clean = await (await fetch(`${base}/api/admin/properties?q=SDI-1021`,
+    { headers: { cookie } })).json();
+  const untouched = await (await fetch(
+    `${base}/api/admin/property?id=${clean.rows[0].property_id}`,
+    { headers: { cookie } })).json();
+  assert.equal(untouched.assumptions.customised, false,
+    'the house view until somebody changes it');
+  assert.equal(Number(untouched.assumptions.appreciation), 0.04);
+  assert.equal(Number(untouched.assumptions.revenue_growth), 0.03);
+  assert.equal(Number(untouched.assumptions.expense_growth), 0.02);
+
+  const r = await (await jsonPost('/api/admin/assumptions',
+    { property_id: id, patch: { appreciation: 0.06 } }, cookie)).json();
+  try {
+    assert.equal(Number(r.assumptions.appreciation), 0.06);
+    assert.equal(r.assumptions.customised, true);
+    const v5 = r.projection.find((x) => x.years === 5);
+    assert.ok(Math.abs(Number(v5.projected_value) - 300000 * 1.06 ** 5) < 1,
+      'and the projection moves with it');
+
+    // Not an assumption, and not a column somebody gets to write through
+    // a jsonb patch either.
+    const bad = await jsonPost('/api/admin/assumptions',
+      { property_id: id, patch: { property_id: '00000000-0000-0000-0000-000000000000' } },
+      cookie);
+    assert.notEqual(bad.status, 200);
+  } finally {
+    await jsonPost('/api/admin/assumptions',
+      { property_id: id, patch: { appreciation: 0.04 } }, cookie);
+  }
+});
+
+test('the projection is staff only', async (t) => {
+  if (!available) return t.skip('no server');
+  const cookie = await staffCookie();
+  const list = await (await fetch(`${base}/api/admin/properties?q=SDI-1009`,
+    { headers: { cookie } })).json();
+  const id = list.rows[0].property_id;
+  // Band 3: an offer, a projected gain and a tax assumption together say
+  // what the operator expects to make.
+  const anon = await fetch(`${base}/api/admin/property?id=${id}`);
+  assert.equal(anon.ok, false);
+});
+
 test('the login page is served', async (t) => {
   if (!available) return t.skip('no server');
   const r = await fetch(`${base}/login.html`);
