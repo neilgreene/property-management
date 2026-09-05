@@ -553,6 +553,11 @@ async function adminProperty(identity, brand, id) {
     // are: a twenty-year amortisation implemented twice is two answers
     // waiting to disagree, and this one is not cheap enough to be worth
     // recomputing on every keystroke anyway.
+    const interest = (await client.query(
+      'SELECT * FROM api.property_interest WHERE property_id = $1', [id])).rows;
+    const customers = (await client.query('SELECT * FROM api.customers()')).rows;
+    const stages = (await client.query(
+      'SELECT * FROM api.acquisition_stages()')).rows;
     const projection = (await client.query(
       'SELECT * FROM api.property_projection($1)', [id])).rows;
     const benchmark = (await client.query(
@@ -560,7 +565,7 @@ async function adminProperty(identity, brand, id) {
     const assumptions = (await client.query(
       'SELECT * FROM api.property_assumptions($1)', [id])).rows[0] || null;
     return { property: r.rows[0], history, metros, fees, notes, flag, shares,
-             projection, benchmark, assumptions };
+             projection, benchmark, assumptions, interest, customers, stages };
   });
 }
 
@@ -1086,6 +1091,23 @@ const server = http.createServer(async (req, res) => {
     }
   }
 
+  // What a customer has been shown. Their own deals, joined to
+  // api.property, so the address is present or absent by the ordinary
+  // gate rather than by anything decided here.
+  if (url.pathname === '/api/my-deals' && req.method === 'GET') {
+    try {
+      const identity = await identityFor(req, url);
+      const d = await withTx(identity, url.searchParams.get('brand'), (c) =>
+        c.query('SELECT * FROM api.my_deal'));
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      return res.end(JSON.stringify({ rows: d.rows }));
+    } catch (e) {
+      console.error('my-deals failed:', e.message);
+      res.writeHead(403, { 'Content-Type': 'application/json' });
+      return res.end(JSON.stringify({ error: 'not permitted' }));
+    }
+  }
+
   if (url.pathname === '/api/favorites') {
     try {
       const identity = await identityFor(req, url);
@@ -1337,6 +1359,25 @@ const server = http.createServer(async (req, res) => {
         res.writeHead(200, { 'Content-Type': 'application/json' });
         return res.end(JSON.stringify(d));
       }
+      if (what === 'assign' && req.method === 'POST') {
+        const b = JSON.parse(await readBody(req) || '{}');
+        const d = await withTx(identity, brand, async (client) => {
+          if (b.deal_id && b.stage) {
+            await client.query('SELECT api.move_deal($1, $2, $3)',
+              [b.deal_id, b.stage, b.reason || null]);
+          } else if (b.deal_id && b.remove) {
+            await client.query('SELECT api.unassign_customer($1)', [b.deal_id]);
+          } else {
+            await client.query('SELECT api.assign_to_customer($1, $2)',
+              [b.property_id, b.person_id]);
+          }
+          return { interest: (await client.query(
+            'SELECT * FROM api.property_interest WHERE property_id = $1',
+            [b.property_id])).rows };
+        });
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        return res.end(JSON.stringify(d));
+      }
       if (what === 'assumptions' && req.method === 'POST') {
         const b = JSON.parse(await readBody(req) || '{}');
         const d = await withTx(identity, brand, async (client) => {
@@ -1394,7 +1435,7 @@ const server = http.createServer(async (req, res) => {
       // Messages safe to pass back: each names something the caller can fix
       // and reveals nothing. Anything else is reported as a plain refusal.
       // (No /x flag in JavaScript, so this stays on one line.)
-      const editable = /is not editable here|no fee schedule|no programme|no such programme|not a note|public or internal|only the author|nothing to resolve|attention or critical/
+      const editable = /is not editable here|no fee schedule|no programme|no such programme|not a note|public or internal|only the author|shown to a customer, not|no such person|not a stage of|nothing to resolve|attention or critical/
         .test(e.message);
       console.error('admin failed:', e.message);
       res.writeHead(editable ? 400 : 403, { 'Content-Type': 'application/json' });

@@ -12,6 +12,48 @@ date the work was completed.
 
 ---
 
+## 0.9.31 — 2026-09-05
+
+**Showing a property to a customer — and the gate that nearly opened.**
+
+### Fixed — a latent hole that this feature would have made real
+`sec.is_assigned()` **ignored `assign_role` entirely**. A row with
+`assign_role = 'investor'` opened the address gate exactly as an agent's did.
+Nobody had noticed because there was exactly one such row in the whole demo.
+
+The moment staff start assigning properties to customers — which is the entire
+point of this release — **every assignment would have released the street
+address, the exact map pin and the exterior photograph, silently**, and the fee
+agreement would have stopped meaning anything.
+
+`is_assigned()` now means *assigned to work this property*: an agent or a
+lender, who need the address to do the job. A customer being shown a property
+is a different relationship with a different answer. There is a test that
+assigns to an unsigned customer and asserts the address is still `null`.
+
+### Added — the workflow
+Staff can show a property to a customer from the panel, move it through the
+pipeline, and withdraw it. **It reuses `core.deal`** — which already links a
+property, an investor, an agent and a stage with append-only history written by
+trigger — rather than inventing a second concept beside it. "Assign this
+property to this customer" is a deal at Inquiry.
+
+- Assigning twice is somebody clicking twice, not a second interest.
+- Withdrawing marks the deal lost; it does not delete it. The stage history is
+  the record of what was shown to whom.
+- Each row says **address released** or **address withheld**, because staff
+  assign expecting a buyer to act, and "they cannot see where it is yet" is the
+  fact that changes what happens next.
+- Four more demo customers, deliberately mixed: two past the fee agreement and
+  two not, so the same assignment can be watched behaving differently either
+  side of that line.
+
+### Not done, and worth saying
+Agents cannot assign — internal staff only. That was your call for now, and the
+function refuses rather than assuming.
+
+---
+
 ## 0.9.30 — 2026-09-05
 
 **The criteria vocabulary, so a search can ask an operational question.**

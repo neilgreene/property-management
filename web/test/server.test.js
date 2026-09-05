@@ -1264,6 +1264,125 @@ test('the operational filters actually filter', async (t) => {
   assert.ok(stale.rows.length > 0, 'a property nobody has ever shared counts as stale');
 });
 
+// ---- customer workflow -----------------------------------------------
+// THE REGRESSION THIS EXISTS FOR. sec.is_assigned() ignored assign_role, so
+// a row with assign_role='investor' opened the address gate exactly as an
+// agent's did. Nobody noticed because there was one such row in the whole
+// demo. The moment staff start assigning properties to customers, every
+// assignment would have released the address, the exact pin and the
+// exterior photograph -- silently -- and the fee agreement would have
+// stopped meaning anything.
+test('showing a property to a customer does not release the address', async (t) => {
+  if (!available) return t.skip('no server');
+  const cookie = await staffCookie();
+  const list = await (await fetch(`${base}/api/admin/properties?q=SDI-1012`,
+    { headers: { cookie } })).json();
+  const id = list.rows[0].property_id;
+
+  const d = await (await fetch(`${base}/api/admin/property?id=${id}`,
+    { headers: { cookie } })).json();
+  const unsigned = d.customers.find((c) => !c.signed);
+  const signed = d.customers.find((c) => c.signed);
+  assert.ok(unsigned && signed, 'the demo carries customers on both sides of the gate');
+
+  const a = await (await jsonPost('/api/admin/assign',
+    { property_id: id, person_id: unsigned.person_id }, cookie)).json();
+  const b = await (await jsonPost('/api/admin/assign',
+    { property_id: id, person_id: signed.person_id }, cookie)).json();
+  try {
+    // Open deals, not all rows: a withdrawn deal stays in the view on
+    // purpose, so an earlier run of this test is still listed.
+    const openNow = b.interest.filter((r) => !r.closed_at);
+    assert.equal(openNow.length, 2);
+    const mine = b.interest.find((r) => r.investor_id === unsigned.person_id);
+    assert.equal(mine.stage_code, 'INQUIRY', 'assignment opens a deal at inquiry');
+    assert.equal(mine.customer_signed, false,
+      'and staff can see they are not past the gate');
+
+    // Read as the customer, over HTTP, signed in the way they really would
+    // be. Setting a role on the test's own connection would prove the view
+    // works and prove nothing about the path a browser takes to it.
+    const pool = await db();
+    const check = async (person) => {
+      await pool.query('SELECT api.set_password($1, $2)',
+                       [person.person_id, await auth.hashPassword('cust-pw')]);
+      const login = await jsonPost('/api/login',
+                                   { email: person.email, password: 'cust-pw' });
+      const ck = login.headers.get('set-cookie').split(';')[0];
+      return (await (await fetch(`${base}/api/my-deals`, { headers: { cookie: ck } })).json()).rows;
+    };
+
+    // Scoped to the property under test. This customer may hold other
+    // deals -- from an earlier run, or from the demo -- and asserting on
+    // the total makes the test fail for a reason that is not the point.
+    const cannot = (await check(unsigned)).filter((r) => r.property_id === id);
+    assert.equal(cannot.length, 1, 'they can see the deal');
+    assert.equal(cannot[0].street_address, null,
+      'AN ASSIGNMENT RELEASED THE ADDRESS — being shown a property is not '
+      + 'being told where it is, and the fee agreement is the only thing '
+      + 'that changes that');
+    assert.equal(cannot[0].address_unlocked, false);
+
+    const can = (await check(signed)).filter((r) => r.property_id === id);
+    assert.equal(can.length, 1);
+    assert.ok(can[0].street_address, 'a signed customer sees it, as before');
+    assert.equal(can[0].address_unlocked, true);
+  } finally {
+    for (const r of b.interest) {
+      await jsonPost('/api/admin/assign',
+        { property_id: id, deal_id: r.deal_id, remove: true }, cookie);
+    }
+  }
+});
+
+test('a deal moves through the pipeline and withdrawing keeps the record', async (t) => {
+  if (!available) return t.skip('no server');
+  const cookie = await staffCookie();
+  const list = await (await fetch(`${base}/api/admin/properties?q=SDI-1014`,
+    { headers: { cookie } })).json();
+  const id = list.rows[0].property_id;
+  const d = await (await fetch(`${base}/api/admin/property?id=${id}`,
+    { headers: { cookie } })).json();
+  const who = d.customers[0];
+
+  const a = await (await jsonPost('/api/admin/assign',
+    { property_id: id, person_id: who.person_id }, cookie)).json();
+  const deal = a.interest.find((r) => r.investor_id === who.person_id);
+
+  // Assigning twice is somebody clicking twice, not a second interest.
+  const again = await (await jsonPost('/api/admin/assign',
+    { property_id: id, person_id: who.person_id }, cookie)).json();
+  assert.equal(again.interest.filter((r) => !r.closed_at).length, 1);
+
+  const moved = await (await jsonPost('/api/admin/assign',
+    { property_id: id, deal_id: deal.deal_id, stage: 'CONTRACT' }, cookie)).json();
+  assert.equal(moved.interest.find((r) => r.deal_id === deal.deal_id).stage_code,
+    'CONTRACT');
+
+  const bad = await jsonPost('/api/admin/assign',
+    { property_id: id, deal_id: deal.deal_id, stage: 'NOT_A_STAGE' }, cookie);
+  assert.notEqual(bad.status, 200);
+
+  // Withdrawn, not deleted: the stage history is the record of what was
+  // shown to whom, and deleting the deal deletes that too.
+  const gone = await (await jsonPost('/api/admin/assign',
+    { property_id: id, deal_id: deal.deal_id, remove: true }, cookie)).json();
+  const row = gone.interest.find((r) => r.deal_id === deal.deal_id);
+  assert.ok(row, 'the row survives');
+  assert.ok(row.closed_at, 'marked closed');
+  assert.equal(row.is_lost, true);
+});
+
+test('only staff may show a property to somebody', async (t) => {
+  if (!available) return t.skip('no server');
+  const r = await fetch(`${base}/api/admin/assign`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ property_id: '00000000-0000-0000-0000-000000000000',
+                           person_id: '00000000-0000-0000-0000-000000000000' }),
+  });
+  assert.equal(r.ok, false);
+});
+
 test('the login page is served', async (t) => {
   if (!available) return t.skip('no server');
   const r = await fetch(`${base}/login.html`);

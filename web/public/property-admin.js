@@ -17,7 +17,7 @@ const $ = (id) => document.getElementById(id);
 
 const state = { list: [], metros: [], property: null, original: null,
                 fees: null, notes: [], flag: null, isAdmin: false, patch: {},
-                q: '', listFlag: 'all' };
+                q: '', listFlag: 'all', customers: [], stages: [], interest: [] };
 
 const usd  = (n) => n == null || n === '' ? '—'
   : '$' + Math.round(Number(n)).toLocaleString();
@@ -344,6 +344,9 @@ async function openProperty(id) {
   renderNotes(d.notes || [], d.flag);
   renderShares(d.shares || []);
   renderProjection(d.projection || [], d.benchmark, d.assumptions);
+  state.customers = d.customers || [];
+  state.stages = d.stages || [];
+  renderInterest(d.interest || []);
   renderHistory(d.history);
   redraw();
   document.querySelectorAll('.prow').forEach((el) =>
@@ -472,6 +475,57 @@ function renderShares(rows) {
 
 const roi = (v) => v == null ? '—' : (Number(v) * 100).toFixed(1) + '%';
 const pctIn  = (v) => v == null ? '' : (Number(v) * 100).toFixed(2).replace(/\.00$/, '') + '%';
+
+// ---------------------------------------------------------------------
+// who this property has been shown to
+// ---------------------------------------------------------------------
+function renderInterest(rows) {
+  state.interest = rows;
+  const open = new Set(rows.filter((r) => !r.closed_at).map((r) => r.investor_id));
+  $('custpick').innerHTML = '<option value="">Choose a customer…</option>'
+    + state.customers.filter((c) => !open.has(c.person_id)).map((c) =>
+      `<option value="${esc(c.person_id)}">${esc(c.full_name)}${
+        c.signed ? '' : ' — not signed'}</option>`).join('');
+
+  $('interest').innerHTML = rows.length ? rows.map((r) => `
+    <div class="irow${r.closed_at ? ' done' : ''}" data-id="${esc(r.deal_id)}">
+      ${avatar(r.investor_id, r.customer)}
+      <span class="iwho">${esc(r.customer)}</span>
+      ${/* The thing staff need to know when they assign: can this person
+           act on it yet, or are they looking at a city and a cap rate? */''}
+      <span class="itag ${r.customer_signed ? 'signed' : 'gated'}">${
+        r.customer_signed ? 'address released' : 'address withheld'}</span>
+      <select class="istage" data-id="${esc(r.deal_id)}"${r.closed_at ? ' disabled' : ''}>
+        ${state.stages.map((s2) => `<option value="${esc(s2.stage_code)}"${
+          s2.stage_code === r.stage_code ? ' selected' : ''}>${esc(s2.display_name)}</option>`).join('')}
+      </select>
+      <span class="iwhen">${esc(when(r.opened_at))}</span>
+      ${r.closed_at ? '' : `<button class="link" data-drop="${esc(r.deal_id)}">Withdraw</button>`}
+    </div>`).join('')
+    : '<div class="muted">Nobody has been shown this property yet.</div>';
+
+  $('interest').querySelectorAll('.istage').forEach((sel) =>
+    sel.addEventListener('change', () => assignAction({ deal_id: sel.dataset.id,
+      stage: sel.value,
+      reason: sel.value === 'CLOSED_LOST' ? (prompt('Why was it lost?') || '') : null })));
+  $('interest').querySelectorAll('[data-drop]').forEach((b) =>
+    b.addEventListener('click', () => assignAction({ deal_id: b.dataset.drop, remove: true })));
+}
+
+async function assignAction(payload) {
+  const r = await fetch('/api/admin/assign', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ property_id: state.property.property_id, ...payload }),
+  });
+  const d = await r.json().catch(() => ({}));
+  if (!r.ok) {
+    $('msg').hidden = false; $('msg').className = 'msg bad';
+    $('msg').textContent = d.error || 'That could not be saved.';
+    return;
+  }
+  $('msg').hidden = true;
+  renderInterest(d.interest);
+}
 
 // ---------------------------------------------------------------------
 // sections 1, 2, I and II
@@ -769,6 +823,12 @@ async function loadList(q, flag) {
     // ordinary notes into emergencies by inattention.
     document.querySelector('input[name=sev][value=note]').checked = true;
     $('sevwarn').hidden = true;
+  });
+
+  $('assign').addEventListener('click', () => {
+    const who = $('custpick').value;
+    if (!who) { $('custpick').focus(); return; }
+    assignAction({ person_id: who });
   });
 
   $('save').addEventListener('click', save);
