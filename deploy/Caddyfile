@@ -10,8 +10,10 @@
 # Replace this line with your own domain the moment you have one; nothing
 # else in this file changes.
 172-235-60-70.sslip.io {
-	# An address to reach you if issuance fails. Change it.
-	tls neil@example.com
+	# Where Let's Encrypt writes if issuance or renewal fails. It is not
+	# a login and it is not published anywhere -- it is the only channel
+	# by which anybody finds out a certificate is about to lapse.
+	tls neilgreene0102@gmail.com
 
 	encode zstd gzip
 

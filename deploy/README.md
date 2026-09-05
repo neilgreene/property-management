@@ -26,9 +26,8 @@ curl -fsSLo deploy/Caddyfile \
 curl -fsSLo deploy/docker-compose.public.yml \
   https://raw.githubusercontent.com/neilgreene/property-management/claude/postgres-web-access-jznei0/deploy/docker-compose.public.yml
 
-# Set your hostname and an address for issuance failures
-sed -i 's/172-235-60-70\.sslip\.io/<your hostname>/' deploy/Caddyfile
-sed -i 's/neil@example\.com/<your email>/'          deploy/Caddyfile
+# The hostname and the contact address are already set for
+# 172.235.60.70. Change the hostname only when a domain replaces it.
 
 docker compose -f docker-compose.release.yml \
                -f deploy/docker-compose.public.yml up -d
