@@ -12,6 +12,51 @@ date the work was completed.
 
 ---
 
+## 0.9.46 — 2026-09-05
+
+**Five settings the app reads were never passed to the container.**
+
+Compose reads `.env` to *interpolate* a compose file. That is not the same as
+putting a variable into the container: a name only reaches the process if the
+service lists it under `environment:`. The two are indistinguishable from
+outside, and the failure is silent — an option that never arrives behaves
+exactly like an option deliberately left off.
+
+`SDI_MEDIA_SENTINEL` landed in that state the day it shipped, which is how this
+was found: the guard added in 0.9.45 reported *"no sentinel configured"* on a
+host whose `.env` plainly configured one.
+
+It was not alone. **`COOKIE_INSECURE` and `TRUST_PROXY` were both instructed by
+the deployment guide as lines to add to `.env`, and neither had ever done
+anything.** `COOKIE_INSECURE` is the only reason sign-in works over plain HTTP,
+so path B of that guide could not have worked as written. `DEMO_PERSONAS` was
+documented in the README the same way. `ANTHROPIC_AUTH_TOKEN` completes the set.
+
+All five now pass through, in both compose files.
+
+**`SDI_VERSION` and `SDI_COMMIT` deliberately do not.** They are baked into the
+image by the Dockerfile's `ARG`/`ENV` at build time. Adding them to a compose
+`environment:` with a `:-` default would overwrite the real stamp with an empty
+string on every deployment without an `.env` entry — reporting the build as
+`dev` precisely where knowing the build matters most. There is a test that
+fails if anybody adds them.
+
+**And a gap the new test found on its first run:** `docker-compose.yml` mounted
+no media store at all. The container fell back to `/srv/media` with nothing
+mounted there, so uploaded photographs went into the container's own writable
+layer and died on the next recreate — which `docker compose up --build` does
+routinely. Both the web and worker services now mount the store, as the release
+file always did.
+
+`web/test/compose-env.test.js` reads every `process.env` name the web tier
+touches and checks each against the `web` service in both compose files.
+Anything neither passed through nor listed in the test's `NOT_PASSED` map —
+each entry carrying its reason — is a failure. This is the same class as the
+Dockerfile `COPY` test: code and packaging drifting apart, where the code is
+right, the packaging is wrong, and nothing fails loudly enough to notice.
+
+---
+
 ## 0.9.45 — 2026-09-05
 
 **The web tier refuses to start on a media store that is not mounted.**

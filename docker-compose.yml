@@ -53,10 +53,46 @@ services:
       PGDATABASE: ${POSTGRES_DB:-sdi}
       PGUSER: sdi_app
       PGPASSWORD: ${SDI_APP_PASSWORD:-demo_app_pw}
+      SDI_MEDIA_ROOT: /srv/media
       # Optional. Absent, the search box uses its rules parser and says so.
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
       SDI_LLM_MODEL: ${SDI_LLM_MODEL:-}
       SDI_LLM_TIMEOUT_MS: ${SDI_LLM_TIMEOUT_MS:-}
+      # --- read from .env, and MUST be listed here to arrive -------------
+      # Compose reads .env to INTERPOLATE this file. That is not the same as
+      # putting a variable in the container: a name only reaches the process
+      # if it appears below. Four settings the deployment guide told people
+      # to put in .env were read by the app and never passed to it, so they
+      # did nothing at all -- silently, since an unset option looks exactly
+      # like an option deliberately left off.
+      #
+      # Deliberately NOT here: SDI_VERSION and SDI_COMMIT. Those are baked
+      # into the image at build time by the Dockerfile's ARG/ENV, and adding
+      # them with a `:-` default would overwrite the real stamp with an
+      # empty string on every deployment that has no .env entry -- turning
+      # the build number into `dev` exactly where it matters most.
+
+      # Refuse to start if the media store is not mounted. Names a file that
+      # exists only on the volume.
+      SDI_MEDIA_SENTINEL: ${SDI_MEDIA_SENTINEL:-}
+      # Drops the Secure flag on the session cookie so sign-in works over
+      # plain HTTP. Only for a deployment with no certificate.
+      COOKIE_INSECURE: ${COOKIE_INSECURE:-}
+      # Believe X-Forwarded-For. Only correct with a proxy in front; the
+      # public overlay sets it unconditionally for that reason.
+      TRUST_PROXY: ${TRUST_PROXY:-}
+      # The demo persona switcher. A dropdown that hands out an admin
+      # session, so it is off unless somebody says otherwise.
+      DEMO_PERSONAS: ${DEMO_PERSONAS:-}
+      # Alternative to ANTHROPIC_API_KEY for the plain-English search.
+      ANTHROPIC_AUTH_TOKEN: ${ANTHROPIC_AUTH_TOKEN:-}
+    # The media store, as in the release file. Without this the container
+    # defaults to /srv/media with nothing mounted there, so uploaded
+    # photographs go into the container's own writable layer and die the
+    # next time it is recreated -- which `docker compose up --build` does
+    # routinely.
+    volumes:
+      - ${SDI_MEDIA_DIR:-./media}:/srv/media
     ports:
       - "${WEB_PORT:-3000}:3000"
     restart: unless-stopped
@@ -84,6 +120,12 @@ services:
       GHL_TOKEN: ${GHL_TOKEN:-}
       GHL_LOCATION_ID: ${GHL_LOCATION_ID:-}
       GHL_WEBHOOK_PUBLIC_KEY: ${GHL_WEBHOOK_PUBLIC_KEY:-}
+      SDI_MEDIA_ROOT: /srv/media
+    # The same store the web tier writes to. The worker ingests from
+    # inbox/, so pointing it anywhere else means it never sees what staff
+    # drop in.
+    volumes:
+      - ${SDI_MEDIA_DIR:-./media}:/srv/media
     ports:
       - "${WORKER_PORT:-3001}:3001"
     restart: unless-stopped

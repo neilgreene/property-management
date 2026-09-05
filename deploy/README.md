@@ -75,11 +75,12 @@ Ports 80 and 443 must be open to the internet: Let's Encrypt validates
 over 80 and the site serves on 443. The web container stops publishing a
 port of its own — it is reachable only through the proxy.
 
-Add `TRUST_PROXY=1` to `.env` so the sign-in log records the visitor's
-address rather than the proxy's. It is opt-in on purpose:
-`X-Forwarded-For` is a request header anyone can send, and believing it
-on a directly-exposed server would let a caller claim any address they
-like.
+`TRUST_PROXY=1` makes the sign-in log record the visitor's address rather
+than the proxy's. **This overlay already sets it**, so there is nothing to
+add — it is unconditionally correct behind Caddy and would be
+unconditionally wrong without it. It is opt-in generally because
+`X-Forwarded-For` is a request header anyone can send, and believing it on
+a directly-exposed server lets a caller claim any address they like.
 
 ---
 
