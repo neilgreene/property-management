@@ -801,16 +801,48 @@ A(para("A free-text box turns \u201c3 bed duplex in Cleveland under 200k, best y
        + mono("{min_beds:3, property_type:'Duplex', city:'Cleveland', max_price:200000, "
               "sort:'cap_desc'}") + " and shows the reader what it understood, so the box is "
        "never opaque about what it did.", BODY))
-A(para("<b>It is a rules parser today. It is not a language model and it does not call "
-       "one.</b> It is built now because the shape of the feature \u2014 free text in, a bounded "
-       "criteria object out \u2014 is the part that has to be right, and it is worth having that "
-       "seam built and tested before a model is put behind it.", NOTE))
-A(para("The design is what makes a model safe to add later. The parser's only output is a "
-       "criteria object whose keys are fixed and whose values the query builder binds, and "
-       "every object passes a validator on the way out. So the blast radius of a wrong "
-       "answer \u2014 from these rules today or from a model tomorrow \u2014 is a bad search, never a "
-       "bad query. Swapping in a model means replacing one function body; the validator is "
-       "not optional in that world, it is the thing that makes model output executable.", GOOD))
+A(para("<b>Rules first, a model second, and rules again as the fallback.</b> The sentence "
+       "above is handled by regular expressions: instantly, free, and identically every "
+       "time. Claude is asked only when the rules come back with nothing at all \u2014 a partial "
+       "parse is still a parse, and a model second-guessing the regexes would make the same "
+       "phrase behave differently on different days. The reply says which answered.", BODY))
+A(para("<b>The model returns criteria, never SQL.</b> It fills in a fixed schema whose keys "
+       "are the same allowlist the rules produce and " + mono("core.saved_search") +
+       " constrains, using strict tool use \u2014 so the API itself guarantees the shape rather "
+       "than a prompt asking politely for JSON. The result then passes the same validator a "
+       "rules parse does. A model that invents a key produces an ignored key.", GOOD))
+A(para("Text-to-SQL is the tempting version and the wrong one. Here the blast radius of a "
+       "wrong answer is a bad search, never a bad query, and the query still runs as the "
+       "caller \u2014 so the model cannot surface a row the reader was not already entitled to.", BODY))
+A(para("<b>It is optional and its absence is not a degraded state.</b> With no API key, no "
+       "network, or a slow request, the rules answer stands. A search that depends on a "
+       "third party being up is a search that is down whenever they are. "
+       + mono("ANTHROPIC_API_KEY") + " enables it; " + mono("SDI_LLM_MODEL") + " chooses the "
+       "model, defaulting to Claude Opus 5.", NOTE))
+
+A(para("7.5.1  Refusing a search that would steer", H2))
+A(para("<b>The output validator does not cover this, and that is the whole reason this layer "
+       "exists.</b> It guards the SHAPE of the criteria \u2014 a key not on the allowlist is "
+       "dropped. Ask any parser, rules or model, for \u201ca good school district\u201d and it "
+       "returns a city and a bedroom count: entirely legal keys, passing every check, and a "
+       "proxy filter all the same. The steering is in the REQUEST, upstream of anything an "
+       "output validator can see.", GOOD))
+A(para(mono("gov.prohibited_phrase") + " maps natural-language phrasings to the dimensions "
+       "already in " + mono("gov.prohibited_dimension") + ", so the register stays the single "
+       "source and adding a dimension extends the guard everywhere at once. "
+       + mono("api.screen_search_text()") + " runs BEFORE the parse and refuses with 422, "
+       "naming what matched and which basis it protects. A model is far more willing than a "
+       "regex to turn a vibe into a location, so it must never be asked.", BODY))
+A(para("Refused, not silently dropped. Somebody asking about school districts is usually "
+       "asking in good faith and deserves to be told what this system will not rank on and "
+       "what it offers instead. The coverage is tested in both directions: eight steering "
+       "phrasings refused, and ordinary searches \u2014 including \u201ca safety deposit box\u201d, which "
+       "must not trip on \u201csafe\u201d \u2014 not refused. A guard that over-refuses gets switched off.", NOTE))
+A(para("One phrasing was corrected for this audience. <b>\u201cSection 8\u201d alone is not refused</b>: "
+       "a tenanted voucher property carries a government-backed rent stream, which is a real "
+       "underwriting fact an investor may legitimately search for. The exclusionary direction "
+       "\u2014 \u201cno section 8\u201d, \u201cno vouchers\u201d \u2014 is refused, and in a growing number of states "
+       "source-of-income discrimination is independently unlawful.", BODY))
 
 A(para("7.6  Favourites and saved searches", H2))
 A(table([
@@ -898,6 +930,68 @@ A(para(mono("api.property_flag") + " derives the flag from the notes <i>the call
 A(para("Where it appears: a chip under the address in the internal panel, a coloured pennant "
        "on the picker row, and on marketplace cards for staff. Only red and amber are drawn on "
        "the picker \u2014 twenty-five green dots hide the two that are not.", BODY))
+
+A(para("7.9  Sharing a listing as a document", H2))
+A(para("A <b>Share as PDF</b> control on every listing produces a one-page summary: the full "
+       "financial detail, the specifications, and a provenance line naming who prepared it, "
+       "for whom, and when.", BODY))
+A(para("<b>A screen is revocable and a document is not.</b> Everything else here decides per "
+       "request and applies tomorrow\u2019s answer tomorrow. A PDF is a copy taken once and kept "
+       "forever \u2014 forwarded, printed, dropped in a shared drive \u2014 and nothing in this "
+       "database can reach it again. That asymmetry is why the defaults below are what they "
+       "are.", GOOD))
+A(para("<b>Masked is the default for every caller, including staff</b>, unless the person "
+       "generating it deliberately says otherwise for that one document. The common case is "
+       "sending a property to a prospect who has signed nothing, and a default that leaks on "
+       "the common case is not a default, it is a trap.", NOTE))
+A(para("The numbers are never withheld. Price, rent, expenses, NOI and cap rate are on every "
+       "document, masked or not \u2014 an investor decides on the cash flow and only then signs "
+       "for the identity of the house. Masking removes the street address, unit, parcel "
+       "number, coordinates and the photograph, replaced by a branded stand-in of a "
+       "DIFFERENT house rather than a watermark over the real one, which would still show "
+       "the roofline and the neighbour\u2019s fence.", BODY))
+A(para(mono("unmask=1") + " is a REQUEST. " + mono("api.share_context()") + " answers it "
+       "against " + mono("sec.can_see_address()") + ", written as \u201crequested AND permitted\u201d "
+       "in one expression so no path consults only one of them. The browser hides the control "
+       "from anyone who may not use it, but hiding it is a courtesy \u2014 the refusal is the "
+       "boundary, and there is a test that asks for an unmasked document anonymously and "
+       "gets a masked one.", GOOD))
+A(para("<b>Every generated document writes a row</b> to " + mono("core.share_event") +
+       ": which property, who made it, who they said it was going to, whether it carried the "
+       "address, and when. The recipient is required and must be more than a placeholder, "
+       "because the question the log exists to answer is \u201cwho has this\u201d. It is "
+       "self-reported and honestly so \u2014 this system hands a file to a browser and has no "
+       "idea what happens next \u2014 but that is still the difference between a log that can "
+       "answer the question and one that cannot. The row is written BEFORE the bytes are "
+       "produced, so a failed write means no document.", BODY))
+
+A(para("7.10  Showing a property to a customer", H2))
+A(para("Internal staff can show a property to a customer, move it through the acquisition "
+       "pipeline, and withdraw it. It reuses " + mono("core.deal") + " \u2014 which already links "
+       "a property, an investor, an agent and a stage with append-only history written by "
+       "trigger \u2014 rather than inventing a second concept beside it. Assigning is a deal at "
+       "Inquiry.", BODY))
+A(para("<b>Being shown a property is not being told where it is.</b> " + mono("sec.is_assigned()")
+       + " ignored " + mono("assign_role") + " entirely, so a row marked " + mono("investor")
+       + " opened the address gate exactly as an agent\u2019s did. One such row existed in the "
+       "whole demo, which is why nobody had noticed \u2014 and the moment staff began assigning "
+       "properties to customers, every assignment would have released the address, the exact "
+       "pin and the exterior photograph, silently, and the fee agreement would have stopped "
+       "meaning anything.", GOOD))
+A(para(mono("sec.is_assigned()") + " now means ASSIGNED TO WORK THIS PROPERTY \u2014 an agent or "
+       "a lender, who need the address to do the job. A customer being shown a property is a "
+       "different relationship with a different answer. There is a test that assigns to an "
+       "unsigned customer and asserts the address is still null, and a companion asserting a "
+       "signed one still sees it: the second is what establishes the first is not passing "
+       "because the whole thing is broken.", NOTE))
+A(para("Withdrawing marks the deal lost rather than deleting it \u2014 the stage history is the "
+       "record of what was shown to whom. A withdrawn deal leaves the customer\u2019s own list "
+       "and stays in the staff view; the two want different answers, which is the point of "
+       "them being two views. Each row says <b>address released</b> or <b>address "
+       "withheld</b>, because staff assign expecting a buyer to act and whether they can see "
+       "where it is changes what happens next.", BODY))
+A(para("Agents cannot assign \u2014 internal staff only. That is a current operating decision "
+       "rather than a limit of the model, and the function refuses rather than assuming.", NOTE))
 
 # ------------------------------------------------------------------ 8
 A(PageBreak())
@@ -1255,6 +1349,70 @@ A(para("Because " + mono("gov.may_use()") + " honours only counsel-confirmed rig
        "moment of release</b> rather than leaving it to be found in a report later \u2014 the "
        "register working on real data rather than demonstration data.", GOOD))
 
+A(PageBreak())
+A(para("10.7  The property panel", H2))
+A(para("An internal screen at " + mono("/property-admin.html") + ", laid out like the "
+       "operator\u2019s workbook: the same lettered blocks in the same order with the same field "
+       "names, so somebody who has worked that sheet for years does not have to learn where "
+       "anything went. Derived figures sit under the inputs they come from and move as you "
+       "type; edited fields stay marked until saved; every save reports which fields changed "
+       "and writes them to a history strip.", BODY))
+A(para("<b>It reconciles to the sheet exactly.</b> Against 401 NW 71st St: total cost "
+       "$307,084, day-one equity \u2212$7,084, down payment $88,500, financed $206,500, monthly "
+       "payment $1,304, cash outlay $100,584. One figure did not reconcile at first and the "
+       "difference was the informative part: <b>improvements are costed at the MIDDLE of the "
+       "range, not the top</b>. Costing at the high end came out exactly $1,250 heavy, being "
+       "half the $2,500\u2013$5,000 range.", GOOD))
+A(para("10.8  The projection, and the assumptions behind it", H2))
+A(para("Sections 1, 2, I and II of the workbook: net cash flow, equity increase, total gain, "
+       "the averages and annual ROI across five, ten, fifteen and twenty years, with "
+       "projected value beneath; price, rent and cash flow per square foot on year one; and "
+       "the growth, appreciation, selling and tax assumptions, editable per property.", BODY))
+A(table([
+    hdr(["Reconciled against the sheet", "Sheet", "Built"]),
+    ["Projected value, all four horizons", "364,996 / 444,073 / 540,283 / 657,337", "identical"],
+    ["Equity increase, all four", "78,211 / 175,554 / 297,009 / 448,955", "within $20"],
+    ["Annual ROI", "18.0 / 21.5 / 25.5 / 30.2%", "within 0.1pt"],
+    ["Price per square foot", "$180.76", mono("295,000 / 1,632") + " \u2014 exact"],
+    ["Rent per square foot", "$1.33", mono("2,175 / 1,632") + " \u2014 exact"],
+], [2.3*inch, 1.9*inch, 1.7*inch]))
+A(Spacer(1, 5))
+A(para("Three things it would have been easy to get wrong, each worth more than a rounding. "
+       "<b>Appreciation compounds on the after-improvement value</b>, not the offer and not "
+       "total cost \u2014 a property bought under market shows that uplift on day one, not "
+       "smeared across twenty years. <b>ROI is against cash out of pocket</b>, not total cost; "
+       "against the financed total it quietly divides by three and still reads plausibly. "
+       "<b>Vacancy and management are percentages of rent</b>, so they grow with revenue "
+       "rather than expenses \u2014 as flat costs they are understated every year after the first "
+       "by exactly the amount rent has risen.", GOOD))
+A(para("That last reconciliation settled a question rather than confirming a guess: <b>rent "
+       "is taken at the middle of its range</b>, exactly as improvements are costed at the "
+       "middle of theirs. $1.33/sqft on 1,632 sqft is $2,175, the midpoint of $2,100\u2013$2,250 "
+       "and neither end of it. " + mono("core.rent_estimate()") + " sits beside "
+       + mono("core.improvement_estimate()") + " so the rule lives in one place.", NOTE))
+A(para("Assumptions are held per property, so revising the house view does not restate a deal "
+       "already agreed under the old one \u2014 the same reasoning as the dated fee "
+       "schedules, which are append-only for exactly that reason: there is no "
+       "UPDATE policy on " + mono("core.fee_schedule") + " for anybody, so raising a "
+       "manager\u2019s fee in March cannot restate a deal agreed in January. "
+       "Vacancy and the management fee are deliberately absent from them: the property "
+       "already carries both, and a second copy is a second answer.", BODY))
+
+A(para("10.9  Ratings, points, and acceleration", H2))
+A(para("Section 3 scores square feet, bedrooms, bathrooms, year built and year-5 cash flow "
+       "against per-property minimums. The points panel compares a rate with and without a "
+       "buy-down and reports the break-even in months. Mortgage acceleration walks the "
+       "amortisation schedule month by month \u2014 an extra payment made once a year is not a "
+       "level annuity, and every closed form that looks like it applies quietly assumes it "
+       "is.", BODY))
+A(para("<b>The workbook\u2019s schools row is deliberately not scored.</b> "
+       + mono("gov.prohibited_dimension") + " registers " + mono("school_rating") + " as a "
+       "fair-housing proxy, and a composite verdict partly derived from one is the same thing "
+       "laundered. Anything the intake sheet carried is read back out of the raw payload and "
+       "shown to staff as prose beside a note saying why it is not scored \u2014 never a column, "
+       "never in the verdict, never something anyone can sort on. "
+       + mono("api.security_invariants()") + " fails the build if that ever changes.", GOOD))
+
 # ------------------------------------------------------------------ 11
 A(para("11.  What Is Tested", H1))
 A(para("Not a coverage percentage. These are the specific claims that are checked, and the "
@@ -1271,7 +1429,7 @@ A(table([
     [mono("sql/23_listing_sync_tests.sql"), "10", "The whole listing lifecycle: under contract, failed escrow back to market, a feed outage, a genuine delisting, an advisory source, and a status term nobody has mapped"],
     [mono("sql/27_governance_tests.sql"), "10", "A data right built one failing condition at a time, and the same confirmed right refusing to cover a property one state away"],
     [mono("sql/29_intake_tests.sql"), "9", "Spreadsheet to listing: an invalid row cannot be approved, a pending row cannot be released, and \u201crelease ALL\u201d releases only what was approved"],
-    [mono("web/ (npm test)"), "50", "Password verification cost on the failure path, session revocation on password change, lockout after repeated failures, and that no application role can read a credential hash"],
+    [mono("web/ (npm test)"), "97", "Password verification cost on the failure path, session revocation on password change, lockout after repeated failures, and that no application role can read a credential hash"],
     [mono("worker/ (npm test)"), "87", "Signature forgery, replay, oversized bodies, rate-limit handling, ambiguous-create duplication, migration resumability, and the sweep's discipline \u2014 an error is never an absence, an advisory source cannot act. All against doubles, see 6.4"],
 ], [1.95*inch, 0.62*inch, 3.33*inch]))
 A(Spacer(1, 5))
@@ -1296,7 +1454,7 @@ A(table([
     ["Messaging and unified inbox", "Not started"],
     ["Audit trail on band 2 and 3 reads", "Who viewed which address, and when, is not recorded"],
     ["Co-investment matching", "The pipeline exists; the matching engine does not"],
-    ["A language model behind the search box", "The text parser is rules, not a model. The seam and the validator that would make model output safe to execute are built and tested \u2014 see 7.5"],
+    ["Legal review of the fair-housing position", "The register, the phrase list and the two-layer design are built and tested. No lawyer has reviewed them, and the question of whether an investor-only audience changes the obligations has not been answered by anyone qualified to answer it \u2014 see 9.4"],
     ["Real listing photography", "Images are generated illustrations. Swapping them is a URL change; the gate does not depend on where they are served from"],
     ["Password reset and email delivery", "Authentication works, but a person who forgets a password needs staff to set a new one"],
     ["EspoCRM field mapping", "The load ordering and resumability are built and tested. The field-level mapping needs the live EspoCRM schema"],

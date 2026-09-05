@@ -247,6 +247,31 @@ conflict("C12", "GDPR applicability", "Low — but it is registered as not appli
     "row already records the trigger condition; the status needs revisiting alongside "
     "the CCPA and state-privacy gaps, which have no control at all.")
 
+conflict("C13", "Assignment and the address gate — RESOLVED",
+    "Resolved in 0.9.31",
+    "The operator’s rule, stated during design: <i>“The assignment does not mean they see "
+    "the details. The customer only sees the true numbers on the property for cash flow. "
+    "Not until after they sign certain contract agreements do they see the details.”</i>",
+    mono("sec.is_assigned()") + " ignored " + mono("assign_role") + " entirely. A row with "
+    + mono("assign_role = 'investor'") + " opened the address gate exactly as an agent’s "
+    "did. Exactly one such row existed in the demo, which is why it went unnoticed for so "
+    "long.",
+    "This was latent rather than harmful while nothing created investor assignments, and "
+    "would have become harmful on the first one. The moment staff began showing properties "
+    "to customers — the whole point of the workflow built in 0.9.31 — every assignment "
+    "would have released the street address, the exact map pin and the exterior "
+    "photograph, silently, and the fee agreement would have stopped meaning anything.<br/><br/>"
+    "<b>Resolved by narrowing the predicate rather than by adding a second one.</b> "
+    + mono("sec.is_assigned()") + " now means ASSIGNED TO WORK THIS PROPERTY — an agent or "
+    "a lender, who need the address to do the job. A customer being shown a property is a "
+    "different relationship, carried by " + mono("core.deal") + " and granting nothing. "
+    "Two tests hold it: one assigns to an unsigned customer and asserts the address is "
+    "still null, and a companion asserts a signed customer still sees it — the second is "
+    "what establishes the first is not passing because the whole thing is broken.<br/><br/>"
+    "The lesson worth keeping is about naming. One column called " + mono("assign_role") +
+    " described two relationships that wanted opposite answers, and the predicate that read "
+    "it never looked at which one it had.")
+
 # ================================================================== 2
 A(PageBreak())
 A(para("2.  Gaps", H1))

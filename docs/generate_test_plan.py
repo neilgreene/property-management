@@ -765,11 +765,130 @@ case("T13.5", "A public note is as public as the price",
      "a policy document nobody opens.",
      warn=True)
 
-A(para("14.  Checks From the Command Line", H1))
+A(para("14.  Sharing a Listing", H1))
+A(para("Open any listing and use the <b>share</b> control at the top of the panel.", BODY))
+
+case("T14.1", "Masked is the default, for everybody",
+     ["As Jessica (admin), open the share dialog and look at what is preselected.",
+      "Type a recipient and create the PDF.",
+      "Open it and look at the photograph and the address."],
+     ["<b>Masked</b>. Not \u201cunmasked because you are staff\u201d.",
+      "It downloads; the listing stays on screen behind it.",
+      "A branded stand-in image, and the city and state without the street address. "
+      "The cash flow figures are all present."],
+     "The common case is sending a property to somebody who has signed nothing. A default "
+     "that leaks on the common case is not a default, it is a trap.")
+
+case("T14.2", "The gate is in the database, not the checkbox",
+     ["As Jessica, tick <b>unmask</b> and create the PDF.",
+      "Sign out. Request the same url with <code>?unmask=1</code> appended.",
+      "Open what comes back."],
+     ["The address and the real photograph are in the document.",
+      "It is refused, or a masked document is returned.",
+      "<b>Masked.</b> Asking is not permission."],
+     "The browser hides the control from anyone who may not use it, but hiding it protects "
+     "nothing. The refusal is the boundary.",
+     warn=True)
+
+case("T14.3", "Every document is logged",
+     ["Create two documents for the same property, one masked and one not.",
+      "Read the <b>Shared with</b> section on that property.",
+      "Try to create one without naming a recipient."],
+     ["Both succeed.",
+      "Two rows: who made each, who they said it was for, when, and which carried the "
+      "address. The released one is tinted.",
+      "Refused, with a message. The button says so rather than sitting inert."],
+     "A PDF leaves this system permanently. The moment of generation is the only moment it "
+     "can be recorded, and \u201cwho has this\u201d is the question the log exists to answer.")
+
+case("T14.4", "The numbers are never the thing withheld",
+     ["Compare the masked and unmasked documents side by side.",
+      "Look at price, rent, expenses, NOI and cap rate in each."],
+     ["They differ in the address, the photograph and the map only.",
+      "<b>Identical.</b>"],
+     "An investor decides on the cash flow and only then signs for the identity of the "
+     "house. A masked document that also hid the yield would be a brochure for nothing.")
+
+# ================================================================== 15
+A(para("15.  Showing a Property to a Customer", H1))
+A(para("As Jessica, open any property and use the <b>Shown to</b> section. The demo carries "
+       "customers on both sides of the fee agreement: Alan and Carl have signed, Bev and "
+       "Dana have not.", BODY))
+
+case("T15.1", "An assignment does not release the address",
+     ["Show the property to <b>Bev</b>, who has not signed.",
+      "Read the tag on her row.",
+      "Sign in as Bev and open her list.",
+      "Now do the same for <b>Alan</b>, who has signed."],
+     ["A deal opens at <b>Inquiry</b>.",
+      "<b>Address withheld.</b>",
+      "She sees the property, the city, and every financial figure \u2014 and the street "
+      "address is blank.",
+      "<b>Address released</b>, and Alan sees the street address."],
+     "Being shown a property is not being told where it is. This is the test that would have "
+     "caught the gate opening on every customer assignment.",
+     warn=True)
+
+case("T15.2", "Withdrawing keeps the record",
+     ["Move Bev\u2019s deal to <b>Under Contract</b>, then withdraw it.",
+      "Look at the staff list.",
+      "Sign in as Bev and look at hers."],
+     ["It moves through the stages.",
+      "The row is still there, marked closed and lost.",
+      "<b>Gone.</b> The property was taken back; continuing to list it would be confusing "
+      "and clicking it would be worse."],
+     "The stage history is the record of what was shown to whom, so deleting the deal would "
+     "delete that. Staff and the customer want different answers, which is why they are two "
+     "views.")
+
+case("T15.3", "Assigning twice is a double click",
+     ["Show the same property to Alan twice."],
+     ["One open deal, not two."],
+     "A second row would look like a second interest in the same house.")
+
+# ================================================================== 16
+A(para("16.  Searches That Are Refused", H1))
+A(para("Type these into the plain-English box on the marketplace. Signed in or not \u2014 the "
+       "answer is the same.", BODY))
+
+case("T16.1", "A request that would steer is refused, with a reason",
+     ["Search <b>houses in a good school district</b>.",
+      "Read the message.",
+      "Try <b>nice family friendly neighborhood</b>, <b>somewhere safe with low crime</b>, "
+      "and <b>up and coming area</b>."],
+     ["No results are returned and nothing is filtered.",
+      "It names what it matched and which protected basis it protects, and suggests what to "
+      "search on instead.",
+      "All refused, each naming a different basis."],
+     "The steering is in the request. \u201cA good school district\u201d parses to a city and a "
+     "bedroom count \u2014 entirely legal keys \u2014 so the only place to catch it is before "
+     "anything has been turned into a filter.",
+     warn=True)
+
+case("T16.2", "Ordinary searches are not refused",
+     ["Search <b>3 bed duplex in Cleveland under 200k best yield</b>.",
+      "Search <b>a safety deposit box</b>.",
+      "Search <b>section 8 tenant in place</b>."],
+     ["Understood and applied; the box says what it read.",
+      "Not refused \u2014 \u201csafe\u201d inside another word is not a request about crime.",
+      "Not refused. A tenanted voucher property has a government-backed rent stream, which "
+      "is a real underwriting fact."],
+     "A screening layer that over-refuses gets switched off. Both directions have to hold.")
+
+case("T16.3", "The exclusionary direction is still refused",
+     ["Search <b>no section 8</b>.",
+      "Then <b>no vouchers</b>."],
+     ["Refused, naming source of income.",
+      "Refused."],
+     "In a growing number of states source-of-income discrimination is unlawful on its own "
+     "account, quite apart from the federal position.",
+     warn=True)
+
+A(para("17.  Checks From the Command Line", H1))
 A(para("These need shell access to the host. They take about fifteen minutes and cover the "
        "parts a browser cannot show.", BODY))
 
-A(para("14.1  The standing invariants", H2))
+A(para("17.1  The standing invariants", H2))
 A(Preformatted("docker compose exec db psql -U postgres -d sdi \\\n"
                "  -c \"SELECT * FROM api.security_invariants()\"", CODE))
 A(para("<b>Zero rows is the pass.</b> This is the single most valuable check in the "
@@ -779,7 +898,7 @@ A(para("<b>Zero rows is the pass.</b> This is the single most valuable check in 
        "dimension the fair-housing register forbids. Run it after every deployment, and "
        "wire it into whatever runs nightly.", GOOD))
 
-A(para("14.2  The fair-housing assertion", H2))
+A(para("17.2  The fair-housing assertion", H2))
 A(Preformatted("docker compose logs web | grep fair-housing", CODE))
 A(table([
     hdr(["What you see", "Means"]),
@@ -797,7 +916,7 @@ A(para("A protected characteristic, or a proxy for one, offered as a filter or a
        "its own filter list against the register in the database and refuses to start on a "
        "collision, because serving unchecked filters is worse than being down.", BODY))
 
-A(para("14.3  Where the data-rights register stands", H2))
+A(para("17.3  Where the data-rights register stands", H2))
 A(Preformatted("docker compose exec db psql -U postgres -d sdi \\\n"
                "  -c \"SELECT * FROM api.governance_status\" \\\n"
                "  -c \"SELECT * FROM gov.uncovered_publication\"", CODE))
@@ -816,7 +935,7 @@ A(para(mono("gov.uncovered_publication") + " should return no rows. Any row name
        "published listing and the reason no right covers it &mdash; missing, expired, "
        "unreviewed, or out of territory.", BODY))
 
-A(para("14.4  The listing-status walkthrough", H2))
+A(para("17.4  The listing-status walkthrough", H2))
 A(Preformatted("docker compose exec -T db psql -U postgres -d sdi \\\n"
                "  < sql/23_listing_sync_tests.sql", CODE))
 A(para("Ten steps, printing what happens at each: a listing goes under contract, escrow "
@@ -837,7 +956,7 @@ A(para("Step 7 prints an " + mono("ERROR") + " and that is the pass &mdash; it i
        "demonstrating that blocking mode refuses an uncovered publication. The file "
        "restores everything it changes.", NOTE))
 
-A(para("14.5  The governance walkthrough", H2))
+A(para("17.5  The governance walkthrough", H2))
 A(Preformatted("docker compose exec -T db psql -U postgres -d sdi \\\n"
                "  < sql/27_governance_tests.sql", CODE))
 A(para("Builds a data right one failing condition at a time &mdash; unreviewed, no "
@@ -848,7 +967,7 @@ A(para("Builds a data right one failing condition at a time &mdash; unreviewed, 
 
 # ================================================================== 13
 A(PageBreak())
-A(para("15.  Known Gaps", H1))
+A(para("18.  Known Gaps", H1))
 A(para("Do not raise these as defects. They are recorded, and the reasons are in section 12 "
        "of the System Documentation.", BODY))
 A(table([
@@ -864,7 +983,7 @@ A(table([
 ], [1.85*inch, 4.05*inch]))
 
 # ================================================================== 14
-A(para("16.  Recording Results", H1))
+A(para("19.  Recording Results", H1))
 A(table([
     hdr(["Section", "Tests", "Pass", "Fail", "Blocked", "Notes"]),
     ["3. Anonymous visitor", "T3.1&ndash;T3.4", "", "", "", ""],
@@ -878,7 +997,10 @@ A(table([
     ["11. Must be refused", "T11.1&ndash;T11.6", "", "", "", ""],
     ["12. Intake review", "T12.1&ndash;T12.9", "", "", "", ""],
     ["13. Notes and flags", "T13.1&ndash;T13.5", "", "", "", ""],
-    ["14. Command line", "14.1&ndash;14.5", "", "", "", ""],
+    ["14. Sharing a listing", "T14.1&ndash;T14.4", "", "", "", ""],
+    ["15. Showing to a customer", "T15.1&ndash;T15.3", "", "", "", ""],
+    ["16. Searches that are refused", "T16.1&ndash;T16.3", "", "", "", ""],
+    ["17. Command line", "17.1&ndash;17.5", "", "", "", ""],
 ], [1.85*inch, 1.0*inch, 0.45*inch, 0.45*inch, 0.55*inch, 1.6*inch]))
 A(Spacer(1, 14))
 A(table([

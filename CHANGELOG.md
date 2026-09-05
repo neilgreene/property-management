@@ -12,6 +12,54 @@ date the work was completed.
 
 ---
 
+## 0.9.35 — 2026-09-05
+
+**Documentation caught up with fourteen releases — including two places where
+it had become factually wrong.**
+
+The generated documents were last regenerated at 0.9.20. Everything from the
+share feature onward was undocumented, and two statements had gone from
+accurate to false.
+
+### Corrected — claims that were no longer true
+**§7.5 said the search box "is a rules parser today. It is not a language model
+and it does not call one."** That was true when written and false as of 0.9.33.
+Rewritten to describe what is actually there: rules first, Claude second, rules
+again as the fallback, with the model returning criteria under strict tool use
+and passing the same validator.
+
+**§12 "What Is Not Built" listed "a language model behind the search box."**
+Replaced with what genuinely is not built — legal review of the fair-housing
+position, which no lawyer has looked at.
+
+A document that is merely incomplete costs a reader time. One that is confidently
+wrong costs them a decision.
+
+### Added
+- **§7.5.1** — refusing a search that would steer, and why the output validator
+  cannot catch it
+- **§7.9** — sharing a listing as a document: masked by default for everyone,
+  the gate in the database rather than the checkbox, and the log
+- **§7.10** — showing a property to a customer, and the `is_assigned()`
+  correction
+- **§10.7–10.9** — the property panel, the projection and its assumptions, and
+  ratings/points/acceleration, with the reconciliation table against the
+  operator's sheet
+- **Test plan §14–16** — ten new manual cases across sharing, customer
+  assignment and refused searches, four marked stop-work
+- **Design Conflict Register C13** — the assignment/address conflict, recorded
+  as **resolved** with what it would have cost and the naming lesson: one column
+  called `assign_role` described two relationships wanting opposite answers, and
+  the predicate reading it never looked at which one it had
+
+### Fixed
+- The suite counts in §11 were two releases stale (50 → 97). A document that
+  states a number a reader can check in one command should not be wrong about it.
+- §10.8 cited "the fee schedules in 10.9", which the new sections had renumbered
+  into something else.
+
+---
+
 ## 0.9.34 — 2026-09-05
 
 **The rest of the workbook: section 3, points, and mortgage acceleration.**
