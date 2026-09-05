@@ -198,8 +198,13 @@ test('favourites and the search grid show the same photograph', async (t) => {
 });
 
 // The map viewport as a filter. Ruth throughout, because coordinates are
-// band 2 now: nobody without the fee agreement gets a position at all, so
+// band 2: nobody gets a position for a property they have not unlocked, so
 // there is no viewport to test for an anonymous caller.
+//
+// SHE SEES SOME, NOT ALL. This asserted `every` while a signed investor was
+// let in to the whole site on one signature. A contract unlocks the
+// properties it names and nothing else, so the meaningful assertion is that
+// the positioned rows are exactly the contracted ones.
 test('coordinates are withheld unless the address is unlocked', async (t) => {
   if (!available) return t.skip('no server');
   const anon = await (await fetch(`${base}/api/listings`)).json();
@@ -213,9 +218,28 @@ test('coordinates are withheld unless the address is unlocked', async (t) => {
   const login = await jsonPost('/api/login', { email: 'ruth@example.com', password: 'ruth-pw' });
   const cookie = login.headers.get('set-cookie').split(';')[0];
   const ruth = await (await fetch(`${base}/api/listings`, { headers: { cookie } })).json();
-  assert.ok(ruth.rows.every((r) => r.lat !== null),
-    'a caller past the fee gate must get positions, or there is no map for anybody');
+  const placed = ruth.rows.filter((r) => r.lat !== null);
+  assert.ok(placed.length > 0,
+    'a caller with an approved contract must get positions, or there is no map '
+    + 'for anybody');
+  assert.ok(placed.length < ruth.rows.length,
+    'EVERY row carried a position — a contract unlocks the properties it names, '
+    + 'so something is unlocking more than it should');
   assert.equal(ruth.identity.mapAccess, true);
+
+  // The positioned rows are the contracted ones, and nothing else is.
+  const d = await db();
+  const contracted = new Set((await d.query(
+    `SELECT cp.property_id FROM core.contract k
+       JOIN core.contract_property cp ON cp.contract_id = k.contract_id
+       JOIN core.person p ON p.person_id = k.person_id
+      WHERE p.email = 'ruth@example.com' AND k.status = 'approved'`)).rows
+    .map((r) => r.property_id));
+  for (const r of ruth.rows) {
+    assert.equal(r.lat !== null, contracted.has(r.property_id),
+      `${r.listing_ref}: position ${r.lat !== null ? 'given' : 'withheld'} but `
+      + `${contracted.has(r.property_id) ? 'is' : 'is not'} on an approved contract`);
+  }
 });
 
 test('the map viewport filters the listings', async (t) => {
@@ -235,9 +259,14 @@ test('the map viewport filters the listings', async (t) => {
   assert.ok(near.rows.some((r) => r.property_id === target.property_id));
   assert.ok(near.rows.length < all.rows.length, 'the box actually excluded something');
 
-  // A box on the far side of the world returns nothing rather than
-  // everything -- an ignored filter is worse than a rejected one.
-  assert.equal((await get('?bbox_s=-40&bbox_n=-35&bbox_w=140&bbox_e=150')).rows.length, 0);
+  // A box on the far side of the world drops every PLACED row rather than
+  // being ignored -- an ignored filter is worse than a rejected one. Rows
+  // with no position survive it on purpose: a listing you cannot place is
+  // not outside the box, it is not on the map at all, which the next test
+  // asserts directly.
+  const far = await get('?bbox_s=-40&bbox_n=-35&bbox_w=140&bbox_e=150');
+  assert.ok(far.rows.every((r) => r.lat == null),
+    'a placed listing survived a box on the other side of the world');
 
   // Negative longitudes survive the validator. Every listing here is in the
   // western hemisphere, so a rule that dropped negatives would leave the
@@ -1281,28 +1310,57 @@ test('showing a property to a customer does not release the address', async (t) 
 
   const d = await (await fetch(`${base}/api/admin/property?id=${id}`,
     { headers: { cookie } })).json();
-  const unsigned = d.customers.find((c) => !c.signed);
-  const signed = d.customers.find((c) => c.signed);
-  assert.ok(unsigned && signed, 'the demo carries customers on both sides of the gate');
+
+  // Two customers, and what separates them is a CONTRACT covering this
+  // property -- not the platform-wide signature, which no longer unlocks
+  // anything on its own. This used to pick on `c.signed` and passed for
+  // the wrong reason: one signature opened every address on the site, so
+  // the test could not tell an assignment from a blanket key.
+  const pool = await db();
+  // Two customers who hold NO approved contract over this property, so the
+  // one this test writes is the only thing that could open it. Taking the
+  // first two off the panel picked somebody the seed had already let in,
+  // and the withdrawal at the end then proved nothing.
+  const free = (await pool.query(
+    `SELECT p.person_id, p.email
+       FROM core.person p
+      WHERE p.role = 'investor' AND p.active
+        AND NOT EXISTS (
+          SELECT 1 FROM core.contract k
+            JOIN core.contract_property cp ON cp.contract_id = k.contract_id
+           WHERE k.person_id = p.person_id AND k.status = 'approved'
+             AND cp.property_id = $1)
+      ORDER BY p.full_name LIMIT 2`, [id])).rows;
+  assert.equal(free.length, 2,
+    'the demo needs two customers with no approved contract over this property');
+  const [without, with_] = free;
+
+  // Give the second an approved contract over exactly this property.
+  const ref = 'SDI-C-T' + Math.floor(Math.random() * 100000);
+  await pool.query(
+    `INSERT INTO core.contract (reference, person_id, fee_amount, status,
+                                sent_at, signed_at, paid_at, approved_at)
+     VALUES ($1, $2, 750, 'approved', now(), now(), now(), now())`,
+    [ref, with_.person_id]);
+  await pool.query(
+    `INSERT INTO core.contract_property (contract_id, property_id)
+     SELECT contract_id, $2 FROM core.contract WHERE reference = $1`, [ref, id]);
 
   const a = await (await jsonPost('/api/admin/assign',
-    { property_id: id, person_id: unsigned.person_id }, cookie)).json();
+    { property_id: id, person_id: without.person_id }, cookie)).json();
   const b = await (await jsonPost('/api/admin/assign',
-    { property_id: id, person_id: signed.person_id }, cookie)).json();
+    { property_id: id, person_id: with_.person_id }, cookie)).json();
   try {
     // Open deals, not all rows: a withdrawn deal stays in the view on
     // purpose, so an earlier run of this test is still listed.
     const openNow = b.interest.filter((r) => !r.closed_at);
     assert.equal(openNow.length, 2);
-    const mine = b.interest.find((r) => r.investor_id === unsigned.person_id);
+    const mine = b.interest.find((r) => r.investor_id === without.person_id);
     assert.equal(mine.stage_code, 'INQUIRY', 'assignment opens a deal at inquiry');
-    assert.equal(mine.customer_signed, false,
-      'and staff can see they are not past the gate');
 
     // Read as the customer, over HTTP, signed in the way they really would
     // be. Setting a role on the test's own connection would prove the view
     // works and prove nothing about the path a browser takes to it.
-    const pool = await db();
     const check = async (person) => {
       await pool.query('SELECT api.set_password($1, $2)',
                        [person.person_id, await auth.hashPassword('cust-pw')]);
@@ -1315,19 +1373,32 @@ test('showing a property to a customer does not release the address', async (t) 
     // Scoped to the property under test. This customer may hold other
     // deals -- from an earlier run, or from the demo -- and asserting on
     // the total makes the test fail for a reason that is not the point.
-    const cannot = (await check(unsigned)).filter((r) => r.property_id === id);
+    const cannot = (await check(without)).filter((r) => r.property_id === id);
     assert.equal(cannot.length, 1, 'they can see the deal');
     assert.equal(cannot[0].street_address, null,
       'AN ASSIGNMENT RELEASED THE ADDRESS — being shown a property is not '
-      + 'being told where it is, and the fee agreement is the only thing '
-      + 'that changes that');
+      + 'being told where it is, and only a signed and paid contract '
+      + 'covering it changes that');
     assert.equal(cannot[0].address_unlocked, false);
 
-    const can = (await check(signed)).filter((r) => r.property_id === id);
+    const can = (await check(with_)).filter((r) => r.property_id === id);
     assert.equal(can.length, 1);
-    assert.ok(can[0].street_address, 'a signed customer sees it, as before');
+    assert.ok(can[0].street_address,
+      'a customer with an approved contract over this property must see it');
     assert.equal(can[0].address_unlocked, true);
+
+    // And the contract is what did it: withdraw it and the address shuts
+    // again, for the same person over the same request. Without this the
+    // test proves only that SOMETHING opened it.
+    await pool.query(
+      `UPDATE core.contract SET status = 'withdrawn' WHERE reference = $1`, [ref]);
+    const shut = (await check(with_)).filter((r) => r.property_id === id);
+    assert.equal(shut[0].street_address, null,
+      'WITHDRAWING THE CONTRACT LEFT THE ADDRESS OPEN — the gate reads status, '
+      + 'so it has to close again');
   } finally {
+    await pool.query('DELETE FROM core.contract WHERE reference = $1', [ref])
+      .catch(() => {});
     for (const r of b.interest) {
       await jsonPost('/api/admin/assign',
         { property_id: id, deal_id: r.deal_id, remove: true }, cookie);

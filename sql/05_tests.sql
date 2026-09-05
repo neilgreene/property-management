@@ -16,7 +16,7 @@ SELECT listing_ref, status, city, list_price, cap_rate, street_address, lat
 FROM api.property ORDER BY listing_ref;
 
 \echo ''
-\echo '=== 2. Investor, fee agreement NOT signed (Marcus).'
+\echo '=== 2. Investor with no approved contract (Marcus).'
 \echo '===    Same SQL. Address withheld, coordinates fuzzed. 6 rows (pending visible).'
 COMMIT;
 RESET ROLE; SET ROLE sdi_investor;
@@ -27,8 +27,9 @@ SELECT listing_ref, status, street_address, lat, lng, address_unlocked
 FROM api.property ORDER BY listing_ref;
 
 \echo ''
-\echo '=== 3. Same role, same query, fee agreement SIGNED (Ruth).'
-\echo '===    Address and true coordinates appear. Zero application logic involved.'
+\echo '=== 3. Same role, same query, an APPROVED CONTRACT (Ruth).'
+\echo '===    Address and true coordinates appear -- for the properties her
+\echo '===    contract names, and no others. Zero application logic involved.''
 COMMIT;
 RESET ROLE; SET ROLE sdi_investor;
 BEGIN;
@@ -39,7 +40,7 @@ FROM api.property ORDER BY listing_ref;
 
 \echo ''
 \echo '=== 4. Agent Tom. Only his 4 assigned properties, including the unpublished'
-\echo '===    draft. Address unlocked by assignment, not by fee agreement.'
+\echo '===    draft. Address unlocked by assignment, not by a contract.'
 COMMIT;
 RESET ROLE; SET ROLE sdi_agent;
 BEGIN;

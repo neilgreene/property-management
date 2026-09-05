@@ -12,6 +12,61 @@ date the work was completed.
 
 ---
 
+## 0.9.54 — 2026-09-05
+
+**An AND gate, not an OR gate.**
+
+A customer signs a contract AND pays its fee. Both, and only then, the properties
+named on that contract open for them. The AND is enforced on the table, so
+`status = 'approved'` cannot mean anything else.
+
+What comes out is the blanket clause. Until now a customer who had signed the
+platform-wide fee agreement saw **every** address on the site — one signature for
+the lot — sitting as an `OR` beside the contract rule. That gave the system two
+different meanings of "signed": a flag on the person, and a signature on a
+contract. Confusing in the way that matters, because answering *why can this
+person see this address* meant checking both.
+
+```sql
+-- before                             -- after
+is_internal()                         is_internal()
+OR is_assigned(property)              OR is_assigned(property)
+OR (investor AND fee_signed())        OR has_approved_contract(property)
+OR has_approved_contract(property)
+```
+
+`core.person.fee_agreement_signed_at` **stays**. It is still a true record of
+something that happened and `api.property_interest` still reports it. It simply
+no longer opens anything by itself. The two remaining clauses are not customer
+paths and are unchanged: internal staff, and the agent or lender assigned to a
+property.
+
+Four investors were being let in by the flag alone, so they now hold contracts —
+Ruth over four properties, Ines and Alan over two each, Carl over one. Carl also
+gets a contract that is **signed but not paid**, because the demo needs a
+property that is agreed and still shut; that is the state the whole AND exists to
+describe, and without an example nobody sees the difference.
+
+**Three tests were passing for the wrong reason** and are now stronger:
+
+- Coordinates asserted Ruth got a position for *every* row. It now asserts the
+  positioned rows are exactly the ones on her approved contracts — which the old
+  blanket key made impossible to check.
+- The far-side-of-the-world viewport asserted zero rows, true only when every row
+  carried a position. It now asserts no *placed* row survives.
+- "Showing a property does not release the address" picked its two customers on
+  `c.signed` and passed because one signature opened the whole site. It now
+  writes a contract over exactly that property, and then **withdraws it and
+  checks the address shuts again** — without which the test proves only that
+  something opened it. Selecting the two customers needed care: taking the first
+  two off the panel picked somebody the seed had already let in, and the
+  withdrawal then proved nothing.
+
+Verified on a clean rebuild: Ruth 4 addresses, Marcus 0, Carl 1 — Carl's second
+property staying shut behind an unpaid fee.
+
+---
+
 ## 0.9.53 — 2026-09-05
 
 **The panels, and a menu that depends on who you are.**
