@@ -1667,6 +1667,95 @@ test('a voucher property can be searched for; excluding one cannot', async (t) =
   }
 });
 
+// ---- the property manager, and follow-ups ----------------------------
+test('the metro carries its manager and how to reach them', async (t) => {
+  if (!available) return t.skip('no server');
+  const cookie = await staffCookie();
+  const list = await (await fetch(`${base}/api/admin/properties?q=SDI-1019`,
+    { headers: { cookie } })).json();
+  const d = await (await fetch(`${base}/api/admin/property?id=${list.rows[0].property_id}`,
+    { headers: { cookie } })).json();
+
+  const kc = d.metros.filter((m) => /Kansas/i.test(m.label));
+  assert.equal(kc.length, 2, 'the two Kansas City entries differ only by manager');
+  assert.notEqual(kc[0].manager_id, kc[1].manager_id);
+  for (const m of kc) {
+    assert.ok(m.manager_name && m.manager_email && m.manager_phone,
+      `${m.label} has no contact details, so nothing can be reached`);
+  }
+  // Fees are keyed on METRO, not on manager: the same manager may charge
+  // differently in two metros, which is why the model is metro x manager
+  // rather than one or the other.
+  const withFees = kc.find((m) => m.management_fee_bps != null);
+  assert.ok(withFees, 'at least one carries a schedule');
+
+  // Nobody has verified these records, and the payload says so rather than
+  // letting them pass as fact.
+  assert.ok(kc.every((m) => ['confirmed', 'unconfirmed'].includes(m.manager_established)));
+});
+
+test('a follow-up is a note with an owner and a date', async (t) => {
+  if (!available) return t.skip('no server');
+  const cookie = await staffCookie();
+  const list = await (await fetch(`${base}/api/admin/properties?q=SDI-1020`,
+    { headers: { cookie } })).json();
+  const id = list.rows[0].property_id;
+  const before = await (await fetch(`${base}/api/admin/property?id=${id}`,
+    { headers: { cookie } })).json();
+  assert.ok(before.colleagues.length, 'there are colleagues to assign to');
+
+  const due = new Date(Date.now() + 5 * 86400000).toISOString().slice(0, 10);
+  const r = await (await jsonPost('/api/admin/note',
+    { property_id: id, task: true, body: 'Chase OS about the rental cap.',
+      assigned_to: before.colleagues[0].person_id, due_on: due,
+      about_manager: 'OS', severity: 'attention' }, cookie)).json();
+
+  const t2 = r.notes.find((n2) => /Chase OS/.test(n2.body));
+  try {
+    assert.ok(t2, 'it lands in the same stream as every other note');
+    assert.equal(t2.assigned_to, before.colleagues[0].person_id);
+    assert.equal(String(t2.due_on).slice(0, 10), due);
+    assert.equal(t2.about_manager, 'OS');
+    assert.equal(t2.overdue, false, 'due in five days is not overdue');
+    // A task is a note, so it inherits severity, resolution and the flag
+    // rather than needing a parallel lifecycle of its own.
+    assert.equal(t2.severity, 'attention');
+    assert.equal(t2.is_open, true);
+    assert.equal(r.flag.flag, 'attention');
+
+    // Overdue is derived, never stored: a stored flag is wrong from the
+    // moment the clock passes it until something updates it.
+    const past = new Date(Date.now() - 86400000).toISOString().slice(0, 10);
+    const r2 = await (await jsonPost('/api/admin/note',
+      { property_id: id, task: true, body: 'Already late.', due_on: past }, cookie)).json();
+    assert.equal(r2.notes.find((n2) => /Already late/.test(n2.body)).overdue, true);
+    for (const n2 of r2.notes.filter((x) => /Already late|Chase OS/.test(x.body))) {
+      await jsonPost('/api/admin/note',
+        { property_id: id, note_id: n2.note_id, remove: true }, cookie);
+    }
+  } finally {
+    if (t2) await jsonPost('/api/admin/note',
+      { property_id: id, note_id: t2.note_id, remove: true }, cookie);
+  }
+});
+
+test('a task nobody owns defaults to whoever raised it', async (t) => {
+  if (!available) return t.skip('no server');
+  const cookie = await staffCookie();
+  const list = await (await fetch(`${base}/api/admin/properties?q=SDI-1021`,
+    { headers: { cookie } })).json();
+  const id = list.rows[0].property_id;
+  const r = await (await jsonPost('/api/admin/note',
+    { property_id: id, task: true, body: 'Nobody named on this one.' }, cookie)).json();
+  const t2 = r.notes.find((n2) => /Nobody named/.test(n2.body));
+  // A task with no owner is a wish. Defaulting to the author is better
+  // than allowing an ownerless one: they can hand it on, and meanwhile
+  // it is somebody's.
+  assert.equal(t2.assigned_to_name, 'Jessica Pool');
+  await jsonPost('/api/admin/note',
+    { property_id: id, note_id: t2.note_id, remove: true }, cookie);
+});
+
 test('the login page is served', async (t) => {
   if (!available) return t.skip('no server');
   const r = await fetch(`${base}/login.html`);

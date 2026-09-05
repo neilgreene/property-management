@@ -534,9 +534,12 @@ async function adminProperty(identity, brand, id) {
     const history = (await client.query(
       'SELECT * FROM api.property_history WHERE property_id = $1 LIMIT 40', [id])).rows;
     const metros = (await client.query(
-      `SELECT metro_code, label, kind, manager_name, management_fee_bps,
-              leasing_fee_monthly, current_effective_from
+      `SELECT metro_code, label, kind, manager_id, manager_name,
+              manager_contact, manager_email, manager_phone, manager_website,
+              manager_reach_note, manager_established,
+              management_fee_bps, leasing_fee_monthly, current_effective_from
          FROM api.metro WHERE active ORDER BY sort_order`)).rows;
+    const colleagues = (await client.query('SELECT * FROM api.colleagues()')).rows;
     const fees = (await client.query(
       'SELECT * FROM api.property_fee_status WHERE property_id = $1', [id])).rows[0] || null;
     const notes = (await client.query(
@@ -575,7 +578,7 @@ async function adminProperty(identity, brand, id) {
       'SELECT * FROM api.property_assumptions($1)', [id])).rows[0] || null;
     return { property: r.rows[0], history, metros, fees, notes, flag, shares,
              projection, benchmark, assumptions, interest, customers, stages,
-             ratings, schoolNote, points, acceleration };
+             ratings, schoolNote, points, acceleration, colleagues };
   });
 }
 
@@ -1350,6 +1353,10 @@ const server = http.createServer(async (req, res) => {
             await client.query('SELECT api.reopen_note($1)', [b.note_id]);
           } else if (b.note_id) {
             await client.query('SELECT api.edit_note($1, $2)', [b.note_id, b.body]);
+          } else if (b.task) {
+            await client.query('SELECT api.add_task($1, $2, $3, $4, $5, $6)',
+              [b.property_id, b.body, b.assigned_to || null, b.due_on || null,
+               b.about_manager || null, b.severity || 'attention']);
           } else {
             await client.query('SELECT api.add_note($1, $2, $3, $4)',
               [b.property_id, b.body, b.visibility || 'internal', b.severity || 'note']);

@@ -12,6 +12,57 @@ date the work was completed.
 
 ---
 
+## 0.9.37 — 2026-09-05
+
+**The property manager, beside the property — and a bug that meant changing
+the metro did nothing at all.**
+
+### Fixed — changing the metro was inert
+`onEdit('metro_code')` looked up an element called `f_metro_code`. The
+dropdown's id is `metro_code` — no prefix, because it sits in the sheet header
+rather than in a lettered block. So it read `.value` off `null` and **threw**,
+which killed the change listener before `showFees()` ever ran.
+
+Two consequences, neither visible as an error: **the fee line never refreshed
+when you picked a different metro**, and the metro never entered the patch —
+quietly making it unsaveable. A second throw hid behind the first: the changed
+marker calls `.closest('.f')`, and the dropdown has no such wrapper.
+
+This predates today's work. I described the behaviour from reading the code and
+told the operator the fee line updates on selection; it did not, and the
+correction is the reason this release exists.
+
+### Added — the manager card
+Beside the fee line: the manager, the contact, the current management and
+leasing fees, and how they prefer to be reached. Driven by the **dropdown**
+rather than the saved metro, so switching shows who you would be dealing with
+before you commit. Records nobody has verified are marked **unconfirmed**
+rather than passing as fact.
+
+`core.property_manager` held a name and nothing else, so contact columns are
+new. Fees stay keyed on **metro**, not manager — the same manager may charge
+differently in two metros, which is the whole reason the model is metro ×
+manager.
+
+### Added — Email, Text, Call, and Follow-up
+**They hand off; nothing is sent from here.** The buttons open your own mail or
+messaging client with the listing in the subject line. There is no mail
+transport, no SMS provider, and — more to the point — **no consent record**.
+TCPA consent for a text is neither captured nor evidenced anywhere in this
+system, and a platform that starts texting people because a button existed is a
+platform with a problem it cannot prove its way out of. A `mailto:` hands the
+message to a human who is accountable for sending it.
+
+**A follow-up is a note with somebody's name on it and a date** — not a new
+kind of thing. Notes already carry an author, timestamp, severity, visibility
+and resolution, so a task is two more columns rather than a parallel table with
+its own lifecycle. It lands in the same stream, drives the same flag, and
+resolves the same way. Overdue is **derived, never stored**: a stored flag is
+wrong from the moment the clock passes it. A task raised with no owner goes to
+whoever raised it, because a task nobody owns is a wish.
+
+---
+
 ## 0.9.36 — 2026-09-05
 
 **Fixed: a placeholder in `.env` was treated as a working API key.**

@@ -1363,6 +1363,30 @@ A(para("<b>It reconciles to the sheet exactly.</b> Against 401 NW 71st St: total
        "difference was the informative part: <b>improvements are costed at the MIDDLE of the "
        "range, not the top</b>. Costing at the high end came out exactly $1,250 heavy, being "
        "half the $2,500\u2013$5,000 range.", GOOD))
+A(para("10.7.1  The property manager, and reaching them", H2))
+A(para("<b>The metro dropdown decides it, and the DROPDOWN rather than the saved value.</b> "
+       + mono("core.metro.manager_id") + " points at a property manager; the panel shows "
+       "whichever metro is currently selected, so changing the selection shows the manager "
+       "you would be moving to before you commit to it. Applying their fee schedule is a "
+       "separate, explicit act \u2014 see the append-only fee schedules in 10.8.", BODY))
+A(para("The manager card carries the contact, the current management and leasing fees, and "
+       "how they prefer to be reached. Records nobody has verified are marked "
+       "<b>unconfirmed</b> rather than passing as fact.", BODY))
+A(para("<b>Email and text hand off; nothing is sent from here.</b> The buttons open the "
+       "operator\u2019s own mail or messaging client with the listing already in the subject "
+       "line. This system has no mail transport, no SMS provider, and \u2014 more to the point "
+       "\u2014 no consent record: TCPA consent for a text message is neither captured nor "
+       "evidenced anywhere in it. A platform that starts texting people because a button "
+       "existed is a platform with a problem it cannot prove its way out of. A "
+       + mono("mailto:") + " hands the message to a human who is accountable for sending it.", GOOD))
+A(para("<b>A follow-up is a note with somebody\u2019s name on it and a date</b>, not a new kind "
+       "of thing. Notes already carry an author, a timestamp, a severity, a visibility and a "
+       "resolution, so a task is two more columns rather than a parallel table with its own "
+       "lifecycle to keep in step \u2014 one stream on the property, in the order things "
+       "happened. Overdue is derived from the date and never stored: a stored flag is wrong "
+       "from the moment the clock passes it until something updates it. A task raised with "
+       "no owner is assigned to whoever raised it, because a task nobody owns is a wish.", NOTE))
+
 A(para("10.8  The projection, and the assumptions behind it", H2))
 A(para("Sections 1, 2, I and II of the workbook: net cash flow, equity increase, total gain, "
        "the averages and annual ROI across five, ten, fifteen and twenty years, with "
@@ -1429,7 +1453,7 @@ A(table([
     [mono("sql/23_listing_sync_tests.sql"), "10", "The whole listing lifecycle: under contract, failed escrow back to market, a feed outage, a genuine delisting, an advisory source, and a status term nobody has mapped"],
     [mono("sql/27_governance_tests.sql"), "10", "A data right built one failing condition at a time, and the same confirmed right refusing to cover a property one state away"],
     [mono("sql/29_intake_tests.sql"), "9", "Spreadsheet to listing: an invalid row cannot be approved, a pending row cannot be released, and \u201crelease ALL\u201d releases only what was approved"],
-    [mono("web/ (npm test)"), "97", "Password verification cost on the failure path, session revocation on password change, lockout after repeated failures, and that no application role can read a credential hash"],
+    [mono("web/ (npm test)"), "101", "Password verification cost on the failure path, session revocation on password change, lockout after repeated failures, and that no application role can read a credential hash"],
     [mono("worker/ (npm test)"), "87", "Signature forgery, replay, oversized bodies, rate-limit handling, ambiguous-create duplication, migration resumability, and the sweep's discipline \u2014 an error is never an absence, an advisory source cannot act. All against doubles, see 6.4"],
 ], [1.95*inch, 0.62*inch, 3.33*inch]))
 A(Spacer(1, 5))

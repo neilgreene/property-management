@@ -17,7 +17,8 @@ const $ = (id) => document.getElementById(id);
 
 const state = { list: [], metros: [], property: null, original: null,
                 fees: null, notes: [], flag: null, isAdmin: false, patch: {},
-                q: '', listFlag: 'all', customers: [], stages: [], interest: [] };
+                q: '', listFlag: 'all', customers: [], stages: [], interest: [],
+                colleagues: [], me: null };
 
 const usd  = (n) => n == null || n === '' ? '—'
   : '$' + Math.round(Number(n)).toLocaleString();
@@ -132,7 +133,15 @@ function renderFields() {
 }
 
 function onEdit(key, kind) {
-  const raw = $('f_' + key).value;
+  // The block fields are rendered with an `f_` prefix; the metro dropdown
+  // lives in the sheet header and has none. Looking only for the prefixed
+  // id meant onEdit('metro_code') read `.value` off null and THREW -- so
+  // the change listener died before showFees(), the fee line never
+  // refreshed on a new selection, and the metro never entered the patch,
+  // which quietly made it unsaveable too.
+  const el = $('f_' + key) || $(key);
+  if (!el) return;
+  const raw = el.value;
   const val = fromInput(kind, raw);
   const was = state.original[key] == null ? null : String(state.original[key]);
   // Compared against the value the page loaded with, not the last
@@ -143,7 +152,12 @@ function onEdit(key, kind) {
   else state.patch[key] = val;
 
   state.property[key] = val;
-  $('f_' + key).closest('.f').classList.toggle('changed', key in state.patch);
+  // The same reason as above: the metro dropdown has no `f_` id and no
+  // enclosing `.f` wrapper to mark, so the marker is applied only where
+  // there is one. `closest` returns null rather than throwing, and
+  // calling classList on that is what threw the second time.
+  const wrap = el.closest('.f');
+  if (wrap) wrap.classList.toggle('changed', key in state.patch);
   redraw();
 }
 
@@ -289,6 +303,106 @@ function showFees() {
 
   const b = $('applyfees');
   if (b) b.addEventListener('click', applyFees);
+  renderManager(m);
+}
+
+// ---------------------------------------------------------------------
+// who manages this property, and how to reach them
+// ---------------------------------------------------------------------
+// Driven by the metro DROPDOWN rather than the saved metro, so changing
+// the selection shows the manager you are about to move to before you
+// commit to it -- which is the moment somebody wants to know who they
+// would be dealing with.
+function renderManager(m) {
+  const card = $('mgr');
+  if (!m || !m.manager_name) { card.hidden = true; return; }
+  card.hidden = false;
+  const tel = String(m.manager_phone || '').replace(/[^+0-9]/g, '');
+  const subject = encodeURIComponent(
+    `${state.property.listing_ref} — ${state.property.street_address || state.property.city}`);
+
+  card.innerHTML = `
+    <div class="mgrhead">
+      <span class="mgrname">${esc(m.manager_name)}</span>
+      ${m.manager_established === 'confirmed' ? ''
+        : '<span class="mgrunc" title="Nobody has verified this record">unconfirmed</span>'}
+    </div>
+    ${m.manager_contact ? `<div class="mgrperson">${esc(m.manager_contact)}</div>` : ''}
+    <dl class="mgrfacts">
+      <dt>Management</dt><dd>${pct1(m.management_fee_bps) || '—'}</dd>
+      <dt>Leasing</dt><dd>${m.leasing_fee_monthly == null ? '—'
+        : usd2(m.leasing_fee_monthly) + '/mo'}</dd>
+      ${m.manager_email ? `<dt>Email</dt><dd>${esc(m.manager_email)}</dd>` : ''}
+      ${m.manager_phone ? `<dt>Phone</dt><dd>${esc(m.manager_phone)}</dd>` : ''}
+    </dl>
+    ${m.manager_reach_note ? `<p class="mgrreach">${esc(m.manager_reach_note)}</p>` : ''}
+    <div class="mgract">
+      ${m.manager_email ? `<a class="ghost sm" href="mailto:${esc(m.manager_email)}?subject=${subject}"
+        >Email</a>` : ''}
+      ${tel ? `<a class="ghost sm" href="sms:${esc(tel)}">Text</a>
+               <a class="ghost sm" href="tel:${esc(tel)}">Call</a>` : ''}
+      <button class="ghost sm" id="mgrtask">Follow-up…</button>
+    </div>
+    <p class="muted small mgrnote">Email and text hand off to your own client.
+      Nothing is sent from here — there is no consent record behind it, and a
+      platform that texts people because a button existed cannot prove it had
+      permission to.</p>`;
+
+  $('mgrtask').addEventListener('click', () => openTask(m));
+}
+
+// A follow-up is a note with somebody's name on it and a date. It lands in
+// the same stream as everything else on the property, in the order things
+// happened, rather than in a separate list nobody reads.
+function openTask(m) {
+  const el = document.createElement('div');
+  el.className = 'scrim2';
+  const today = new Date();
+  const soon = new Date(today.getTime() + 3 * 86400000).toISOString().slice(0, 10);
+  el.innerHTML = `<div class="taskbox">
+    <h3>Follow up with ${esc(m.manager_name)}</h3>
+    <textarea id="tbody" rows="3"
+      placeholder="What needs chasing…"></textarea>
+    <div class="trow">
+      <label>Owner
+        <select id="towner">${state.colleagues.map((c) =>
+          `<option value="${esc(c.person_id)}"${c.person_id === state.me ? ' selected' : ''}
+           >${esc(c.full_name)}</option>`).join('')}</select></label>
+      <label>Due<input id="tdue" type="date" value="${soon}"></label>
+      <label>Urgency
+        <select id="tsev">
+          <option value="attention" selected>Attention</option>
+          <option value="critical">Critical</option>
+          <option value="note">Just a note</option>
+        </select></label>
+    </div>
+    <p id="tmsg" class="smsg"></p>
+    <div class="tact">
+      <button class="ghost" id="tcancel">Cancel</button>
+      <button class="primary" id="tgo">Add follow-up</button>
+    </div>
+  </div>`;
+  document.body.appendChild(el);
+  const close = () => el.remove();
+  el.addEventListener('click', (e) => { if (e.target === el) close(); });
+  el.querySelector('#tcancel').addEventListener('click', close);
+  el.querySelector('#tbody').focus();
+
+  el.querySelector('#tgo').addEventListener('click', async () => {
+    const body = el.querySelector('#tbody').value.trim();
+    if (!body) {
+      el.querySelector('#tmsg').className = 'smsg bad';
+      el.querySelector('#tmsg').textContent = 'Say what needs chasing.';
+      el.querySelector('#tbody').focus();
+      return;
+    }
+    await noteAction({ task: true, body,
+      assigned_to: el.querySelector('#towner').value,
+      due_on: el.querySelector('#tdue').value || null,
+      about_manager: m.manager_id || null,
+      severity: el.querySelector('#tsev').value });
+    close();
+  });
 }
 
 async function applyFees() {
@@ -345,6 +459,7 @@ async function openProperty(id) {
   renderShares(d.shares || []);
   renderProjection(d.projection || [], d.benchmark, d.assumptions);
   state.customers = d.customers || [];
+  state.colleagues = d.colleagues || [];
   state.stages = d.stages || [];
   renderInterest(d.interest || []);
   renderWorkbook(d.ratings || [], d.schoolNote, d.points, d.acceleration);
@@ -420,6 +535,10 @@ function renderNotes(rows, flag) {
                <i class="flag"></i>${esc(FLAGS[n2.severity].word)}${
                  n2.is_open ? '' : ' · resolved'}</span>` : ''}
         <span class="nwho">${esc(n2.author)}</span>
+        ${n2.assigned_to_name ? `<span class="ntask${n2.overdue ? ' late' : ''}"
+          >→ ${esc(n2.assigned_to_name)}${
+            n2.due_on ? ' · due ' + esc(String(n2.due_on).slice(0, 10)) : ''}${
+            n2.overdue ? ' · overdue' : ''}</span>` : ''}
         <span class="nwhen">${esc(when(n2.created_at))}${
           n2.edited_at ? ' · edited ' + esc(when(n2.edited_at)) : ''}</span>
         <span class="nact">
@@ -851,6 +970,9 @@ async function loadList(q, flag) {
   await loadList('');
 
   state.isAdmin = who.role === 'sdi_admin';
+  // Whose name a new follow-up defaults to.
+  try { state.me = (await (await fetch('/api/profile')).json()).person_id; }
+  catch { state.me = null; }
 
   $('notebody').addEventListener('input', () => {
     $('addnote').disabled = !$('notebody').value.trim();
