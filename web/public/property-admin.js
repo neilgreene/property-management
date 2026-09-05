@@ -974,14 +974,6 @@ async function loadList(q, flag) {
   $('notebody').addEventListener('input', () => {
     $('addnote').disabled = !$('notebody').value.trim();
   });
-  document.querySelectorAll('input[name=vis]').forEach((r) =>
-    r.addEventListener('change', () => {
-      $('viswarn').hidden = document.querySelector('input[name=vis]:checked').value !== 'public';
-    }));
-  document.querySelectorAll('input[name=sev]').forEach((r) =>
-    r.addEventListener('change', () => {
-      $('sevwarn').hidden = document.querySelector('input[name=sev]:checked').value === 'note';
-    }));
   $('addnote').addEventListener('click', async () => {
     const body = $('notebody').value.trim();
     if (!body) return;
@@ -993,7 +985,6 @@ async function loadList(q, flag) {
     // The level resets. A composer left on Critical turns the next three
     // ordinary notes into emergencies by inattention.
     document.querySelector('input[name=sev][value=note]').checked = true;
-    $('sevwarn').hidden = true;
   });
 
   $('assign').addEventListener('click', () => {

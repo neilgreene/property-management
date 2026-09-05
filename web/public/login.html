@@ -23,11 +23,13 @@
      not -- with the form FIRST in source order, so a narrow screen and a
      screen reader both reach the thing you came here to do before the
      description of it. */
-  .door{display:grid;gap:26px;width:min(880px,100%);
+  .door{display:grid;gap:26px;width:min(900px,100%);
     grid-template-columns:minmax(0,1fr)}
-  @media (min-width:860px){
-    .door{grid-template-columns:1fr 340px;align-items:start;gap:40px}
-    .intro{order:1} .card{order:2}
+  /* The branding leads, at every width -- source order, no reordering. */
+  /* Side by side as soon as there is room, so the picture sits to the
+     LEFT of the panel rather than above it for most of the range. */
+  @media (min-width:780px){
+    .door{grid-template-columns:1fr 340px;align-items:center;gap:40px}
   }
 
   .brand{display:flex;align-items:center;gap:10px;margin:0 0 16px}
@@ -35,23 +37,14 @@
     padding:5px 8px;border-radius:6px;font-size:13px}
   .brandtxt{font-weight:600;font-size:15px}
 
-  .intro h1{margin:0 0 10px;font-size:26px;line-height:1.25;letter-spacing:-.015em}
-  .intro p{margin:0 0 12px;color:var(--ink2);font-size:14.5px;max-width:46em}
-
-  /* What the gate is, said plainly and before anyone runs into it. A
-     visitor who discovers the withholding by hitting it reads it as the
-     site being broken. */
-  .gatebox{background:var(--gatebg);border:1px solid var(--gateline);
-    border-radius:9px;padding:12px 14px;margin:18px 0 0;color:var(--gate);
-    font-size:13.5px}
-  .gatebox b{color:var(--ink)}
-  .gatebox ul{margin:8px 0 0;padding-left:19px}
-  .gatebox li{margin:3px 0}
+  /* A picture, not a page of prose. A login screen is a door; nobody
+     reads the wall beside it, and text here only delays the one thing
+     the visitor came to do. */
+  .art svg{display:block;width:100%;height:auto;border-radius:14px}
 
   .card{background:var(--card);border:1px solid var(--line);border-radius:11px;
     padding:22px 22px 20px;box-shadow:var(--shadow)}
-  .card h2{margin:0 0 3px;font-size:16px;letter-spacing:-.01em}
-  .card .sub{margin:0 0 16px;color:var(--mut);font-size:13px}
+  .card h2{margin:0 0 16px;font-size:16px;letter-spacing:-.01em}
   label{display:block;font-size:12px;font-weight:600;margin:13px 0 5px;
     letter-spacing:.2px}
   input{width:100%;padding:9px 10px;border:1px solid var(--line);border-radius:7px;
@@ -69,7 +62,6 @@
   .guest{width:100%;padding:9px;border:1px solid var(--line);border-radius:8px;
     background:var(--card);color:var(--ink);font-weight:600}
   .guest:hover{background:var(--accent2);border-color:var(--accent)}
-  .guestnote{margin:9px 0 0;color:var(--mut);font-size:12px;line-height:1.45}
   form.inline{margin:0}
 
   .err{margin-top:13px;padding:9px 11px;background:var(--critbg);
@@ -83,39 +75,92 @@
 <div class="wrap">
   <div class="door">
 
-    <section class="intro">
+    <section class="art" aria-hidden="true">
       <div class="brand">
         <span class="mark">SDI</span>
         <span class="brandtxt">Investment Property Marketplace</span>
       </div>
 
-      <h1>Investment property, with the numbers already done.</h1>
+      <!-- Drawn, not photographed: an inline SVG needs no asset, no
+           licence and no network round trip, stays sharp at any size, and
+           takes the app's own palette. What it has to say is what the
+           product is -- houses, and the numbers behind them. -->
+      <svg viewBox="0 0 520 400" role="img" xmlns="http://www.w3.org/2000/svg">
+        <defs>
+          <linearGradient id="sky" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stop-color="#e8f2fa"/>
+            <stop offset="100%" stop-color="#dbe9f5"/>
+          </linearGradient>
+          <linearGradient id="fill" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stop-color="#1d6fa8" stop-opacity=".28"/>
+            <stop offset="100%" stop-color="#1d6fa8" stop-opacity="0"/>
+          </linearGradient>
+        </defs>
 
-      <p>Every listing arrives with the full underwriting sheet behind it —
-      purchase and financing assumptions, rehab estimate, projected rent and
-      operating cost, cap rate and cash-on-cash return, and a five, ten,
-      fifteen and twenty year projection you can re-run against your own
-      assumptions.</p>
+        <rect x="0" y="0" width="520" height="400" rx="16" fill="url(#sky)"/>
 
-      <p>This is a private marketplace for investors. It is not a consumer
-      listings site, and it is not open to the web by default.</p>
+        <!-- the return curve, behind the street -->
+        <path d="M40 250 L120 232 L200 244 L280 196 L360 168 L440 108 L480 96
+                 L480 300 L40 300 Z" fill="url(#fill)"/>
+        <path d="M40 250 L120 232 L200 244 L280 196 L360 168 L440 108 L480 96"
+              fill="none" stroke="#1d6fa8" stroke-width="3"
+              stroke-linecap="round" stroke-linejoin="round"/>
+        <circle cx="280" cy="196" r="5" fill="#fff" stroke="#1d6fa8" stroke-width="3"/>
+        <circle cx="440" cy="108" r="5" fill="#fff" stroke="#1d6fa8" stroke-width="3"/>
 
-      <div class="gatebox">
-        <b>Some details are withheld until access is granted.</b>
-        <ul>
-          <li>The street address and the exact map pin</li>
-          <li>Photographs of the property</li>
-        </ul>
-        Everything else — the financials, the condition notes, the
-        neighbourhood, an approximate location — is visible to anyone.
-        The withheld details open once an access agreement is in place on
-        your account.
-      </div>
+        <!-- the street: a duplex, a single family, a small multifamily -->
+        <g>
+          <!-- left: single family, gable -->
+          <path d="M62 300 L62 222 L112 186 L162 222 L162 300 Z" fill="#13395c"/>
+          <path d="M52 226 L112 180 L172 226" fill="none" stroke="#0f2c47"
+                stroke-width="7" stroke-linecap="round" stroke-linejoin="round"/>
+          <rect x="80"  y="240" width="20" height="20" rx="2" fill="#9ec6e4"/>
+          <rect x="124" y="240" width="20" height="20" rx="2" fill="#9ec6e4"/>
+          <rect x="100" y="272" width="24" height="28" rx="2" fill="#e4f0f9"/>
+
+          <!-- middle: small multifamily, the tallest -->
+          <rect x="196" y="160" width="120" height="140" rx="3" fill="#1d6fa8"/>
+          <rect x="188" y="150" width="136" height="14" rx="3" fill="#13395c"/>
+          <g fill="#cfe6f7">
+            <rect x="212" y="180" width="18" height="22" rx="2"/>
+            <rect x="247" y="180" width="18" height="22" rx="2"/>
+            <rect x="282" y="180" width="18" height="22" rx="2"/>
+            <rect x="212" y="216" width="18" height="22" rx="2"/>
+            <rect x="247" y="216" width="18" height="22" rx="2"/>
+            <rect x="282" y="216" width="18" height="22" rx="2"/>
+          </g>
+          <rect x="242" y="262" width="28" height="38" rx="2" fill="#e4f0f9"/>
+
+          <!-- right: duplex -->
+          <path d="M348 300 L348 214 L400 178 L452 214 L452 300 Z" fill="#2b7fb8"/>
+          <path d="M338 218 L400 172 L462 218" fill="none" stroke="#13395c"
+                stroke-width="7" stroke-linecap="round" stroke-linejoin="round"/>
+          <line x1="400" y1="214" x2="400" y2="300" stroke="#13395c" stroke-width="3"/>
+          <rect x="364" y="232" width="18" height="20" rx="2" fill="#cfe6f7"/>
+          <rect x="418" y="232" width="18" height="20" rx="2" fill="#cfe6f7"/>
+          <rect x="366" y="270" width="20" height="30" rx="2" fill="#e4f0f9"/>
+          <rect x="414" y="270" width="20" height="30" rx="2" fill="#e4f0f9"/>
+        </g>
+
+        <!-- the street itself -->
+        <rect x="24" y="300" width="472" height="5" rx="2.5" fill="#13395c" opacity=".85"/>
+
+        <!-- a sale board, which is what makes it a sales application
+             rather than a picture of some houses. Planted in front of the
+             street rather than under it: the post crosses the kerb line,
+             which is what puts it nearer the viewer than the houses. -->
+        <g>
+          <rect x="444" y="284" width="7" height="40" rx="3.5" fill="#13395c"/>
+          <rect x="390" y="242" width="116" height="46" rx="6" fill="#fff"
+                stroke="#13395c" stroke-width="3"/>
+          <rect x="404" y="256" width="64" height="7" rx="3.5" fill="#1d6fa8"/>
+          <rect x="404" y="270" width="44" height="7" rx="3.5" fill="#9ec6e4"/>
+        </g>
+      </svg>
     </section>
 
     <section class="card">
       <h2>Sign in</h2>
-      <p class="sub">Use the account your agent set up for you.</p>
 
       <form id="f" autocomplete="on">
         <label for="email">Email</label>
@@ -140,8 +185,6 @@
         <form class="inline" method="post" action="/api/guest">
           <button class="guest" type="submit">Browse as a guest</button>
         </form>
-        <p class="guestnote">Full financials on every listing. No address,
-        no map pin, no photographs, and nothing saved between visits.</p>
       </div>
 
       <p class="foot" id="buildline"></p>

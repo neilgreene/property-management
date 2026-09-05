@@ -134,8 +134,6 @@
 .vis i{color:var(--ink2);font-style:normal}
 .vis input{accent-color:var(--accent)}
 .comprow .primary{margin-left:auto}
-.viswarn{margin:0;font-size:12px;color:#7a3410;background:#FBEDE6;border-radius:7px;
-  padding:8px 11px}
 
 .notes{display:grid;gap:8px}
 .note{border:1px solid var(--line);border-left:3px solid var(--line);

@@ -45,6 +45,38 @@
             >v${esc(b.version)}${b.commit ? ` · ${esc(b.commit)}` : ''}</div>`;
   }
 
+  // ------------------------------------------------------------------
+  // Collapsed or not
+  // ------------------------------------------------------------------
+  // Two reasons to be a strip of icons: the reader asked, or the window is
+  // too narrow to spend 196px on a menu. Both set the same class, so the
+  // stylesheet has one definition of "collapsed" rather than a media query
+  // and a near-copy of it for the button.
+  //
+  // Below NARROW the choice is not offered -- the rail is a strip whatever
+  // the stored preference says, because 196px of menu on a phone leaves
+  // nothing for the page. The preference is remembered through that and
+  // takes effect again on a wider screen, so resizing does not silently
+  // discard what somebody chose.
+  const NARROW = 820;
+  const PREF = 'sdi.rail.collapsed';
+
+  function prefersCollapsed() {
+    try { return localStorage.getItem(PREF) === '1'; } catch { return false; }
+  }
+
+  function applyRailMode() {
+    const forced = window.innerWidth <= NARROW;
+    const mini = forced || prefersCollapsed();
+    document.body.classList.toggle('railmini', mini);
+    const t = document.getElementById('railtoggle');
+    if (t) {
+      t.hidden = forced;                       // nothing to choose down here
+      t.setAttribute('aria-expanded', String(!mini));
+      t.title = mini ? 'Expand the menu' : 'Collapse the menu';
+    }
+  }
+
   function initials(name) {
     return String(name || '?').trim().split(/\s+/).slice(0, 2)
       .map((w) => w[0]).join('').toUpperCase();
@@ -72,6 +104,7 @@
 
     const rail = document.createElement('nav');
     rail.className = 'rail';
+    rail.id = 'sdirail';
     rail.innerHTML = `
       <a class="rbrand" href="/"><span class="mark">SDI</span></a>
 
@@ -95,9 +128,23 @@
         : `<a class="ri" href="/login.html"><span class="ric">→</span>
              <span class="rit">Sign in</span></a>`}
         ${buildLine(who.build)}
+        <button class="rtoggle" id="railtoggle" type="button"
+                aria-controls="sdirail" aria-expanded="true">
+          <span class="ric">‹</span><span class="rit">Collapse</span>
+        </button>
       </div>`;
     document.body.insertBefore(rail, document.body.firstChild);
     document.body.classList.add('hasrail');
+
+    const toggle = document.getElementById('railtoggle');
+    if (toggle) toggle.addEventListener('click', () => {
+      const now = !prefersCollapsed();
+      try { localStorage.setItem(PREF, now ? '1' : '0'); } catch { /* private mode */ }
+      applyRailMode();
+    });
+    applyRailMode();
+    // Resizing past the breakpoint changes which of the two reasons applies.
+    window.addEventListener('resize', applyRailMode);
 
     const out = document.getElementById('rsignout');
     if (out) out.addEventListener('click', async () => {

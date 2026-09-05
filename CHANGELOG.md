@@ -12,6 +12,49 @@ date the work was completed.
 
 ---
 
+## 0.9.52 — 2026-09-05
+
+**A picture on the login page, a collapsible menu, and the warning text gone.**
+
+**The login page is a door, not a pamphlet.** It carried two paragraphs and a
+bordered box explaining what the platform withholds — a wall of prose beside the
+one thing a visitor came to do. All of it is gone, replaced by an inline SVG of
+a street with a return curve behind it and a sale board in the foreground:
+houses, and the numbers behind them, which is what the product is. Drawn rather
+than photographed — no asset, no licence, no network round trip, sharp at any
+size, and it takes the app's own palette. The branding leads at every width; the
+panel sits to its right as soon as there is room for two columns.
+
+**The warning text is out of the panel too.** The school-ratings note, the
+public-note warning, the "showing does not release the address" note and the
+projection preamble are all removed. What enforced any of it never lived in that
+prose: the fair-housing register is a schema constraint asserted at start-up, and
+the address gate is a database predicate. Removing the sentences changes what the
+screen says, not what the system does. Where compliance language eventually
+belongs is a question for people qualified to answer it, and not during
+development.
+
+**The rail collapses.** A toggle at the foot of the menu shrinks it to a 54px
+strip of icons and back, remembered across visits in `localStorage`.
+
+There was already a narrow-screen strip, as a media query. Rather than the button
+duplicating those rules, both now set one class: `body.railmini`. The stylesheet
+has a single definition of "collapsed" and does not need to know which reason
+applied. The rail's width became a custom property in the same pass — it had been
+written out as `196px` in five places and `54px` in four more, so a third state
+could not have been added without editing all nine.
+
+Below 820px the choice is not offered and the toggle hides itself: 196px of menu
+on a phone leaves nothing for the page. The stored preference survives that and
+takes effect again on a wider window, so resizing does not quietly discard it.
+
+Verified in Chromium: expanded 196px with the header at x=196, collapsed 54px
+with the header following to x=54 and the labels computed `display: none`,
+collapsed across a reload, expanded again, and forced to a strip with the toggle
+hidden at 700px.
+
+---
+
 ## 0.9.51 — 2026-09-05
 
 **Agents, customers, opportunities and contracts — and a contract is what

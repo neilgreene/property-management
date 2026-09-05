@@ -1,10 +1,17 @@
 /* =====================================================================
    nav.css  |  the application rail
    ===================================================================== */
-.rail{position:fixed;left:0;top:0;bottom:0;width:196px;z-index:1400;
+/* One width, named once. It was written out at 196px in five places and
+   54px in four more, so the collapsed state could not be added without
+   copying all nine. */
+body{--railw:196px}
+body.railmini{--railw:54px}
+
+.rail{position:fixed;left:0;top:0;bottom:0;width:var(--railw);z-index:1400;
   background:#14202c;color:#c8d6e2;display:flex;flex-direction:column;gap:2px;
-  padding:14px 10px 12px}
-body.hasrail{padding-left:196px}
+  padding:14px 10px 12px;transition:width .14s ease}
+body.railmini .rail{padding:12px 7px}
+body.hasrail{padding-left:var(--railw)}
 /* The rail carries identity, sign in/out and favourites now, so the
    header's copies of them go. The elements stay in the markup because
    app.js keeps their state and mirrors the count into the rail -- deleting
@@ -22,10 +29,10 @@ body.hasrail .who{gap:0}
 .ri.on .rcount{background:rgba(255,255,255,.28)}
 
 /* Everything else on the page assumed it started at the left edge. */
-body.hasrail .bar,body.hasrail .scrim{left:196px}
+body.hasrail .bar,body.hasrail .scrim{left:var(--railw)}
 body.hasrail .detail:not(.full){right:0}
-body.hasrail .detail.full{left:196px;width:calc(100% - 196px)}
-body.hasrail .photos,body.hasrail .lightbox{left:196px}
+body.hasrail .detail.full{left:var(--railw);width:calc(100% - var(--railw))}
+body.hasrail .photos,body.hasrail .lightbox{left:var(--railw)}
 
 .rbrand{display:block;padding:4px 8px 14px;text-decoration:none}
 .rbrand .mark{background:var(--accent);color:#fff;font-weight:700;letter-spacing:.5px;
@@ -64,18 +71,32 @@ body.hasrail .photos,body.hasrail .lightbox{left:196px}
 .rmeta i{font-size:10.5px;color:#7b90a4;font-style:normal;text-transform:capitalize}
 .rout{color:#9db0c2}
 
-@media (max-width:820px){
-  /* The rail becomes a strip: icons only, so a phone keeps its width. */
-  .rail{width:54px;padding:12px 7px}
-  body.hasrail{padding-left:54px}
-  body.hasrail .bar,body.hasrail .scrim,body.hasrail .photos,
-  body.hasrail .lightbox{left:54px}
-  body.hasrail .detail.full{left:54px;width:calc(100% - 54px)}
-  .rit,.rmeta,.rsec,.rbuild{display:none}
-  .rbrand .mark{padding:4px 6px;font-size:11px}
-  .ri{justify-content:center;padding:9px 0}
-  .rme{justify-content:center;padding:7px 0}
-}
+/* COLLAPSED: a strip of icons. One definition, two reasons to be in it --
+   the reader clicked the toggle, or the window is too narrow to spend 196px
+   on a menu. nav.js decides which; the CSS does not need to know, and this
+   used to be a media query that the toggle would have had to duplicate. */
+body.railmini .rit,
+body.railmini .rmeta,
+body.railmini .rsec,
+body.railmini .rbuild{display:none}
+body.railmini .rbrand .mark{padding:4px 6px;font-size:11px}
+body.railmini .ri{justify-content:center;padding:9px 0}
+body.railmini .rme{justify-content:center;padding:7px 0}
+body.railmini .rcount{position:absolute;top:3px;right:5px;margin:0;font-size:9px;
+  padding:0 4px}
+body.railmini .ri{position:relative}
+
+/* The toggle. Bottom of the rail, under everything it hides, because a
+   control that moves what is above it should not itself be above it. */
+.rtoggle{display:flex;align-items:center;gap:10px;width:100%;border:0;
+  background:none;color:#7b90a4;font:inherit;font-size:12px;cursor:pointer;
+  padding:7px 10px;border-radius:8px;text-align:left}
+.rtoggle:hover{background:#1e2f40;color:#c8d6e2}
+.rtoggle .ric{width:18px;text-align:center;font-size:13px;
+  transition:transform .14s ease}
+body.railmini .rtoggle{justify-content:center;padding:9px 0}
+body.railmini .rtoggle .rit{display:none}
+body.railmini .rtoggle .ric{transform:rotate(180deg)}
 
 /* The build, quietly. It has to be readable when somebody goes looking and
    invisible the rest of the time -- a version number competing with the
