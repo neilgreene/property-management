@@ -818,6 +818,29 @@ const BUILD = (() => {
   return { version: version || 'dev', commit: commit || null };
 })();
 
+// Who is actually asking, when something else is in front.
+//
+// TRUST_PROXY is OPT-IN, and off by default, because X-Forwarded-For is a
+// request header: anyone can send one. Reading it on a directly-exposed
+// server lets a caller claim any address they like, which turns the
+// sign-in audit into fiction and the lockout into something they can walk
+// around by rotating a header.
+//
+// When it IS set, the LAST entry is the one to take, not the first. A
+// proxy appends the address it actually observed, so the rightmost value
+// is the only one our own proxy vouched for; everything to its left was
+// supplied by the caller and is worth exactly what they say it is.
+function clientIp(req) {
+  const direct = (req.socket && req.socket.remoteAddress) || null;
+  if (process.env.TRUST_PROXY !== '1') return direct;
+  const fwd = String(req.headers['x-forwarded-for'] || '');
+  if (!fwd) return direct;
+  const last = fwd.split(',').pop().trim();
+  // Still validated: an inet column will reject nonsense, and a failed
+  // insert on a successful sign-in would be an odd way to lose a session.
+  return /^[0-9a-fA-F.:]{3,45}$/.test(last) ? last : direct;
+}
+
 const MIME = {
   '.html': 'text/html', '.css': 'text/css', '.js': 'text/javascript',
   // Real listing photography lives under public/assets/ and is served
@@ -868,9 +891,7 @@ const server = http.createServer(async (req, res) => {
       const body = JSON.parse(await readBody(req) || '{}');
       const out = await auth.authenticate(pool, body.email || '', body.password || '', {
         userAgent: req.headers['user-agent'] || null,
-        // Behind a proxy this must come from a trusted forwarded header, not
-        // the socket. Left as the socket address until a proxy is in front.
-        ip: (req.socket && req.socket.remoteAddress) || null,
+        ip: clientIp(req),
       });
       if (!out.ok) {
         // One message, one shape, whatever went wrong. Distinguishing

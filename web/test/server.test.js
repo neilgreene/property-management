@@ -1756,6 +1756,29 @@ test('a task nobody owns defaults to whoever raised it', async (t) => {
     { property_id: id, note_id: t2.note_id, remove: true }, cookie);
 });
 
+test('a forwarded address is only believed when a proxy is trusted', async (t) => {
+  if (!available) return t.skip('no server');
+  // X-Forwarded-For is a REQUEST header: anyone can send one. The suite
+  // runs without TRUST_PROXY, so a claimed address must be ignored --
+  // believing it on a directly-exposed server turns the sign-in audit
+  // into fiction and lets somebody walk around the lockout by rotating a
+  // header.
+  const d = await db();
+  await d.query('SELECT api.set_password($1, $2)', [JESS, await auth.hashPassword('jess-pw')]);
+  const r = await fetch(`${base}/api/login`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'X-Forwarded-For': '203.0.113.99' },
+    body: JSON.stringify({ email: 'jpool2@yahoo.com', password: 'jess-pw' }),
+  });
+  assert.equal(r.status, 200);
+  const row = (await d.query(
+    'SELECT ip FROM core.session WHERE person_id = $1 ORDER BY created_at DESC LIMIT 1',
+    [JESS])).rows[0];
+  assert.notEqual(String(row.ip), '203.0.113.99',
+    'A CLAIMED ADDRESS WAS RECORDED AS FACT — nothing is in front of this '
+    + 'server, so the header came from the caller');
+});
+
 test('the login page is served', async (t) => {
   if (!available) return t.skip('no server');
   const r = await fetch(`${base}/login.html`);

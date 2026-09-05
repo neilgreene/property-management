@@ -1,0 +1,53 @@
+# =====================================================================
+# docker-compose.public.yml  |  an internet-facing overlay
+# =====================================================================
+# Layered ON TOP of docker-compose.release.yml, never instead of it:
+#
+#   docker compose -f docker-compose.release.yml \
+#                  -f deploy/docker-compose.public.yml up -d
+#
+# What it changes, and why each one matters the moment the thing has a
+# public address:
+#
+#   THE WEB CONTAINER STOPS PUBLISHING A PORT. It is reachable only
+#   through the proxy on the compose network. Publishing 3099 as well
+#   would leave a plaintext door open beside the locked one, and the
+#   plaintext door is the one an attacker uses.
+#
+#   CADDY TERMINATES TLS and obtains a certificate automatically. It also
+#   redirects http to https, so a link somebody typed without the s does
+#   not become a password sent in the clear.
+#
+#   THE DATABASE STILL PUBLISHES NOTHING. It never did; this is a note
+#   for whoever is tempted to add a port to debug something.
+services:
+  web:
+    # Overrides the release file's published port with nothing at all.
+    # The `!override` tag is what stops Compose merging the two lists and
+    # leaving the plaintext port published anyway.
+    ports: !override []
+    environment:
+      # Caddy speaks http to the container over the compose network, and
+      # terminates TLS itself. The app must be told, or it will refuse to
+      # believe a proxied request is secure.
+      TRUST_PROXY: "1"
+
+  proxy:
+    image: caddy:2-alpine
+    depends_on: [web]
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      # Certificates and keys. A named volume on purpose: losing these
+      # means re-issuing on every restart, and Let's Encrypt rate-limits
+      # that hard enough to lock you out for a week.
+      - caddy-data:/data
+      - caddy-config:/config
+    restart: unless-stopped
+
+volumes:
+  caddy-data:
+  caddy-config:

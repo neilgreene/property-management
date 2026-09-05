@@ -1,0 +1,47 @@
+# The public hostname. Let's Encrypt will not issue a certificate for a
+# bare IP address, so an IP-only deployment has three options: buy a
+# domain, accept a self-signed certificate and its browser warning, or
+# use a wildcard DNS service that maps an IP into a real hostname.
+#
+# sslip.io is the third: 172-235-60-70.sslip.io resolves to 172.235.60.70
+# with no registration, no account and no DNS to configure -- and because
+# it is a real name, a real certificate can be issued for it.
+#
+# Replace this line with your own domain the moment you have one; nothing
+# else in this file changes.
+172-235-60-70.sslip.io {
+	# An address to reach you if issuance fails. Change it.
+	tls neil@example.com
+
+	encode zstd gzip
+
+	# The app speaks plain http inside the compose network. Only the hop
+	# from the internet to Caddy is encrypted, which is the hop that
+	# crosses anything a stranger can touch.
+	reverse_proxy web:3000
+
+	header {
+		# One year, and only meaningful over https -- which is the point:
+		# it stops a browser being talked back down to plaintext.
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		X-Content-Type-Options "nosniff"
+		X-Frame-Options "DENY"
+		Referrer-Policy "strict-origin-when-cross-origin"
+		# The address of a gated property must not leak through a referer
+		# header to whatever a shared PDF link points at.
+		-Server
+	}
+
+	log {
+		output file /data/access.log {
+			roll_size 20mb
+			roll_keep 5
+		}
+	}
+}
+
+# Anything arriving on the bare IP gets nothing. A vhost that answers to
+# any Host header is a vhost that answers to a scanner.
+:80 {
+	respond "Not found" 404
+}
