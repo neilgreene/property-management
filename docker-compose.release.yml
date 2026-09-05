@@ -45,6 +45,11 @@ services:
       PGUSER: sdi_app
       PGPASSWORD: ${SDI_APP_PASSWORD}
       SDI_MEDIA_ROOT: /srv/media
+      # Optional. Absent, the plain-English search uses its rules parser
+      # and reports which one answered.
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      SDI_LLM_MODEL: ${SDI_LLM_MODEL:-}
+      SDI_LLM_TIMEOUT_MS: ${SDI_LLM_TIMEOUT_MS:-}
     # The media store. A host path, deliberately NOT a named volume:
     # `docker compose down -v` destroys named volumes, and the schema flow
     # requires down -v on every schema change. Uploaded photographs must

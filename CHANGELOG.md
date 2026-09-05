@@ -12,6 +12,55 @@ date the work was completed.
 
 ---
 
+## 0.9.33 — 2026-09-05
+
+**A model behind the search box — step three of three.**
+
+Steps one and two were the work. This step is small precisely because they
+exist.
+
+### The model returns criteria, never SQL
+Text-to-SQL is the tempting version and the wrong one. The model fills in a
+**fixed schema whose keys are the same allowlist** the rules parser produces
+and the database constrains. `nlq.interpret()` validates the result exactly as
+it validates a rules parse, and the query builder binds every value. A model
+that hallucinates a key produces an ignored key.
+
+**Strict tool use**, not "return me some JSON" — `strict: true` with
+`additionalProperties: false` means the API itself guarantees the argument
+object matches the schema. Asking for JSON in a prompt and parsing the reply is
+the same idea with the guarantee removed. A test asserts the schema and the
+allowlist agree in both directions.
+
+### Rules first, model second, rules again as the fallback
+*"3 bed duplex in Cleveland under 200k"* is handled by regexes: instantly,
+free, identically every time. The model is asked only when the rules came back
+with **nothing** — a partial parse is still a parse, and a model
+second-guessing the regexes would make the same phrase behave differently on
+different days.
+
+That ordering also means the search box keeps working with no API key, no
+network, or a slow request. **A search that depends on a third party being up
+is a search that is down whenever they are.** No key is an ordinary state, not
+a degraded one, and there is a test asserting it.
+
+### Screening runs before the model is ever consulted
+The order is not an accident. A model asked for *"a good school district"* is
+far more willing than a regex to answer with a city — so it must never be
+asked. 0.9.32's refusal fires first; a test asserts nothing is parsed, by
+either path, once a request is refused.
+
+### Model choice is yours
+Defaults to `claude-opus-5`. `SDI_LLM_MODEL` overrides it — `claude-haiku-4-5`
+is considerably cheaper per search and this is a classification task, but which
+model runs is an operator decision, not one this code should make quietly.
+
+`ANTHROPIC_API_KEY`, `SDI_LLM_MODEL` and `SDI_LLM_TIMEOUT_MS` are wired through
+both compose files and documented in `.env.example`. The search box reports
+`source: "rules"` or `"model"` so it is always clear which answered.
+
+---
+
 ## 0.9.32 — 2026-09-05
 
 **A search that would steer is refused, with a reason.**

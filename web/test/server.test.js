@@ -1456,6 +1456,80 @@ test('the screening reads the register, not a list in the code', async (t) => {
   }
 });
 
+// ---- the model behind the box ----------------------------------------
+test('the model can only speak the vocabulary the rest of the system knows', async () => {
+  const llm = require('../llm');
+  const nlq = require('../nlq');
+  const sch = llm.schema();
+
+  // `q` is free text the server matches itself, and the bbox keys are the
+  // map viewport rather than an intent anybody types. Everything else the
+  // rules can produce, the model must be able to produce -- and nothing
+  // more, or it can hand back a key the validator will silently drop and
+  // the search will quietly ignore half the sentence.
+  const produced = [...nlq.KEYS].filter((k) => k !== 'q' && !k.startsWith('bbox_'));
+  for (const k of produced) {
+    assert.ok(k in sch.properties, `${k} is missing from the model's schema`);
+  }
+  for (const k of Object.keys(sch.properties)) {
+    assert.ok(nlq.KEYS.has(k), `${k} is in the model's schema but not the allowlist`);
+  }
+
+  // strict:true only guarantees the shape if the shape is closed.
+  assert.equal(sch.additionalProperties, false,
+    'an open schema lets the model invent keys, which is the thing strict mode is for');
+  assert.deepEqual(sch.required.sort(), Object.keys(sch.properties).sort(),
+    'every field required, so "not mentioned" is an explicit null rather than an omission');
+});
+
+test('the model is optional, and its absence is not an error', async (t) => {
+  if (!available) return t.skip('no server');
+  const llm = require('../llm');
+  // The suite runs without a key. That must be an ordinary state, not a
+  // degraded one: a search box that depends on a third party being up is
+  // a search box that is down whenever they are.
+  const out = await llm.parse('anything at all', ['Cleveland']);
+  assert.equal(out, null, 'no key, no call, no throw');
+
+  const r = await jsonPost('/api/parse', { text: '3 bed duplex in Cleveland under 200k' });
+  assert.equal(r.status, 200);
+  const d = await r.json();
+  assert.equal(d.source, 'rules');
+  assert.equal(d.criteria.min_beds, 3);
+  assert.equal(d.criteria.city, 'Cleveland');
+  assert.equal(d.criteria.max_price, 200000);
+});
+
+test('a model answer would still go through the same validator', async () => {
+  const nlq = require('../nlq');
+  // The model does not get a shorter path to the query than the regexes
+  // do. Whatever it returns is interpreted exactly as a rules parse is:
+  // unknown keys dropped, staff-only keys gated, values coerced.
+  const pretend = {
+    city: 'Cleveland', min_beds: 3,
+    school_rating: 9,                 // not on the allowlist
+    'DROP TABLE core.property': 1,    // nor this
+    max_roi: 12,                      // staff-only, and a percentage
+  };
+  const asBuyer = nlq.interpret(pretend, { staff: false });
+  assert.deepEqual(Object.keys(asBuyer).sort(), ['city', 'min_beds']);
+  const asStaff = nlq.interpret(pretend, { staff: true });
+  assert.equal(asStaff.max_roi, 0.12, 'and 12 is read as 12%, not 1200%');
+  assert.equal(asStaff.school_rating, undefined);
+});
+
+test('screening runs before the model is ever consulted', async (t) => {
+  if (!available) return t.skip('no server');
+  // The order matters and is not an accident: a model asked "find me a
+  // good school district" is far more willing than a regex to answer with
+  // a city. It must never be asked.
+  const r = await jsonPost('/api/parse', { text: 'houses in a good school district' });
+  assert.equal(r.status, 422);
+  const d = await r.json();
+  assert.equal(d.refused, true);
+  assert.equal(d.source, undefined, 'nothing was parsed, by rules or model');
+});
+
 test('the login page is served', async (t) => {
   if (!available) return t.skip('no server');
   const r = await fetch(`${base}/login.html`);

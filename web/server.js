@@ -15,6 +15,7 @@ const auth  = require('./auth');
 const media = require('./media');
 const nlq   = require('./nlq');
 const images = require('./images');
+const llm    = require('./llm');
 const share  = require('./share');
 
 const pool = new Pool({
@@ -1479,12 +1480,31 @@ const server = http.createServer(async (req, res) => {
       // would mean the same sentence understood two ways depending on who
       // typed it, which is far harder to reason about than one parse and
       // one gate.
-      const criteria = nlq.interpret(
-        nlq.parse(text, cities),
-        { staff: isStaff(identity) });
+      // RULES FIRST. "3 bed duplex in Cleveland under 200k" is handled by
+      // regexes: instantly, free, and identically every time. The model
+      // is asked only when the rules came back with nothing useful --
+      // which keeps the common search free and keeps the box working when
+      // there is no key, no network, or a slow request.
+      const staff = isStaff(identity);
+      let criteria = nlq.interpret(nlq.parse(text, cities), { staff });
+      let source = 'rules';
+
+      // "Nothing useful" means no filter at all, or an ordering with
+      // nothing to order. A partial parse is still a parse: the rules
+      // recognised something, and a model second-guessing them would make
+      // the same phrase behave differently on different days.
+      const thin = Object.keys(criteria).filter((k) => k !== 'sort').length === 0;
+      if (thin && llm.configured()) {
+        const out = await llm.parse(text, cities);
+        if (out) {
+          const better = nlq.interpret(out.criteria, { staff });
+          if (Object.keys(better).length) { criteria = better; source = 'model'; }
+        }
+      }
+
       res.writeHead(200, { 'Content-Type': 'application/json' });
       return res.end(JSON.stringify({
-        criteria, explain: nlq.explain(criteria),
+        criteria, explain: nlq.explain(criteria), source,
         ignored: criteria.__ignored && criteria.__ignored.length
           ? criteria.__ignored : undefined,
       }));

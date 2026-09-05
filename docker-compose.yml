@@ -53,6 +53,10 @@ services:
       PGDATABASE: ${POSTGRES_DB:-sdi}
       PGUSER: sdi_app
       PGPASSWORD: ${SDI_APP_PASSWORD:-demo_app_pw}
+      # Optional. Absent, the search box uses its rules parser and says so.
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      SDI_LLM_MODEL: ${SDI_LLM_MODEL:-}
+      SDI_LLM_TIMEOUT_MS: ${SDI_LLM_TIMEOUT_MS:-}
     ports:
       - "${WEB_PORT:-3000}:3000"
     restart: unless-stopped
