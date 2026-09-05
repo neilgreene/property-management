@@ -343,10 +343,7 @@ function renderManager(m) {
                <a class="ghost sm" href="tel:${esc(tel)}">Call</a>` : ''}
       <button class="ghost sm" id="mgrtask">Follow-up…</button>
     </div>
-    <p class="muted small mgrnote">Email and text hand off to your own client.
-      Nothing is sent from here — there is no consent record behind it, and a
-      platform that texts people because a button existed cannot prove it had
-      permission to.</p>`;
+    <p class="muted small mgrnote">Opens your own email or text client.</p>`;
 
   $('mgrtask').addEventListener('click', () => openTask(m));
 }

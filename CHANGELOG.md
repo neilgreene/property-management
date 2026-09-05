@@ -12,6 +12,38 @@ date the work was completed.
 
 ---
 
+## 0.9.49 — 2026-09-05
+
+**Less disclaimer.**
+
+The manager card carried four lines explaining that a mailto: link opens a mail
+client. It now says *"Opens your own email or text client."* — which is the only
+part anybody needed.
+
+Five other blocks of caution came down with it, all of them saying the point and
+then arguing it:
+
+- The flag note dropped *"That is the point — but it means the flag is a job for
+  a person, not a mood."*
+- The public-note warning keeps the warning, loses the second sentence.
+- Projection assumptions lose *"and a second copy is a second answer."*
+- The school-ratings note goes from 372 characters to 175. It still says schools
+  are not scored and that catchment ranking is steering under the Fair Housing
+  Act — the fact and the reason. The three clauses restating that it is never a
+  column, never in the verdict and never sortable are gone; that is enforced in
+  the schema and asserted at start-up, which is where it belongs.
+- The showing note loses its trailing clause.
+
+Left alone: the points break-even and mortgage-acceleration notes, and the guest
+line on the landing page. Those explain how to read a number or what an option
+gets you. They are not disclaimers, and shortening them would cost the reader
+something.
+
+Appropriate disclaimers are a question for after the proof of concept, not
+during it.
+
+---
+
 ## 0.9.48 — 2026-09-05
 
 **Two sections were 20px wider than the rest of the sheet.**
