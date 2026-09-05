@@ -1,45 +1,164 @@
-<title>Sign in — SDI</title>
+<!doctype html>
+<meta charset="utf-8">
+<title>SDI — Investment Property Marketplace</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
 <style>
-  :root{--ink:#12161c;--muted:#5a6572;--rule:#d4d9e0;--accent:#1f5fa9;--bg:#fbfbfa}
+  /* The app's own palette, not a second one. This page used to carry its
+     own colours, which meant signing in changed the look of the product
+     halfway through the first interaction anybody has with it. */
+  :root{
+    --ink:#0f1c2a; --ink2:#43586b; --mut:#7189a0; --line:#d8e3ee;
+    --bg:#f0f5fa; --card:#fff; --accent:#1d6fa8; --accent2:#e4f0f9;
+    --gate:#4d6785; --gatebg:#eaf1f8; --gateline:#cddced;
+    --crit:#a8261d; --critbg:#fbeae8; --critline:#efc4bf;
+    --shadow:0 1px 2px rgba(16,42,66,.06),0 6px 18px rgba(16,42,66,.08);
+  }
   *{box-sizing:border-box}
-  body{margin:0;font:15px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",Helvetica,Arial,sans-serif;
-       color:var(--ink);background:var(--bg);display:grid;place-items:center;min-height:100vh}
-  .card{width:min(380px,92vw);background:#fff;border:1px solid var(--rule);padding:30px 28px 26px}
-  h1{margin:0 0 4px;font-size:19px;letter-spacing:-.01em}
-  .sub{margin:0 0 22px;color:var(--muted);font-size:13.5px}
-  label{display:block;font-size:12.5px;font-weight:600;margin:14px 0 5px}
-  input{width:100%;padding:9px 10px;border:1px solid var(--rule);font:inherit;font-size:14px;background:#fff}
-  input:focus{outline:2px solid var(--accent);outline-offset:-1px;border-color:var(--accent)}
-  button{width:100%;margin-top:20px;padding:10px;border:0;background:var(--ink);color:#fff;
-         font:inherit;font-weight:600;cursor:pointer}
-  button:disabled{opacity:.55;cursor:default}
-  .err{margin-top:14px;padding:9px 11px;background:#fdf3ec;border:1px solid #a8410e;
-       color:#a8410e;font-size:13px;display:none}
+  body{margin:0;font:15px/1.55 -apple-system,BlinkMacSystemFont,"Segoe UI",
+       Helvetica,Arial,sans-serif;color:var(--ink);background:var(--bg)}
+  a{color:var(--accent)}
+
+  .wrap{min-height:100vh;display:grid;place-items:center;padding:32px 20px}
+  /* Two panels side by side where there is room, stacked where there is
+     not -- with the form FIRST in source order, so a narrow screen and a
+     screen reader both reach the thing you came here to do before the
+     description of it. */
+  .door{display:grid;gap:26px;width:min(880px,100%);
+    grid-template-columns:minmax(0,1fr)}
+  @media (min-width:860px){
+    .door{grid-template-columns:1fr 340px;align-items:start;gap:40px}
+    .intro{order:1} .card{order:2}
+  }
+
+  .brand{display:flex;align-items:center;gap:10px;margin:0 0 16px}
+  .mark{background:var(--accent);color:#fff;font-weight:700;letter-spacing:.5px;
+    padding:5px 8px;border-radius:6px;font-size:13px}
+  .brandtxt{font-weight:600;font-size:15px}
+
+  .intro h1{margin:0 0 10px;font-size:26px;line-height:1.25;letter-spacing:-.015em}
+  .intro p{margin:0 0 12px;color:var(--ink2);font-size:14.5px;max-width:46em}
+
+  /* What the gate is, said plainly and before anyone runs into it. A
+     visitor who discovers the withholding by hitting it reads it as the
+     site being broken. */
+  .gatebox{background:var(--gatebg);border:1px solid var(--gateline);
+    border-radius:9px;padding:12px 14px;margin:18px 0 0;color:var(--gate);
+    font-size:13.5px}
+  .gatebox b{color:var(--ink)}
+  .gatebox ul{margin:8px 0 0;padding-left:19px}
+  .gatebox li{margin:3px 0}
+
+  .card{background:var(--card);border:1px solid var(--line);border-radius:11px;
+    padding:22px 22px 20px;box-shadow:var(--shadow)}
+  .card h2{margin:0 0 3px;font-size:16px;letter-spacing:-.01em}
+  .card .sub{margin:0 0 16px;color:var(--mut);font-size:13px}
+  label{display:block;font-size:12px;font-weight:600;margin:13px 0 5px;
+    letter-spacing:.2px}
+  input{width:100%;padding:9px 10px;border:1px solid var(--line);border-radius:7px;
+    font:inherit;font-size:14px;background:var(--bg);color:var(--ink)}
+  input:focus{outline:2px solid var(--accent);outline-offset:-1px;
+    border-color:var(--accent);background:var(--card)}
+  button{font:inherit;cursor:pointer}
+  .primary{width:100%;margin-top:18px;padding:10px;border:0;border-radius:8px;
+    background:var(--accent);color:#fff;font-weight:600}
+  .primary:disabled{opacity:.55;cursor:default}
+
+  /* The guest route is a real option and is presented as one -- below a
+     rule, in the quieter weight, saying what it actually gets you. */
+  .orwrap{margin-top:18px;padding-top:16px;border-top:1px solid var(--line)}
+  .guest{width:100%;padding:9px;border:1px solid var(--line);border-radius:8px;
+    background:var(--card);color:var(--ink);font-weight:600}
+  .guest:hover{background:var(--accent2);border-color:var(--accent)}
+  .guestnote{margin:9px 0 0;color:var(--mut);font-size:12px;line-height:1.45}
+  form.inline{margin:0}
+
+  .err{margin-top:13px;padding:9px 11px;background:var(--critbg);
+    border:1px solid var(--critline);border-radius:7px;color:var(--crit);
+    font-size:13px;display:none}
   .err[data-shown]{display:block}
-  .foot{margin-top:20px;padding-top:16px;border-top:1px solid var(--rule);
-        color:var(--muted);font-size:12.5px}
+
+  .foot{margin:22px 0 0;color:var(--mut);font-size:11.5px}
 </style>
 
-<form class="card" id="f">
-  <h1>SDI Investment Property Marketplace</h1>
-  <p class="sub">Sign in to continue.</p>
+<div class="wrap">
+  <div class="door">
 
-  <label for="email">Email</label>
-  <input id="email" name="email" type="email" autocomplete="username" required autofocus>
+    <section class="intro">
+      <div class="brand">
+        <span class="mark">SDI</span>
+        <span class="brandtxt">Investment Property Marketplace</span>
+      </div>
 
-  <label for="password">Password</label>
-  <input id="password" name="password" type="password" autocomplete="current-password" required>
+      <h1>Investment property, with the numbers already done.</h1>
 
-  <button id="go" type="submit">Sign in</button>
-  <!-- One message for every failure. Telling the visitor which half was
-       wrong turns the form into an account-enumeration tool. -->
-  <p class="err" id="err" role="alert"></p>
+      <p>Every listing arrives with the full underwriting sheet behind it —
+      purchase and financing assumptions, rehab estimate, projected rent and
+      operating cost, cap rate and cash-on-cash return, and a five, ten,
+      fifteen and twenty year projection you can re-run against your own
+      assumptions.</p>
 
-  <p class="foot">Browsing without an account shows listings with addresses
-  withheld. <a href="/">Continue without signing in</a>.</p>
-</form>
+      <p>This is a private marketplace for investors. It is not a consumer
+      listings site, and it is not open to the web by default.</p>
+
+      <div class="gatebox">
+        <b>Some details are withheld until access is granted.</b>
+        <ul>
+          <li>The street address and the exact map pin</li>
+          <li>Photographs of the property</li>
+        </ul>
+        Everything else — the financials, the condition notes, the
+        neighbourhood, an approximate location — is visible to anyone.
+        The withheld details open once an access agreement is in place on
+        your account.
+      </div>
+    </section>
+
+    <section class="card">
+      <h2>Sign in</h2>
+      <p class="sub">Use the account your agent set up for you.</p>
+
+      <form id="f" autocomplete="on">
+        <label for="email">Email</label>
+        <input id="email" name="email" type="email" autocomplete="username"
+               required autofocus>
+
+        <label for="password">Password</label>
+        <input id="password" name="password" type="password"
+               autocomplete="current-password" required>
+
+        <button id="go" class="primary" type="submit">Sign in</button>
+        <!-- One message for every failure. Telling the visitor which half
+             was wrong turns the form into an account-enumeration tool. -->
+        <p class="err" id="err" role="alert"></p>
+      </form>
+
+      <div class="orwrap">
+        <!-- A form POST, not a link: it sets a cookie, and a GET is not
+             supposed to change anything. A form also means this works
+             with no JavaScript at all, which a link calling fetch() would
+             not. -->
+        <form class="inline" method="post" action="/api/guest">
+          <button class="guest" type="submit">Browse as a guest</button>
+        </form>
+        <p class="guestnote">Full financials on every listing. No address,
+        no map pin, no photographs, and nothing saved between visits.</p>
+      </div>
+
+      <p class="foot" id="buildline"></p>
+    </section>
+
+  </div>
+</div>
 
 <script>
+// Which build is running. Not gated -- an anonymous visitor reporting a
+// problem needs to be able to say which version they were looking at.
+fetch('/api/whoami').then((r) => r.json()).then((j) => {
+  if (j && j.build && j.build.version) {
+    document.getElementById('buildline').textContent = 'Build ' + j.build.version;
+  }
+}).catch(() => {});
+
 const f = document.getElementById('f');
 const err = document.getElementById('err');
 const go = document.getElementById('go');

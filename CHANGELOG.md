@@ -12,6 +12,67 @@ date the work was completed.
 
 ---
 
+## 0.9.43 — 2026-09-05
+
+**A front door, and a block grid that holds its shape.**
+
+**`/` is a landing page.** It used to serve the listings grid to anyone who
+typed the address, so the product had no front: the first thing a visitor saw
+was a wall of houses, with no statement of what this is, who it is for, or why
+half the details were missing. Discovering the withholding by walking into it
+reads as the site being broken.
+
+The page says what the marketplace is, what is withheld before access is
+granted and what is not, and offers the two ways in — sign in, or browse as a
+guest. It uses the app's own palette rather than the second one it had been
+carrying, so signing in no longer changes the look of the product halfway
+through the first interaction anybody has with it.
+
+Recognised visitors never see it: a session goes straight through, and so does
+a demo persona when `DEMO_PERSONAS=1`. That includes `?persona=anon`, which
+exists so the gated view can be looked at deliberately — testing the resulting
+identity alone would have sent it back to the door and taken the anonymous view
+out of the demo, so the door tests the choice, and tests it against the real
+persona list. `/index.html` goes through the same check; one entrance and a
+side gap is not an entrance.
+
+**The guest cookie is a record of a click, not a credential.** `POST /api/guest`
+sets it, and authorisation is entirely untouched: every request still resolves
+through `identityFor()`, a guest is still `ANON` on `sdi_public`, and forging it
+buys what typing `/index.html` bought before — the public band with addresses,
+pins and photographs gated. A test asserts exactly that, with a hand-written
+cookie, because the day that assertion fails the door has stopped being a front
+page and become an authentication bypass. Signing out clears both cookies:
+clearing only the session would drop the visitor back to the listings as a
+guest and make signing out look as though it had not worked. `/` answers
+`Vary: Cookie` so no shared cache can hand one visitor's answer to the next.
+It is a POST answered with a 303 rather than a link, so it works with no
+JavaScript and a reload does not re-post.
+
+**The sheet reads A C / B D again.** The manager card sat third in the markup
+so that it would land beside A and C — which held only while it was showing.
+Hidden, the three-column grid pulled **B** up into the gap and the sheet read
+`A C B / D`. Source order no longer decides anything: the blocks are placed
+explicitly, A and C hold row 1 and B and D hold row 2 whatever else is on the
+page, and the third column exists only when there is a card to put in it.
+
+**And a second bug the measuring found.** The three-column rule was a viewport
+breakpoint, but viewport width is not the width this grid gets: the rail and
+the property list take about 516px before the sheet begins. At a 1320px window
+the sheet is 804px while the columns ask for 1110, so the manager card was
+pushed past the right edge and `.sheet`'s `overflow-x` hid it behind a sideways
+scroll — invisible, from roughly 1320px to 1650px, with no overflow anywhere
+for anyone to notice. It is now a container query against the sheet itself.
+
+Verified in Chromium at 700, 1100, 1320, 1400, 1500, 1700 and 1920px, with the
+card shown and hidden: the pairing holds at every width and nothing is clipped
+at any of them. `web/test/layout.test.js` holds the three decisions those
+breakages turned on, and says plainly that it checks the source rather than the
+render — twice now the arrangement has been inferred from CSS rather than
+measured, and both times it was wrong.
+
+---
+
 ## 0.9.42 — 2026-09-05
 
 **The deployment guide now matches what the deployment actually did.**

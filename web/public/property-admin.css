@@ -34,7 +34,11 @@
   background:var(--gatebg);color:var(--gate);border-radius:4px;padding:1px 5px}
 
 /* ---------- the sheet ---------- */
-.sheet{overflow-y:auto;padding:0 0 60px}
+/* A query container, so the block grid below can ask how much room THE
+   SHEET has rather than how wide the window is. Those are very different
+   numbers here: the rail and the property list take about 516px before
+   the sheet begins. */
+.sheet{overflow-y:auto;padding:0 0 60px;container-type:inline-size;container-name:sheet}
 .sheethead{position:sticky;top:0;z-index:3;background:var(--card);
   border-bottom:1px solid var(--line);padding:13px 20px;
   display:flex;justify-content:space-between;align-items:center;gap:18px;flex-wrap:wrap}
@@ -62,7 +66,9 @@
 
 /* Two columns at most, so the blocks land where the workbook puts them:
    A above B on the left, C above D on the right. A third column would put
-   B beside C and the familiarity is the whole point of the layout. */
+   B beside C and the familiarity is the whole point of the layout.
+   Source order is A, C, B, D, so auto-flow alone gives that pairing here;
+   only the wide three-column case below has to say it explicitly. */
 .blocks{display:grid;grid-template-columns:repeat(auto-fit,minmax(420px,1fr));
   gap:14px;padding:16px 20px;max-width:1180px}
 .block{background:var(--card);border:1px solid var(--line);border-radius:10px;
@@ -314,11 +320,12 @@
    --------------------------------------------------------------------- */
 /* THE MANAGER CARD IS A GRID ITEM, not a floating panel.
    It was a flex box above the sheet, which put it in the top-right corner
-   on its own and left a hole in the block grid beneath. As the third item
-   in `.blocks` it lands in the first row beside A and C, shares their top
-   edge and their card styling, and wraps into the flow like any other
-   block when the window is too narrow for three columns -- rather than
-   staying pinned somewhere the rest of the layout has to work around. */
+   on its own and left a hole in the block grid beneath. In `.blocks` it
+   shares the blocks' top edge and their card styling, and wraps into the
+   flow like any other block when the window is too narrow for three
+   columns -- rather than staying pinned somewhere the rest of the layout
+   has to work around. It is placed by the wide-screen rule at the foot of
+   this file, not by its position in the markup. */
 .mgrcard{padding:13px 15px 15px}
 .mgrhead{display:flex;align-items:baseline;gap:7px;flex-wrap:wrap}
 .mgrname{font-weight:700;font-size:13.5px}
@@ -355,11 +362,41 @@
   border-radius:4px;padding:1px 6px}
 .ntask.late{color:var(--crit);background:var(--critbg)}
 
-/* Three columns where there is room for them: two full-width blocks for
-   the figures and a narrower one for the manager, who has less to say.
-   Below this the grid falls back to the auto-fit rule above and the card
-   simply takes its turn in the flow. */
-@media (min-width:1320px){
-  .blocks{grid-template-columns:minmax(390px,1fr) minmax(390px,1fr) 262px;
+/* Three columns where there is room for them AND there is a manager to
+   show: two full-width columns for the figures and a narrow one for the
+   card, which has less to say.
+   
+   MEASURED AGAINST THE SHEET, not the window. This was a viewport
+   breakpoint, and viewport width is not the width this grid gets: the
+   rail and the property list take roughly 516px first. At a 1320px window
+   the sheet is 804px and the three columns ask for 1110, so the manager
+   card was pushed past the right edge -- where `.sheet`'s `overflow-x`
+   quietly took it away behind a sideways scroll. Not an overflow anybody
+   would notice; just a card that was not there, between about 1320px and
+   1650px. 1110px is what the columns and gaps actually add up to
+   (390 + 390 + 262 + 28 gap + 40 padding).
+   
+   Guarded on `:has()` because the third column exists only for the card.
+   With no manager the card is `hidden`, and a bare third column let the
+   grid pull B up beside A and C -- the sheet read A C B / D, which is not
+   the workbook. Where `:has()` is unsupported the whole rule is dropped
+   and the two-column layout above applies, which is the right answer
+   anyway; there is no arrangement in which the pairing breaks.
+   
+   Placement is explicit rather than left to source order. Source order
+   can only put a block in the first free cell, and which cell is free
+   depends on whether the card is showing -- that dependency is exactly
+   what broke. A and C hold row 1, B and D hold row 2, whatever else is
+   on the page. */
+@container sheet (min-width:1110px){
+  .blocks:has(> .mgrcard:not([hidden])){
+    grid-template-columns:minmax(390px,1fr) minmax(390px,1fr) 262px;
     max-width:1460px}
+  .blocks:has(> .mgrcard:not([hidden])) > .bA{grid-column:1;grid-row:1}
+  .blocks:has(> .mgrcard:not([hidden])) > .bC{grid-column:2;grid-row:1}
+  .blocks:has(> .mgrcard:not([hidden])) > .bB{grid-column:1;grid-row:2}
+  .blocks:has(> .mgrcard:not([hidden])) > .bD{grid-column:2;grid-row:2}
+  /* Row 1 only: the card is short and should not stretch down beside D. */
+  .blocks:has(> .mgrcard:not([hidden])) > .mgrcard{grid-column:3;grid-row:1;
+    align-self:start}
 }

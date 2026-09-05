@@ -62,27 +62,33 @@
     <div id="fees" class="fees" hidden></div>
     <div id="msg" class="msg" hidden></div>
 
+    <!-- Source order is the workbook's own order: A, C, B, D, with the
+         manager last. The card used to sit third so that it would land
+         beside A and C -- which worked only while it was showing. Hidden,
+         the three-column grid pulled B up into the gap and the sheet read
+         A C B / D. Order no longer decides the layout; the CSS places
+         each block explicitly. -->
     <div class="blocks">
-      <div class="block">
+      <div class="block bA">
         <h2><span class="bk">A</span> Property specifications</h2>
         <div class="fields" id="blockA"></div>
       </div>
-      <div class="block">
+      <div class="block bC">
         <h2><span class="bk">C</span> Financing assumptions</h2>
         <div class="fields" id="blockC"></div>
         <div class="derived" id="derivedC"></div>
       </div>
-      <aside id="mgr" class="block mgrcard" hidden></aside>
-      <div class="block">
+      <div class="block bB">
         <h2><span class="bk">B</span> Purchase assumptions</h2>
         <div class="fields" id="blockB"></div>
         <div class="derived" id="derivedB"></div>
       </div>
-      <div class="block">
+      <div class="block bD">
         <h2><span class="bk">D</span> Estimated financial assumptions</h2>
         <div class="fields" id="blockD"></div>
         <div class="derived" id="derivedD"></div>
       </div>
+      <aside id="mgr" class="block mgrcard" hidden></aside>
     </div>
 
     <div class="block wide">

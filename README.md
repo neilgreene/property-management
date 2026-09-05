@@ -582,6 +582,35 @@ deactivated; changing a password revokes every existing session; an unknown
 email and a wrong password return the identical response; and `sdi_app` cannot
 read a password hash.
 
+### The front door
+
+`/` is a landing page, not the listings. It says what the marketplace is, what
+is withheld before access is granted and what is not, and offers the two ways
+in: sign in, or browse as a guest. It used to serve the listings grid to
+anybody who typed the address, which gave the product no front at all — the
+first thing a visitor saw was a wall of houses with no statement of what this
+is or why half the details were missing, and discovering the withholding by
+walking into it reads as the site being broken.
+
+Recognised visitors never see it. A session goes straight through, and so does
+a demo persona when `DEMO_PERSONAS=1` — including `?persona=anon`, which exists
+precisely so the gated view can be looked at deliberately. `/index.html` is
+checked by the same rule, because one entrance and a side gap is not an
+entrance.
+
+**The guest cookie is not a credential.** `POST /api/guest` sets `sdi_guest`,
+and the only thing it records is that this visitor has been shown the door and
+clicked past it. Authorisation is untouched: the request still resolves through
+`identityFor()`, a guest is still `ANON` on `sdi_public`, and forging the cookie
+buys exactly what typing `/index.html` bought before — the public band, with
+addresses, pins and photographs gated. There is no privilege there to steal,
+and a test asserts it by making the request with a hand-written cookie.
+
+Signing out clears both cookies. Clearing only the session would drop the
+visitor back to the listings as a guest, and signing out would look as though
+it had not worked. The door responds `Vary: Cookie`, so no shared cache can
+hand one visitor's answer to the next.
+
 ### The demo persona switcher is now off by default
 
 It is genuinely useful — showing Ruth and Marcus side by side is the clearest

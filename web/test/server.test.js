@@ -1786,6 +1786,105 @@ test('the login page is served', async (t) => {
   assert.match(await r.text(), /Sign in/);
 });
 
+// ---------------------------------------------------------------------
+// The door
+//
+// `/` is the landing page for anyone the server does not recognise, and
+// the listings for anyone it does. The test that matters is the negative
+// one: going past the door as a guest must buy no authority whatsoever.
+// If it ever does, the door has stopped being a front page and become an
+// authentication bypass.
+// ---------------------------------------------------------------------
+
+const isDoor = (html) => /Browse as a guest/.test(html);
+const isApp = (html) => /id="grid"/.test(html);
+
+test('an unrecognised visitor gets the landing page, not the listings', async (t) => {
+  if (!available) return t.skip('no server');
+  const r = await fetch(`${base}/`);
+  assert.equal(r.status, 200);
+  const html = await r.text();
+  assert.ok(isDoor(html), 'the door was not served at /');
+  assert.ok(!isApp(html), 'the listings grid was served to an unrecognised visitor');
+});
+
+test('/index.html is the same entrance, not a way around it', async (t) => {
+  if (!available) return t.skip('no server');
+  const html = await (await fetch(`${base}/index.html`)).text();
+  assert.ok(isDoor(html), 'typing the file name walked straight past the door');
+});
+
+test('the door varies on the cookie, so no cache can hand one answer to another visitor',
+  async (t) => {
+    if (!available) return t.skip('no server');
+    const r = await fetch(`${base}/`);
+    assert.equal(r.headers.get('vary'), 'Cookie');
+    assert.equal(r.headers.get('cache-control'), 'no-cache');
+  });
+
+test('a guest is let through, and the guest cookie buys nothing at all', async (t) => {
+  if (!available) return t.skip('no server');
+
+  const r = await fetch(`${base}/api/guest`, { method: 'POST', redirect: 'manual' });
+  assert.equal(r.status, 303);
+  assert.equal(r.headers.get('location'), '/');
+  const set = r.headers.getSetCookie();
+  const guest = set.find((c) => c.startsWith('sdi_guest='));
+  assert.ok(guest, 'no guest cookie was issued');
+  assert.match(guest, /HttpOnly/);
+  assert.match(guest, /SameSite=Lax/);
+  const cookie = guest.split(';')[0];
+
+  // Through the door...
+  const html = await (await fetch(`${base}/`, { headers: { cookie } })).text();
+  assert.ok(isApp(html), 'the guest was not let through');
+
+  // ...and no further. THIS is the assertion the feature stands on.
+  const j = await (await fetch(`${base}/api/view`, { headers: { cookie } })).json();
+  assert.equal(j.persona.role, 'sdi_public',
+    'THE GUEST COOKIE GRANTED A ROLE — it is a record of a click, not a credential');
+  assert.ok(j.rows.length > 0);
+  assert.equal(j.rows[0].street_address, null,
+    'THE GUEST COOKIE OPENED THE ADDRESS GATE');
+
+  const who = await (await fetch(`${base}/api/whoami`, { headers: { cookie } })).json();
+  assert.equal(who.signedIn, false, 'a guest was reported as signed in');
+});
+
+test('a forged guest cookie is worth exactly what a real one is', async (t) => {
+  if (!available) return t.skip('no server');
+  // Nothing about it is signed, and nothing needs to be: the value it
+  // carries is "show me the listings", which any visitor may have.
+  const cookie = 'sdi_guest=1';
+  const j = await (await fetch(`${base}/api/view`, { headers: { cookie } })).json();
+  assert.equal(j.persona.role, 'sdi_public');
+  assert.equal(j.rows[0].street_address, null);
+});
+
+test('a signed-in visitor reaches the listings without any guest cookie', async (t) => {
+  if (!available) return t.skip('no server');
+  const login = await jsonPost('/api/login',
+    { email: 'ruth@example.com', password: 'ruth-pw' });
+  assert.equal(login.status, 200);
+  const cookie = login.headers.getSetCookie()
+    .find((c) => c.startsWith('sdi_session=')).split(';')[0];
+  assert.ok(!/sdi_guest/.test(cookie));
+
+  const html = await (await fetch(`${base}/`, { headers: { cookie } })).text();
+  assert.ok(isApp(html), 'a signed-in visitor was sent back to the door');
+
+  // Signing out drops BOTH cookies. Clearing only the session would leave
+  // the visitor a guest, land them back on the listings, and make signing
+  // out look as though it had not worked.
+  const out = await fetch(`${base}/api/logout`, { method: 'POST', headers: { cookie } });
+  const cleared = out.headers.getSetCookie();
+  assert.ok(cleared.some((c) => /^sdi_session=;/.test(c)), 'the session cookie survived');
+  assert.ok(cleared.some((c) => /^sdi_guest=;/.test(c)), 'the guest cookie survived sign-out');
+
+  const after = await (await fetch(`${base}/`, { headers: { cookie } })).text();
+  assert.ok(isDoor(after), 'a dead session still reached the listings');
+});
+
 test.after(async () => {
   if (proc) proc.kill();
   if (pool) await pool.end();

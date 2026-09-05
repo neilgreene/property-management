@@ -856,6 +856,37 @@ const MIME = {
 const ANON = { key: 'anon', label: 'Not signed in', role: 'sdi_public',
                actor: null, note: 'Anonymous visitor' };
 
+// THE GUEST COOKIE IS NOT AN IDENTITY AND GRANTS NOTHING.
+//
+// `/` used to serve the listings grid to anyone who typed the address, so
+// the product had no front door: the first thing a visitor saw was a wall
+// of houses, with no statement of what this is, who it is for, or why half
+// the details are missing. Discovering the withholding by walking into it
+// reads as the site being broken.
+//
+// So `/` is the door, and this cookie records the one fact the door needs:
+// that this visitor has already been shown it and chose to go past. It is
+// a record of a click, not a credential.
+//
+// Nothing about authorisation changes. Every request still resolves
+// through identityFor(); a visitor holding this cookie and no session is
+// still ANON on sdi_public; and forging it buys exactly what typing
+// /index.html bought before, which is the public band with the addresses,
+// pins and photographs gated. There is no privilege here to steal.
+const GUEST_COOKIE = 'sdi_guest';
+const GUEST_MAX_AGE = 12 * 3600;
+
+function guestCookie({ secure = true } = {}) {
+  return [`${GUEST_COOKIE}=1`, 'HttpOnly', 'Path=/', 'SameSite=Lax',
+          `Max-Age=${GUEST_MAX_AGE}`, secure ? 'Secure' : null]
+    .filter(Boolean).join('; ');
+}
+
+function clearGuestCookie({ secure = true } = {}) {
+  return [`${GUEST_COOKIE}=`, 'HttpOnly', 'Path=/', 'SameSite=Lax', 'Max-Age=0',
+          secure ? 'Secure' : null].filter(Boolean).join('; ');
+}
+
 // The one place a request becomes an identity.
 //
 // A real session wins. A demo persona is consulted only when DEMO_PERSONAS
@@ -919,9 +950,30 @@ const server = http.createServer(async (req, res) => {
     await auth.logout(pool, auth.tokenFromRequest(req));
     res.writeHead(200, {
       'Content-Type': 'application/json',
-      'Set-Cookie': auth.clearCookie({ secure: secureCookie }),
+      // Both cookies. Clearing only the session would drop the visitor
+      // back to the listings as a guest -- signing out would look like it
+      // had not worked, because the page it returns to is the same one.
+      'Set-Cookie': [
+        auth.clearCookie({ secure: secureCookie }),
+        clearGuestCookie({ secure: secureCookie }),
+      ],
     });
     return res.end(JSON.stringify({ ok: true }));
+  }
+
+  // Going past the door as a guest.
+  //
+  // A POST answered with a redirect, rather than a link, for two reasons:
+  // it sets a cookie, and a GET is not supposed to change anything; and a
+  // plain form works with no JavaScript, which a link calling fetch() does
+  // not. 303 so the browser follows it with a GET and a reload does not
+  // re-post.
+  if (url.pathname === '/api/guest' && req.method === 'POST') {
+    res.writeHead(303, {
+      Location: '/',
+      'Set-Cookie': guestCookie({ secure: secureCookie }),
+    });
+    return res.end();
   }
 
   // ---- share a listing as a document ------------------------------------
@@ -1667,7 +1719,47 @@ const server = http.createServer(async (req, res) => {
   // ASK BEFORE EVERY USE. The ask is conditional, so an unchanged file costs
   // a 304 with no body rather than a re-download, and a changed one arrives
   // immediately without anybody being told to clear anything.
-  const file = url.pathname === '/' ? '/index.html' : url.pathname;
+  let file = url.pathname === '/' ? '/index.html' : url.pathname;
+
+  // THE DOOR. The listings page is not what an unrecognised visitor gets;
+  // the landing page is, and it says what this is and offers the two ways
+  // in. Both paths are honoured: a session, or a guest who has clicked
+  // past. A demo persona counts too, which is what keeps `?persona=` links
+  // working when DEMO_PERSONAS is on.
+  //
+  // Served at `/` rather than redirected to /login.html, so the address of
+  // the product stays the address of the product. /index.html is checked
+  // by the same rule -- one entrance, not one entrance and a side gap.
+  let vary = null;
+  if (file === '/index.html') {
+    vary = 'Cookie';   // the response at this path depends on who is asking
+    let identity = ANON;
+    try {
+      identity = await identityFor(req, url);
+    } catch (e) {
+      // A database that cannot answer means nobody can be recognised. The
+      // door is the honest response; the listings page would only fail
+      // further in, with less to say about why.
+      console.error('door identity check failed:', e.message);
+      identity = ANON;
+    }
+    const cookies = auth.parseCookies(req.headers && req.headers.cookie);
+
+    // Naming a persona is itself a choice to go past the door -- including
+    // `?persona=anon`, which exists so the demo can look at the gated view
+    // deliberately. Testing the resulting identity alone would send that
+    // one back to the door and take the anonymous view out of the demo,
+    // since an anon persona resolves to exactly ANON. So test the choice,
+    // and test it against the real list: an invented name resolves to ANON
+    // too, and should not be a way past.
+    const asked = DEMO_PERSONAS ? url.searchParams.get('persona') : null;
+    const chosePersona = !!(asked && PERSONAS[asked]);
+
+    if (identity.key === 'anon' && !chosePersona && cookies[GUEST_COOKIE] !== '1') {
+      file = '/login.html';
+    }
+  }
+
   const full = path.join(__dirname, 'public', path.normalize(file).replace(/^(\.\.[/\\])+/, ''));
   fs.stat(full, (serr, st) => {
     if (serr || !st.isFile()) { res.writeHead(404); return res.end('Not found'); }
@@ -1681,6 +1773,10 @@ const server = http.createServer(async (req, res) => {
       'ETag': tag,
       'Last-Modified': lastMod,
     };
+    // Without this a shared cache could hand one visitor's answer at `/`
+    // to the next one -- the door to somebody signed in, or worse, the
+    // listings page to somebody who has not been through it.
+    if (vary) headers.Vary = vary;
     const inm = req.headers['if-none-match'];
     const ims = req.headers['if-modified-since'];
     if (inm === tag || (!inm && ims && Date.parse(ims) >= Math.floor(st.mtimeMs / 1000) * 1000)) {
