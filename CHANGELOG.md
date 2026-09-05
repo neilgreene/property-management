@@ -12,6 +12,35 @@ date the work was completed.
 
 ---
 
+## 0.9.57 — 2026-09-05
+
+**The workspace screens are the properties panel's shape.**
+
+The first attempt was a full-width list with a 420px detail pinned to the far
+edge. That left a band of nothing down the middle and made the eye cross the
+whole screen to read one record. It is now what Properties already is: a slim
+picker on the left, and the record filling everything to its right. Two admin
+screens that behave differently is two things to learn.
+
+Measured at 1500px: picker 318px, sheet starting at x=514 and 986px wide, with
+the record's cards side by side at 464px each rather than stacked in a narrow
+column.
+
+The picker rows are the properties list's shape too — a mark, then a name, a
+line of detail, and the state. The mark is the person's photograph where they
+have one and their initials where they do not, so a list of records reads as a
+column rather than a wall of text.
+
+One search box, **moved** rather than duplicated. The gallery view has no picker
+to sit in, so the input is appended to the sheet head instead; two inputs would
+be two pieces of state that can disagree.
+
+Two smaller things: `app.css` gives `.primary` a width for the filter bar, and a
+save button spanning the whole sheet reads as a banner rather than a button —
+now `width:auto`. And "1 contracts" is "1 contract".
+
+---
+
 ## 0.9.56 — 2026-09-05
 
 **The workspace screens sit where Properties sits, and can be searched.**

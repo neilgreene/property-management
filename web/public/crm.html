@@ -21,29 +21,32 @@
   <a class="ghost" href="/login.html">Sign in</a>
 </div>
 
-<!-- One shell, one script. The four administrative lists and the three
-     personal ones differ in their columns and their actions, not in their
-     shape, and four near-identical HTML files would be four places to fix
-     the next layout bug. The rail still links to each by name. -->
+<!-- The same shape as the properties panel: a slim picker on the left, and
+     the detail using every pixel to its right. A narrow panel pinned to the
+     far edge left a band of nothing in the middle and made the eye travel
+     the width of the screen to read one record. -->
 <main id="app" hidden>
-  <section class="crmhead">
-    <h1 id="title">…</h1>
-    <div class="crmact" id="headact"></div>
+  <section class="picker" id="picker">
+    <!-- One search box, moved rather than duplicated: the gallery view has
+         no picker to sit in, and two inputs would be two pieces of state
+         that can disagree. -->
+    <div class="pickhead" id="pickhead">
+      <div id="searchbox" class="searchbox">
+        <input id="q" type="search" autocomplete="off" placeholder="Search…">
+        <div class="pickmeta"><span id="count"></span><span id="headact"></span></div>
+      </div>
+    </div>
+    <div class="plist" id="list"></div>
   </section>
 
-  <div class="crmsearch">
-    <input id="q" type="search" autocomplete="off" placeholder="Search…">
-    <span class="crmcount" id="count"></span>
-  </div>
-
-  <p id="msg" class="msg" hidden></p>
-
-  <section class="crmwrap" id="wrap">
-    <div class="crmlist" id="list"></div>
-    <aside class="crmdetail" id="detail" hidden>
-      <button class="close" id="closedetail" aria-label="Close">×</button>
-      <div id="detailbody"></div>
-    </aside>
+  <section class="sheet" id="sheet">
+    <div class="sheethead">
+      <h1 id="title">…</h1>
+      <span id="msg" class="msg" hidden></span>
+    </div>
+    <div id="detailbody" class="dbody">
+      <p class="cempty" id="nothing">Choose one from the list.</p>
+    </div>
   </section>
 </main>
 

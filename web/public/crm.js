@@ -20,10 +20,22 @@
   const money = (n) => n == null || n === ''
     ? '—' : '$' + Number(n).toLocaleString('en-US', { maximumFractionDigits: 0 });
   const pct = (n) => n == null ? '—' : (Number(n) * 100).toFixed(2) + '%';
+  const plural = (n, one, many) => `${n} ${Number(n) === 1 ? one : (many || one + 's')}`;
   const day = (t) => !t ? '—'
     : new Date(t).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
 
   const state = { view: null, rows: [], sel: null, who: null, lookups: {}, q: '' };
+
+  const initials = (n) => String(n || '?').trim().split(/\s+/).slice(0, 2)
+    .map((w) => w[0]).join('').toUpperCase();
+
+  // The mark down the left of the picker. A photograph where the person has
+  // one, initials otherwise; a square for a record rather than a person.
+  const face = (person_id, name) => `<span class="mark2"
+      ><img src="/media/avatar/${esc(person_id)}" alt=""
+            onerror="this.replaceWith(document.createTextNode('${esc(initials(name))}'))"
+      ></span>`;
+  const tag = (text) => `<span class="mark2 sq">${esc(text)}</span>`;
 
   // Every word has to appear somewhere in the row. Typed against what is
   // already loaded rather than a round trip: these lists are tens of rows,
@@ -71,13 +83,12 @@
     agents: {
       title: 'Agents',
       load: () => api('agents'),
-      row: (a) => `<div class="ctop"><span class="cname">${esc(a.full_name)}</span>
-          ${a.brokerage ? `<span class="pill">${esc(a.brokerage)}</span>` : ''}
-          ${a.active ? '' : '<span class="stage ended">inactive</span>'}</div>
-        <div class="cmeta"><span>${esc(a.email)}</span>
-          ${a.phone ? `<span>${esc(a.phone)}</span>` : ''}
-          <span><b>${a.customer_count}</b> customers</span>
-          <span><b>${a.open_opportunities}</b> open</span></div>`,
+      row: (a) => face(a.person_id, a.full_name)
+        + `<span class="ctext">
+             <span class="cname">${esc(a.full_name)}</span>
+             <span class="csub">${esc(a.brokerage || a.email)}</span>
+             <span class="csub">${plural(a.customer_count, 'customer')} · ${a.open_opportunities} open</span>
+           </span>`,
       detail: agentDetail,
     },
 
@@ -86,31 +97,30 @@
       load: () => api('customers'),
       // "Ruiz, Dana" -- a list of customers is looked up by surname, so the
       // database sorts on it and the row leads with it.
-      row: (c) => `<div class="ctop"><span class="cname">${esc(c.sort_name || c.full_name)}</span>
-          ${c.approved_contracts > 0
-            ? `<span class="stage approved">${c.unlocked_properties} unlocked</span>` : ''}
-          ${c.signed ? '<span class="pill">fee agreement signed</span>' : ''}</div>
-        <div class="cmeta"><span>${esc(c.email)}</span>
-          ${c.agent_name ? `<span>agent <b>${esc(c.agent_name)}</b></span>` : ''}
-          <span><b>${c.opportunity_count}</b> opportunities</span>
-          <span><b>${c.contract_count}</b> contracts</span></div>`,
+      row: (c) => face(c.person_id, c.full_name)
+        + `<span class="ctext">
+             <span class="cname">${esc(c.sort_name || c.full_name)}</span>
+             <span class="csub">${esc(c.email)}</span>
+             <span class="csub">${c.approved_contracts > 0
+               ? `<span class="stage approved">${c.unlocked_properties} unlocked</span> ` : ''}${
+               plural(c.contract_count, 'contract')}</span>
+           </span>`,
       detail: customerDetail,
     },
 
     'my-customers': {
       title: 'My customers',
       load: () => api('my-customers'),
-      row: (c) => `<div class="ctop"><span class="cname">${esc(c.sort_name || c.full_name)}</span>
-          ${c.contracts_awaiting_payment > 0
-            ? `<span class="stage awaiting">${c.contracts_awaiting_payment} awaiting payment</span>` : ''}
-          ${c.contracts_awaiting_signature > 0
-            ? `<span class="stage awaiting">${c.contracts_awaiting_signature} awaiting signature</span>` : ''}
-          ${c.contracts_approved > 0
-            ? `<span class="stage approved">${c.contracts_approved} approved</span>` : ''}</div>
-        <div class="cmeta"><span>${esc(c.email)}</span>
-          ${c.phone ? `<span>${esc(c.phone)}</span>` : ''}
-          <span><b>${c.properties_unlocked}</b> properties open to them</span>
-          <span>last activity ${day(c.last_activity)}</span></div>`,
+      row: (c) => face(c.person_id, c.full_name)
+        + `<span class="ctext">
+             <span class="cname">${esc(c.sort_name || c.full_name)}</span>
+             <span class="csub">${esc(c.phone_mobile || c.email)}</span>
+             <span class="csub">${c.contracts_awaiting_payment > 0
+               ? `<span class="stage awaiting">${c.contracts_awaiting_payment} to pay</span> ` : ''}${
+               c.contracts_awaiting_signature > 0
+               ? `<span class="stage awaiting">${c.contracts_awaiting_signature} to sign</span> ` : ''}${
+               c.properties_unlocked} open</span>
+           </span>`,
       detail: myCustomerDetail,
     },
 
@@ -118,13 +128,14 @@
       title: 'Opportunities',
       load: () => api('opportunities'),
       head: () => `<button class="primary" id="newopp">New opportunity</button>`,
-      row: (o) => `<div class="ctop"><span class="cname">${esc(o.title)}</span>
-          <span class="stage ${o.status === 'open' ? 'awaiting' : o.status === 'won' ? 'approved' : 'ended'}"
-            >${esc(o.status)}</span></div>
-        <div class="cmeta"><span>${esc(o.customer_name)}</span>
-          ${o.agent_name ? `<span>agent <b>${esc(o.agent_name)}</b></span>` : ''}
-          <span><b>${o.property_count}</b> properties</span>
-          <span>opened ${day(o.created_at)}</span></div>`,
+      row: (o) => tag(o.property_count + '\u00a0\u25c7')
+        + `<span class="ctext">
+             <span class="cname">${esc(o.title)}</span>
+             <span class="csub">${esc(o.customer_name)}</span>
+             <span class="csub"><span class="stage ${o.status === 'open' ? 'awaiting'
+               : o.status === 'won' ? 'approved' : 'ended'}">${esc(o.status)}</span>
+               ${plural(o.property_count, 'property', 'properties')}</span>
+           </span>`,
       detail: opportunityDetail,
     },
 
@@ -132,25 +143,24 @@
       title: 'Contracts',
       load: () => api('contracts'),
       head: () => `<button class="primary" id="newcontract">New contract</button>`,
-      row: (k) => `<div class="ctop"><span class="cref">${esc(k.reference)}</span>
-          <span class="cname">${esc(k.customer_name)}</span>${stageChip(k.stage)}</div>
-        <div class="cmeta"><span><b>${k.property_count}</b> properties</span>
-          <span>fee <b>${money(k.fee_amount)}</b></span>
-          ${k.opportunity_title ? `<span>${esc(k.opportunity_title)}</span>` : ''}
-          <span>${k.approved_at ? 'approved ' + day(k.approved_at)
-            : k.sent_at ? 'sent ' + day(k.sent_at) : 'not sent'}</span></div>`,
+      row: (k) => face(k.person_id, k.customer_name)
+        + `<span class="ctext">
+             <span class="cref">${esc(k.reference)}</span>
+             <span class="cname">${esc(k.customer_name)}</span>
+             <span class="csub">${stageChip(k.stage)} ${plural(k.property_count, 'property', 'properties')}</span>
+           </span>`,
       detail: contractDetail,
     },
 
     'my-contracts': {
       title: 'My contracts',
       load: () => api('my-contracts'),
-      row: (k) => `<div class="ctop"><span class="cref">${esc(k.reference)}</span>
-          ${stageChip(k.stage)}</div>
-        <div class="cmeta"><span><b>${k.property_count}</b> properties</span>
-          <span>fee <b>${money(k.fee_amount)}</b></span>
-          <span>${k.approved_at ? 'approved ' + day(k.approved_at)
-            : 'sent ' + day(k.sent_at)}</span></div>`,
+      row: (k) => tag(k.property_count + '\u00a0\u2302')
+        + `<span class="ctext">
+             <span class="cref">${esc(k.reference)}</span>
+             <span class="cname">${money(k.fee_amount)}</span>
+             <span class="csub">${stageChip(k.stage)}</span>
+           </span>`,
       detail: myContractDetail,
     },
 
@@ -187,17 +197,24 @@
     return {
       head: a.full_name,
       sub: a.email + (a.phone ? ' · ' + a.phone : ''),
-      body: `
-        <div class="dsec">Details</div>
-        <div class="dfields">
-          <label>Licence number<input id="f_licence" value="${esc(a.licence_no || '')}"></label>
-          <label>Brokerage<input id="f_brokerage" value="${esc(a.brokerage || '')}"></label>
-          <label>Fee schedule<select id="f_metro"></select></label>
-          <label>Notes<textarea id="f_notes">${esc(a.notes || '')}</textarea></label>
-        </div>
-        <div class="dact"><button class="primary" id="save">Save</button></div>
-        ${facts([['Customers', a.customer_count], ['Open opportunities', a.open_opportunities],
-                 ['GHL reference', a.external_ref ? esc(a.external_ref) : null]])}`,
+      body: `<div class="dcards">
+          <div class="dcard">
+            <div class="dsec">Details</div>
+            <div class="dfields two">
+              <label>Licence number<input id="f_licence" value="${esc(a.licence_no || '')}"></label>
+              <label>Brokerage<input id="f_brokerage" value="${esc(a.brokerage || '')}"></label>
+              <label class="span">Fee schedule<select id="f_metro"></select></label>
+              <label class="span">Notes<textarea id="f_notes">${esc(a.notes || '')}</textarea></label>
+            </div>
+            <div class="dact"><button class="primary" id="save">Save</button></div>
+          </div>
+          <div class="dcard">
+            <div class="dsec">Book</div>
+            ${facts([['Customers', a.customer_count],
+                     ['Open opportunities', a.open_opportunities],
+                     ['GHL reference', a.external_ref ? esc(a.external_ref) : null]])}
+          </div>
+        </div>`,
       wire: async () => {
         await fillMetro('f_metro', a.metro_code);
         $('save').addEventListener('click', () => saveAgent(a));
@@ -209,38 +226,43 @@
     return {
       head: c.full_name,
       sub: c.email + (c.phone ? ' · ' + c.phone : ''),
-      body: `
-        <div class="dsec">Details</div>
-        <div class="dfields">
-          <label>Agent<select id="f_agent"></select></label>
-          <label>Target fee schedule<select id="f_metro"></select></label>
-          <div class="dpair">
-            <label>Budget from<input id="f_lo" type="number" step="1000"
-              value="${c.budget_low == null ? '' : c.budget_low}"></label>
-            <label>Budget to<input id="f_hi" type="number" step="1000"
-              value="${c.budget_high == null ? '' : c.budget_high}"></label>
+      body: `<div class="dcards">
+          <div class="dcard">
+            <div class="dsec">Contact</div>
+            <div class="dfields two">
+              <label>Mobile<input id="f_mobile" value="${esc(c.phone_mobile || '')}"></label>
+              <label>Home<input id="f_phome" value="${esc(c.phone_home || '')}"></label>
+              <label class="span">Work<input id="f_pwork" value="${esc(c.phone_work || '')}"></label>
+              <label class="span">Home address<textarea id="f_haddr">${esc(c.home_address || '')}</textarea></label>
+              <label class="span">Work address<textarea id="f_waddr">${esc(c.work_address || '')}</textarea></label>
+            </div>
           </div>
-        </div>
 
-        <div class="dsec">Contact</div>
-        <div class="dfields">
-          <div class="dpair">
-            <label>Mobile<input id="f_mobile" value="${esc(c.phone_mobile || '')}"></label>
-            <label>Home<input id="f_phome" value="${esc(c.phone_home || '')}"></label>
+          <div class="dcard">
+            <div class="dsec">Details</div>
+            <div class="dfields two">
+              <label class="span">Agent<select id="f_agent"></select></label>
+              <label class="span">Target fee schedule<select id="f_metro"></select></label>
+              <label>Budget from<input id="f_lo" type="number" step="1000"
+                value="${c.budget_low == null ? '' : c.budget_low}"></label>
+              <label>Budget to<input id="f_hi" type="number" step="1000"
+                value="${c.budget_high == null ? '' : c.budget_high}"></label>
+              <label class="span">Notes<textarea id="f_notes">${esc(c.notes || '')}</textarea></label>
+            </div>
           </div>
-          <label>Work<input id="f_pwork" value="${esc(c.phone_work || '')}"></label>
-          <label>Home address<textarea id="f_haddr">${esc(c.home_address || '')}</textarea></label>
-          <label>Work address<textarea id="f_waddr">${esc(c.work_address || '')}</textarea></label>
-          <label>Notes<textarea id="f_notes">${esc(c.notes || '')}</textarea></label>
+
+          <div class="dcard">
+            <div class="dsec">Access</div>
+            ${facts([
+              ['Fee agreement', c.signed ? 'signed' : 'not signed'],
+              ['Contracts', c.contract_count],
+              ['Approved', c.approved_contracts],
+              ['Properties open to them', c.unlocked_properties],
+              ['GHL reference', c.external_ref ? esc(c.external_ref) : null]])}
+          </div>
+
         </div>
-        <div class="dact"><button class="primary" id="save">Save</button></div>
-        <div class="dsec">Access</div>
-        ${facts([
-          ['Fee agreement', c.signed ? 'signed' : 'not signed'],
-          ['Contracts', c.contract_count],
-          ['Approved', c.approved_contracts],
-          ['Properties open to them', c.unlocked_properties],
-          ['GHL reference', c.external_ref ? esc(c.external_ref) : null]])}`,
+        <div class="dact"><button class="primary" id="save">Save</button></div>`,
       wire: async () => {
         await fillAgents('f_agent', c.agent_id);
         await fillMetro('f_metro', c.target_metro);
@@ -253,7 +275,9 @@
     return {
       head: c.full_name,
       sub: c.email + (c.phone ? ' · ' + c.phone : ''),
-      body: `${facts([
+      body: `<div class="dcards"><div class="dcard">
+        <div class="dsec">Contact</div>
+        ${facts([
           ['Mobile', c.phone_mobile ? esc(c.phone_mobile) : null],
           ['Home', c.phone_home ? esc(c.phone_home) : null],
           ['Work', c.phone_work ? esc(c.phone_work) : null],
@@ -265,8 +289,11 @@
           ['Opportunities', c.opportunity_count],
           ['Properties open to them', c.properties_unlocked]])}
         ${c.notes ? `<p class="dsub" style="margin-top:12px">${esc(c.notes)}</p>` : ''}
-        <div class="dsec">Contracts</div>
-        <div id="kc" class="hist">…</div>`,
+        </div>
+        <div class="dcard">
+          <div class="dsec">Contracts</div>
+          <div id="kc" class="hist">…</div>
+        </div></div>`,
       wire: async () => {
         const rows = await api('my-customer-contracts?person=' + encodeURIComponent(c.person_id));
         $('kc').innerHTML = rows.length ? rows.map((k) => `
@@ -282,14 +309,21 @@
     return {
       head: o.title,
       sub: o.customer_name + (o.agent_name ? ' · agent ' + o.agent_name : ''),
-      body: `${facts([['Status', esc(o.status)], ['Opened', day(o.created_at)],
-                      ['Closed', o.closed_at ? day(o.closed_at) : null],
-                      ['GHL reference', o.external_ref ? esc(o.external_ref) : null]])}
-        ${o.notes ? `<p class="dsub" style="margin-top:12px">${esc(o.notes)}</p>` : ''}
-        <div class="dsec">Properties</div>
-        <div class="plist" id="props">…</div>
-        <div class="dfields" style="margin-top:10px">
-          <label>Add a property<select id="addprop"></select></label>
+      body: `<div class="dcards">
+        <div class="dcard">
+          <div class="dsec">Opportunity</div>
+          ${facts([['Status', esc(o.status)], ['Opened', day(o.created_at)],
+                   ['Closed', o.closed_at ? day(o.closed_at) : null],
+                   ['GHL reference', o.external_ref ? esc(o.external_ref) : null]])}
+          ${o.notes ? `<p class="dsub" style="margin-top:12px">${esc(o.notes)}</p>` : ''}
+        </div>
+        <div class="dcard">
+          <div class="dsec">Properties</div>
+          <div class="plist2" id="props">…</div>
+          <div class="dfields" style="margin-top:10px">
+            <label>Add a property<select id="addprop"></select></label>
+          </div>
+        </div>
         </div>
         <div class="dact">
           ${o.status === 'open'
@@ -341,21 +375,27 @@
     return {
       head: k.reference + ' · ' + k.customer_name,
       sub: '',
-      body: `<div style="margin:-6px 0 12px">${stageChip(k.stage)}</div>
-        ${facts([
-          ['Fee', money(k.fee_amount)],
-          ['Sent', k.sent_at ? day(k.sent_at) : null],
-          ['Signed', k.signed_at ? day(k.signed_at) : null],
-          ['Paid', k.paid_at ? day(k.paid_at) : null],
-          ['Approved', k.approved_at ? day(k.approved_at) : null],
-          ['Opportunity', k.opportunity_title ? esc(k.opportunity_title) : null]])}
-        ${k.notes ? `<p class="dsub" style="margin-top:12px">${esc(k.notes)}</p>` : ''}
-
-        <div class="dsec">Properties</div>
-        <div class="plist" id="props">…</div>
-        ${editable ? `<div class="dfields" style="margin-top:10px">
-            <label>Add a property<select id="addprop"></select></label>
-          </div>` : ''}
+      body: `<div style="margin:-4px 0 14px">${stageChip(k.stage)}</div>
+        <div class="dcards">
+          <div class="dcard">
+            <div class="dsec">Contract</div>
+            ${facts([
+              ['Fee', money(k.fee_amount)],
+              ['Sent', k.sent_at ? day(k.sent_at) : null],
+              ['Signed', k.signed_at ? day(k.signed_at) : null],
+              ['Paid', k.paid_at ? day(k.paid_at) : null],
+              ['Approved', k.approved_at ? day(k.approved_at) : null],
+              ['Opportunity', k.opportunity_title ? esc(k.opportunity_title) : null]])}
+            ${k.notes ? `<p class="dsub" style="margin-top:12px">${esc(k.notes)}</p>` : ''}
+          </div>
+          <div class="dcard">
+            <div class="dsec">Properties</div>
+            <div class="plist2" id="props">…</div>
+            ${editable ? `<div class="dfields" style="margin-top:10px">
+                <label>Add a property<select id="addprop"></select></label>
+              </div>` : ''}
+          </div>
+        </div>
 
         <div class="dact">
           ${k.status === 'draft' ? '<button class="primary" id="send">Send to customer</button>' : ''}
@@ -367,8 +407,10 @@
             ? '<button class="ghost" id="withdraw">Withdraw</button>' : ''}
         </div>
 
-        <div class="dsec">History</div>
-        <div class="hist" id="hist">…</div>`,
+        <div class="dcards" style="margin-top:16px"><div class="dcard span">
+          <div class="dsec">History</div>
+          <div class="hist" id="hist">…</div>
+        </div></div>`,
       wire: async () => {
         await drawContractProps(k);
         if (editable) {
@@ -423,15 +465,22 @@
     return {
       head: k.reference,
       sub: '',
-      body: `<div style="margin:-6px 0 12px">${stageChip(k.stage)}</div>
-        ${facts([['Fee', money(k.fee_amount)],
-                 ['Sent to you', day(k.sent_at)],
-                 ['You signed', k.signed_at ? day(k.signed_at) : null],
-                 ['You paid', k.paid_at ? day(k.paid_at) : null],
-                 ['Approved', k.approved_at ? day(k.approved_at) : null]])}
-        ${k.notes ? `<p class="dsub" style="margin-top:12px">${esc(k.notes)}</p>` : ''}
-        <div class="dsec">Properties</div>
-        <div class="plist" id="props">…</div>
+      body: `<div style="margin:-4px 0 14px">${stageChip(k.stage)}</div>
+        <div class="dcards">
+          <div class="dcard">
+            <div class="dsec">Where it stands</div>
+            ${facts([['Fee', money(k.fee_amount)],
+                     ['Sent to you', day(k.sent_at)],
+                     ['You signed', k.signed_at ? day(k.signed_at) : null],
+                     ['You paid', k.paid_at ? day(k.paid_at) : null],
+                     ['Approved', k.approved_at ? day(k.approved_at) : null]])}
+            ${k.notes ? `<p class="dsub" style="margin-top:12px">${esc(k.notes)}</p>` : ''}
+          </div>
+          <div class="dcard">
+            <div class="dsec">Properties</div>
+            <div class="plist2" id="props">…</div>
+          </div>
+        </div>
         <div class="dact">
           ${k.status === 'sent' && !k.signed_at
             ? '<button class="primary" id="sign">Sign the agreement</button>' : ''}
@@ -459,6 +508,12 @@
   }
 
   function refreshRow() { load(state.view, state.sel); }
+
+  function closeDetail() {
+    state.sel = null;
+    $('detailbody').innerHTML = '<p class="cempty">Choose one from the list.</p>';
+    document.querySelectorAll('.crow').forEach((el) => el.classList.remove('on'));
+  }
 
   async function saveAgent(a) {
     await act(() => api('save-agent', {
@@ -535,18 +590,10 @@
       `<div class="dhead">${esc(d.head)}</div>`
       + (d.sub ? `<p class="dsub">${esc(d.sub)}</p>` : '')
       + d.body;
-    $('detail').hidden = false;
-    $('wrap').classList.add('open');
     document.querySelectorAll('.crow').forEach((el) =>
       el.classList.toggle('on', el.dataset.k === String(key)));
+    $('sheet').scrollTop = 0;
     if (d.wire) d.wire();
-  }
-
-  function closeDetail() {
-    state.sel = null;
-    $('detail').hidden = true;
-    $('wrap').classList.remove('open');
-    document.querySelectorAll('.crow').forEach((el) => el.classList.remove('on'));
   }
 
   const keyOf = (r) => r.contract_id || r.opportunity_id || r.person_id || r.property_id;
@@ -558,18 +605,18 @@
     $('viewname').textContent = v.title;
     document.title = 'SDI — ' + v.title;
     $('headact').innerHTML = v.head ? v.head() : '';
+    // A gallery has nothing to pick, so it takes the whole width -- and the
+    // search box moves into the sheet head with it.
+    $('app').classList.toggle('wide', !!v.grid);
+    (v.grid ? $('sheet').querySelector('.sheethead') : $('pickhead'))
+      .appendChild($('searchbox'));
 
     let rows = [];
     try { rows = await v.load(); } catch (e) { say(e.message, true); }
     state.rows = rows;
 
-    if (v.grid) {
-      $('list').className = 'pgrid';
-      draw();
-      return;
-    }
-
-    $('list').className = 'crmlist';
+    $('detailbody').innerHTML = v.detail
+      ? '<p class="cempty" id="nothing">Choose one from the list.</p>' : '';
     draw();
 
     // Re-open what was open, so an action that reloads the list does not
@@ -590,13 +637,16 @@
       ? `${shown.length} of ${state.rows.length}`
       : (state.rows.length === 1 ? '1 row' : `${state.rows.length} rows`);
 
+    // A gallery draws into the sheet; a pickable list draws into the picker.
     if (v.grid) {
-      $('list').innerHTML = shown.length ? shown.map(v.card).join('')
+      $('detailbody').className = 'pgrid';
+      $('detailbody').innerHTML = shown.length ? shown.map(v.card).join('')
         : `<p class="cempty">${state.q ? 'Nothing matches \u201c' + esc(state.q) + '\u201d.'
           : 'Nothing yet. A property appears here once a contract naming it has '
             + 'been signed and paid.'}</p>`;
       return;
     }
+    $('detailbody').className = 'dbody';
 
     $('list').innerHTML = shown.length
       ? shown.map((r) => `<button class="crow" data-k="${esc(keyOf(r))}">${v.row(r)}</button>`).join('')
@@ -672,7 +722,6 @@
     }
 
     $('app').hidden = false;
-    $('closedetail').addEventListener('click', closeDetail);
     $('q').addEventListener('input', () => { state.q = $('q').value.trim(); draw(); });
     await load(view);
   }
